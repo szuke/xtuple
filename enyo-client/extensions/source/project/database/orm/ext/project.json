@@ -2,6 +2,31 @@
   {
     "context": "project",
     "nameSpace": "XM",
+    "type": "ProjectType",
+    "table": "xt.prjtypeext",
+    "isExtension": true,
+    "comment": "Extended by Project",
+    "relations": [
+      {
+        "column": "prjtypeext_id",
+        "inverse": "id"
+      }
+    ],
+    "properties": [
+      {
+        "name": "emailProfile",
+        "toOne": {
+          "type": "ProjectEmailProfile",
+          "column": "prjtypeext_emlprofile_id"
+        }
+      }
+    ],
+    "sequence": 0,
+    "isSystem": true
+  },
+  {
+    "context": "project",
+    "nameSpace": "XM",
     "type": "IncidentRelation",
     "table": "incdt",
     "isExtension": true,
@@ -174,51 +199,6 @@
           "isNested": true,
           "type": "OpportunityProject",
           "column": "ophead_id",
-          "inverse": "source"
-        }
-      }
-    ],
-    "sequence": 0,
-    "isSystem": true
-  },
-  {
-    "context": "project",
-    "nameSpace": "XM",
-    "type": "Project",
-    "table": "prj",
-    "isExtension": true,
-    "comment": "Extended by Project",
-    "relations": [
-      {
-        "column": "prj_id",
-        "inverse": "id"
-      }
-    ],
-    "properties": [
-      {
-        "name": "opportunities",
-        "toMany": {
-          "isNested": true,
-          "type": "ProjectOpportunity",
-          "column": "prj_id",
-          "inverse": "source"
-        }
-      },
-      {
-        "name": "incidents",
-        "toMany": {
-          "isNested": true,
-          "type": "ProjectIncident",
-          "column": "prj_id",
-          "inverse": "source"
-        }
-      },
-      {
-        "name": "toDos",
-        "toMany": {
-          "isNested": true,
-          "type": "ProjectToDo",
-          "column": "prj_id",
           "inverse": "source"
         }
       }

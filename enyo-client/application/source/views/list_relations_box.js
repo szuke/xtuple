@@ -22,6 +22,15 @@ trailing:true, white:true*/
   // CREDIT CARD
   //
 
+  /**
+    Not your typical list relations box. This box allows you to select
+    a credit card linked with the customer of this workspace, and then
+    authorize or process the credit card. This is accomplished via a
+    custom node route. You can also add a credit card (to the customer,
+    not to the model backing this workspace) on the fly using
+    PopupWorkspace. Magstripe readers are also supported, which will do
+    a similar operation as the popup workspace, without the popup.
+   */
   enyo.kind({
     name: "XV.CreditCardBox",
     kind: "XV.ListRelationsBox",
@@ -56,7 +65,7 @@ trailing:true, white:true*/
       this.$.buttonsPanel.createComponent({
         kind: "onyx.Button",
         name: "processButton",
-        showing: false,
+        disabled: true,
         ontap: "processCreditCard",
         classes: "onyx-affirmative",
         content: "_process".loc()
@@ -64,7 +73,7 @@ trailing:true, white:true*/
       this.$.buttonsPanel.createComponent({
         kind: "onyx.Button",
         name: "authorizeButton",
-        showing: false,
+        disabled: true,
         ontap: "processCreditCard",
         content: "_authorize".loc()
       }, {owner: this});
@@ -75,6 +84,7 @@ trailing:true, white:true*/
     newItem: function (options) {
       options = options || {};
       var that = this,
+        // XXX #refactor
         customer = that.parent.parent.getValue().getValue("customer"),
         creditCardCollection = customer.get("creditCards"),
         creditCardModel = new XM.CreditCard(),
@@ -188,10 +198,11 @@ trailing:true, white:true*/
           payload.action = action;
           payload.amount = amount;
           payload.ccv = ccv;
+          // XXX #refactor
           payload.orderNumber = that.parent.parent.getValue().id;
           payload.customerNumber = that.parent.parent.getValue().getValue("customer.id");
-          that.$.authorizeButton.setShowing(false);
-          that.$.processButton.setShowing(false);
+          that.$.authorizeButton.setDisabled(true);
+          that.$.processButton.setDisabled(true);
           XT.dataSource.callRoute("credit-card", payload, {success: success, error: error});
         };
 
@@ -215,10 +226,17 @@ trailing:true, white:true*/
       var list = this.$.list,
         creditCard = list.getModel(list.getFirstSelected()),
         ccv = this.$.ccv.value,
-        amount = this.$.creditCardAmount.value;
+        amount = this.$.creditCardAmount.value,
+        disable = !creditCard ||
+          !amount ||
+          (!ccv && !!XT.session.settings.get("CCRequireCCV")) ||
+          // XXX refactor after attributesChanged refactor
+          // this kind should hold onto a reference to the model
+          // that backs the workspace
+          this.parent.parent.value.isNew();
 
-      this.$.processButton.setShowing(creditCard && amount && (ccv || !XT.session.settings.get("CCRequireCCV")));
-      this.$.authorizeButton.setShowing(creditCard && amount && (ccv || !XT.session.settings.get("CCRequireCCV")));
+      this.$.processButton.setDisabled(disable);
+      this.$.authorizeButton.setDisabled(disable);
       return true;
     }
   });
@@ -302,6 +320,125 @@ trailing:true, white:true*/
   });
 
   // ..........................................................
+  // INVOICE ALLOCATIONS
+  //
+
+  enyo.kind({
+    name: "XV.InvoiceAllocationsBox",
+    kind: "XV.ListRelationsBox",
+    parentKey: "invoice",
+    title: "_allocations".loc(),
+    listRelations: "XV.InvoiceAllocationListRelations",
+    create: function () {
+      this.inherited(arguments);
+      if (this.$.attachButton) {
+        this.$.attachButton.setShowing(false);
+      }
+      if (this.$.detachButton) {
+        this.$.detachButton.setShowing(false);
+      }
+      if (this.$.openButton) {
+        this.$.openButton.setShowing(false);
+      }
+      /*
+      TODO: re-enable when ready
+      this.createComponent({
+        kind: "onyx.Button",
+        name: "allocateButton",
+        onclick: "allocateItem",
+        content: "_allocate".loc(),
+        classes: "xv-groupbox-button-right",
+        container: this.$.buttonsPanel
+      });
+      */
+    },
+    allocateItem: function () {
+      var attr = this.attr,
+        list = this.$.list,
+        ListModel = list.getValue().model,
+        searchList = "XV.ReceivableList",
+        inEvent,
+        // Callback to handle selection...
+        callback = function (selectedModel) {
+          XT.log("handle selection");
+        };
+
+      // Open a search screen excluding objects already selected
+      inEvent = {
+        list: searchList,
+        callback: callback,
+        conditions: [
+          {attribute: "closeDate", operator: ">=", value: new Date(), includeNull: true},
+          {attribute: "documentDate", operator: "<=", value: new Date(), includeNull: true},
+          {attribute: "documentType", operator: "!=", value: "D"}
+        ],
+        parameterItemValues: [
+          {name: "showUnposted", value: true}
+        ]
+      };
+      this.doSearch(inEvent);
+    },
+    newItem: function () {
+      XT.log("TODO: open limited cash receipt workspace");
+    /**
+      var list = this.$.list,
+        parent = this.$.list.getParent(),
+        key = this.getParentKey(),
+        workspace = XV.getWorkspace(list.value.model.prototype.recordType),
+        attributes = {},
+        callback = function (model) {
+          if (!model) { return; }
+          var Model = list.getValue().model,
+            attrs = {},
+            value,
+            options = {};
+          attrs[Model.prototype.idAttribute] = model.id;
+          value = Model.findOrCreate(attrs);
+          options.success = function () {
+            list.getValue().add(value);
+            list.lengthChanged();
+          };
+          value.fetch(options);
+        },
+        inEvent;
+      attributes[key] = parent.id;
+      inEvent = {
+        originator: this,
+        workspace: workspace,
+        attributes: attributes,
+        callback: callback,
+        allowNew: false
+      };
+      this.doWorkspace(inEvent);
+      */
+    },
+  });
+
+  // ..........................................................
+  // INVOICE LINE TAX
+  //
+
+  enyo.kind({
+    name: "XV.InvoiceLineTaxBox",
+    kind: "XV.ListRelationsBox",
+    title: "_taxes".loc(),
+    listRelations: "XV.InvoiceLineTaxListRelations",
+    canOpen: false
+  });
+
+  // ..........................................................
+  // INVOICE TAX
+  //
+
+  enyo.kind({
+    name: "XV.InvoiceTaxBox",
+    kind: "XV.ListRelationsBox",
+    title: "_taxes".loc(),
+    listRelations: "XV.InvoiceTaxListRelations",
+    canOpen: false
+  });
+
+  // ..........................................................
   // ITEM GROUP ITEM
   //
 
@@ -327,6 +464,18 @@ trailing:true, white:true*/
     groupItemKey: "item",
     searchList: "XV.ItemList",
     listRelations: "XV.LocationItemListRelations"
+  });
+
+  // ..........................................................
+  // RETURN TAX
+  //
+
+  enyo.kind({
+    name: "XV.ReturnTaxBox",
+    kind: "XV.ListRelationsBox",
+    title: "_taxes".loc(),
+    listRelations: "XV.ReturnTaxListRelations",
+    canOpen: false
   });
 
 }());

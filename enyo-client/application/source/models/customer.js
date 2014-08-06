@@ -95,6 +95,9 @@ white:true*/
       if (options.effective) {
         opts.effective = options.effective;
       }
+      if (options.site) {
+        opts.siteId = options.site.id;
+      }
       params = [this.id, item.id, quantity, opts];
       this.dispatch("XM.Customer", "itemPrice", params, options);
       return this;
@@ -279,10 +282,50 @@ white:true*/
 
   });
 
-  XM.Customer.used = function (id, options) {
-    return XM.ModelMixin.dispatch('XM.Customer', 'used',
-      [id], options);
-  };
+  // ..........................................................
+  // CLASS METHODS
+  //
+  _.extend(XM.Customer, /** @lends XM.Customer# */{
+
+    used: function (id, options) {
+      return XM.ModelMixin.dispatch('XM.Customer', 'used', [id], options);
+    },
+
+    // ..........................................................
+    // CONSTANTS
+    //
+
+    /**
+      Customer is credit is in good standing.
+
+      @static
+      @constant
+      @type String
+      @default G
+    */
+    CREDIT_GOOD: "G",
+
+    /**
+      Customer is on credit warn.
+
+      @static
+      @constant
+      @type String
+      @default W
+    */
+    CREDIT_WARN: "W",
+
+    /**
+      Customer is on credit hold.
+
+      @static
+      @constant
+      @type String
+      @default H
+    */
+    CREDIT_HOLD: "H"
+
+  });
 
   /**
     @class
@@ -306,10 +349,17 @@ white:true*/
   XM.CustomerCharacteristic = XM.CharacteristicAssignment.extend({
     /** @scope XM.CustomerCharacteristic.prototype */
 
-    recordType: 'XM.CustomerCharacteristic'
+    recordType: 'XM.CustomerCharacteristic',
+
+    which: 'isCustomers'
 
   });
 
+  XM.CustomerEmailProfile = XM.Model.extend({
+
+    recordType: "XM.CustomerEmailProfile"
+
+  });
   /**
     @class
 
@@ -417,6 +467,18 @@ white:true*/
     recordType: 'XM.CustomerGroup',
 
     documentKey: 'name'
+
+  });
+
+  /**
+    @class
+
+    @extends XM.Model
+  */
+  XM.CustomerCustomerGroup = XM.Model.extend({
+    /** @scope XM.CustomerCustomerGroup.prototype */
+
+    recordType: 'XM.CustomerCustomerGroup'
 
   });
 
@@ -593,6 +655,21 @@ white:true*/
 
   });
 
+  /**
+    @class
+
+    @extends XM.AccountDocument
+  */
+  XM.BillingCustomer = XM.AccountDocument.extend({
+    /** @scope XM.BillingCustomer.prototype */
+
+    recordType: 'XM.BillingCustomer',
+
+    descriptionKey: "name"
+
+  });
+
+  XM.BillingCustomer = XM.BillingCustomer.extend(XM.CustomerMixin);
 
   /**
     @class
@@ -758,6 +835,18 @@ white:true*/
 
     @extends XM.Collection
   */
+  XM.BillingCustomerCollection = XM.Collection.extend({
+    /** @scope XM.BillingCustomerCollection.prototype */
+
+    model: XM.BillingCustomer
+
+  });
+
+  /**
+    @class
+
+    @extends XM.Collection
+  */
   XM.SalesCustomerCollection = XM.Collection.extend({
     /** @scope XM.SalesCustomerCollection.prototype */
 
@@ -806,6 +895,18 @@ white:true*/
 
     @extends XM.Collection
   */
+  XM.CustomerCustomerGroupCollection = XM.Collection.extend({
+    /** @scope XM.CustomerCustomerGroupCollection.prototype */
+
+    model: XM.CustomerCustomerGroup
+
+  });
+
+  /**
+    @class
+
+    @extends XM.Collection
+  */
   XM.CustomerGroupCustomerCollection = XM.Collection.extend({
     /** @scope XM.CustomerGroupCustomerCollection.prototype */
 
@@ -813,6 +914,9 @@ white:true*/
 
   });
 
+  XM.CustomerEmailProfileCollection = XM.Collection.extend({
+    model: XM.CustomerEmailProfile
+  });
   /**
     @class
 

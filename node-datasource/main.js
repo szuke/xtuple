@@ -3,18 +3,23 @@
 /*jshint node:true, indent:2, curly:false, eqeqeq:true, immed:true, latedef:true, newcap:true, noarg:true,
 regexp:true, undef:true, strict:true, trailing:true, white:true */
 /*global X:true, Backbone:true, _:true, XM:true, XT:true, SYS:true, jsonpatch:true*/
+process.chdir(__dirname);
 
 Backbone = require("backbone");
 _ = require("underscore");
 jsonpatch = require("json-patch");
 SYS = {};
+XT = { };
+var express = require('express');
+var app;
 
 (function () {
   "use strict";
 
   var options = require("./lib/options"),
     authorizeNet,
-    sessionOptions = {};
+    schemaSessionOptions = {},
+    privSessionOptions = {};
 
   /**
    * Include the X framework.
@@ -66,18 +71,17 @@ SYS = {};
   X.setup(options);
 
   // load some more required files
-  require("./lib/ext/datasource");
+  var datasource = require("./lib/ext/datasource");
   require("./lib/ext/models");
   require("./lib/ext/smtp_transport");
-  
-  if (typeof X.options.biServer !== 'undefined') {
-    require("./olapcatalog");
-    require("./lib/ext/olapsource");
-  }
+
+  datasource.setupPgListeners(X.options.datasource.databases, {
+    email: X.smtpTransport.sendMail
+  });
 
   // load the encryption key, or create it if it doesn't exist
   // it should created just once, the very first time the datasoruce starts
-  var encryptionKeyFilename = './lib/private/encryption_key.txt';
+  var encryptionKeyFilename = X.options.datasource.encryptionKeyFile || './lib/private/encryption_key.txt';
   X.fs.exists(encryptionKeyFilename, function (exists) {
     if (exists) {
       X.options.encryptionKey = X.fs.readFileSync(encryptionKeyFilename, "utf8");
@@ -87,13 +91,74 @@ SYS = {};
     }
   });
 
-  sessionOptions.username = X.options.databaseServer.user;
-  sessionOptions.database = X.options.datasource.databases[0];
 
   XT.session = Object.create(XT.Session);
   XT.session.schemas.SYS = false;
-  XT.session.loadSessionObjects(XT.session.SCHEMA, sessionOptions);
-  XT.session.loadSessionObjects(XT.session.PRIVILEGES, sessionOptions);
+
+  var getExtensionDir = function (extension) {
+    var dirMap = {
+      "/private-extensions": X.path.join(__dirname, "../..", extension.location, "source", extension.name),
+      "/xtuple-extensions": X.path.join(__dirname, "../..", extension.location, "source", extension.name),
+      "/core-extensions": X.path.join(__dirname, "../enyo-client/extensions/source", extension.name),
+      "npm": X.path.join(__dirname, "../node_modules", extension.name)
+    };
+    return dirMap[extension.location];
+  };
+  var useClientDir = X.useClientDir = function (path, dir) {
+    path = path.indexOf("npm") === 0 ? "/" + path : path;
+    _.each(X.options.datasource.databases, function (orgValue, orgKey, orgList) {
+      app.use("/" + orgValue + path, express.static(dir, { maxAge: 86400000 }));
+    });
+  };
+  var loadExtensionClientside = function (extension) {
+    var extensionLocation = extension.location === "npm" ? extension.location : extension.location + "/source";
+    useClientDir(extensionLocation + "/" + extension.name + "/client", X.path.join(getExtensionDir(extension), "client"));
+  };
+  var loadExtensionRoutes = function (extension) {
+    var manifest = JSON.parse(X.fs.readFileSync(X.path.join(getExtensionDir(extension),
+        "database/source/manifest.js")));
+    _.each(manifest.routes || [], function (routeDetails) {
+      var verb = (routeDetails.verb || "all").toLowerCase(),
+        func = require(X.path.join(getExtensionDir(extension),
+          "node-datasource", routeDetails.filename))[routeDetails.functionName];
+
+      if (_.contains(["all", "get", "post", "patch", "delete"], verb)) {
+        app[verb]('/:org/' + routeDetails.path, func);
+      } else {
+        console.log("Invalid verb for extension-defined route " + routeDetails.path);
+      }
+    });
+  };
+
+  schemaSessionOptions.username = X.options.databaseServer.user;
+  schemaSessionOptions.database = X.options.datasource.databases[0];
+  // XXX note that I'm not addressing an underlying bug that we don't wait to
+  // listen on the port until all the setup is done
+  schemaSessionOptions.success = function () {
+    if (!SYS) {
+      return;
+    }
+    var extensions = new SYS.ExtensionCollection();
+    extensions.fetch({
+      database: X.options.datasource.databases[0],
+      success: function (coll, results, options) {
+        if (!app) {
+          // XXX time bomb: assuming app has been initialized, below, by now
+          XT.log("Could not load extension routes or client-side code because the app has not started");
+          process.exit(1);
+          return;
+        }
+        useClientDir("/client", "../enyo-client/application");
+        _.each(results, loadExtensionRoutes);
+        _.each(results, loadExtensionClientside);
+      }
+    });
+  };
+  XT.session.loadSessionObjects(XT.session.SCHEMA, schemaSessionOptions);
+
+  privSessionOptions.username = X.options.databaseServer.user;
+  privSessionOptions.database = X.options.datasource.databases[0];
+  XT.session.loadSessionObjects(XT.session.PRIVILEGES, privSessionOptions);
 
 }());
 
@@ -112,15 +177,14 @@ try {
 /**
  * Module dependencies.
  */
-var express = require('express'),
-    passport = require('passport'),
-    oauth2 = require('./oauth2/oauth2'),
-    routes = require('./routes/routes'),
-    socketio = require('socket.io'),
-    url = require('url'),
-    utils = require('./oauth2/utils'),
-    user = require('./oauth2/user'),
-    destroySession;
+var passport = require('passport'),
+  oauth2 = require('./oauth2/oauth2'),
+  routes = require('./routes/routes'),
+  socketio = require('socket.io'),
+  url = require('url'),
+  utils = require('./oauth2/utils'),
+  user = require('./oauth2/user'),
+  destroySession;
 
 // TODO - for testing. remove...
 //http://stackoverflow.com/questions/13091037/node-js-heap-snapshots-and-google-chrome-snapshot-viewer
@@ -203,8 +267,9 @@ sslOptions.cert = X.fs.readFileSync(X.options.datasource.certFile);
 /**
  * Express configuration.
  */
-var app = express(),
-  server = X.https.createServer(sslOptions, app),
+app = express();
+
+var server = X.https.createServer(sslOptions, app),
   parseSignedCookie = require('express/node_modules/connect').utils.parseSignedCookie,
   //MemoryStore = express.session.MemoryStore,
   XTPGStore = require('./oauth2/db/connect-xt-pg')(express),
@@ -327,13 +392,6 @@ require('./oauth2/passport');
 var that = this;
 
 app.use(express.favicon(__dirname + '/views/login/assets/favicon.ico'));
-_.each(X.options.datasource.databases, function (orgValue, orgKey, orgList) {
-  "use strict";
-  app.use("/" + orgValue + '/client', express.static('../enyo-client/application', { maxAge: 86400000 }));
-  app.use("/" + orgValue + '/core-extensions', express.static('../enyo-client/extensions', { maxAge: 86400000 }));
-  app.use("/" + orgValue + '/private-extensions', express.static('../../private-extensions', { maxAge: 86400000 }));
-  app.use("/" + orgValue + '/xtuple-extensions', express.static('../../xtuple-extensions', { maxAge: 86400000 }));
-});
 app.use('/assets', express.static('views/login/assets', { maxAge: 86400000 }));
 
 app.get('/:org/dialog/authorize', oauth2.authorization);
@@ -346,9 +404,10 @@ app.get('/:org/discovery/v1alpha1/apis', routes.restDiscoveryList);
 
 app.get('/:org/api/userinfo', user.info);
 
-app.all('/:org/api/v1alpha1/:model/:id', routes.restRouter);
-app.all('/:org/api/v1alpha1/:model', routes.restRouter);
-app.all('/:org/api/v1alpha1/*', routes.restRouter);
+app.post('/:org/api/v1alpha1/services/:service/:id', routes.restRouter);
+app.all('/:org/api/v1alpha1/resources/:model/:id', routes.restRouter);
+app.all('/:org/api/v1alpha1/resources/:model', routes.restRouter);
+app.all('/:org/api/v1alpha1/resources/*', routes.restRouter);
 
 app.get('/', routes.loginForm);
 app.post('/login', routes.login);
@@ -363,51 +422,26 @@ app.get('/:org/logout', routes.logout);
 app.get('/:org/app', routes.app);
 app.get('/:org/debug', routes.debug);
 
-app.get('/:org/analysis', routes.analysis);
 app.all('/:org/credit-card', routes.creditCard);
 app.all('/:org/change-password', routes.changePassword);
 app.all('/:org/client/build/client-code', routes.clientCode);
-app.all('/:org/data-from-key', routes.dataFromKey);
 app.all('/:org/email', routes.email);
 app.all('/:org/export', routes.exxport);
 app.get('/:org/file', routes.file);
+app.get('/:org/generate-report', routes.generateReport);
+app.all('/:org/install-extension', routes.installExtension);
 app.get('/:org/locale', routes.locale);
-app.get('/:org/report', routes.report);
+app.all('/:org/oauth/generate-key', routes.generateOauthKey);
 app.get('/:org/reset-password', routes.resetPassword);
-app.get('/:org/queryOlap', routes.queryOlapCatalog);
+app.post('/:org/oauth/revoke-token', routes.revokeOauthToken);
 app.all('/:org/vcfExport', routes.vcfExport);
-
-//
-// Load all extension-defined routes. By convention the paths,
-// filenames, and functions to be used
-// for the routes should be described in a file called routes.js
-// in the routes directory.
-//
-if (X.options.extensionRoutes && X.options.extensionRoutes.length > 0) {
-  _.each(X.options.extensionRoutes, function (route) {
-    "use strict";
-    var routes = require(__dirname + "/" + route + "/routes");
-
-    _.each(routes, function (routeDetails) {
-      var verb = (routeDetails.verb || "all").toLowerCase();
-      if (_.contains(["all", "get", "post", "patch", "delete"], verb)) {
-        app[verb]('/:org/' + routeDetails.path, routeDetails.function);
-      } else {
-        console.log("Invalid verb for extension-defined route " + routeDetails.path);
-      }
-    });
-  });
-}
-
 
 
 // Set up the other servers we run on different ports.
-//var unexposedServer = express();
-//unexposedServer.listen(X.options.datasource.maintenancePort);
 
 var redirectServer = express();
 redirectServer.get(/.*/, routes.redirect); // RegEx for "everything"
-redirectServer.listen(X.options.datasource.redirectPort);
+redirectServer.listen(X.options.datasource.redirectPort, X.options.datasource.bindAddress);
 
 /**
  * Start the express server. This is the NEW way.
@@ -415,8 +449,9 @@ redirectServer.listen(X.options.datasource.redirectPort);
 // TODO - Active browser sessions can make calls to this server when it hasn't fully started.
 // That can cause it to crash at startup.
 // Need a way to get everything loaded BEFORE we start listening.  Might just move this to the end...
-io = socketio.listen(server.listen(X.options.datasource.port));
+io = socketio.listen(server.listen(X.options.datasource.port, X.options.datasource.bindAddress));
 
+X.log("Server listening at: ", X.options.datasource.bindAddress);
 X.log("node-datasource started on port: ", X.options.datasource.port);
 X.log("redirectServer started on port: ", X.options.datasource.redirectPort);
 X.log("Databases accessible from this server: \n", JSON.stringify(X.options.datasource.databases, null, 2));
@@ -504,6 +539,7 @@ io.of('/clientsock').authorization(function (handshakeData, callback) {
       key = url.parse(handshakeData.headers.referer).path.split("/")[1];
     } else if (X.options.datasource.testDatabase) {
       // for some reason zombie doesn't send the referrer in the socketio call
+      // https://groups.google.com/forum/#!msg/socket_io/MPpXrP5N9k8/xAyk1l8Iw8YJ
       key = X.options.datasource.testDatabase;
     } else {
       return callback(null, false);
@@ -602,7 +638,9 @@ io.of('/clientsock').authorization(function (handshakeData, callback) {
           data: session.passport.user,
           code: 1,
           debugging: X.options.datasource.debugging,
-          biUrl: X.options.datasource.biUrl,
+          biAvailable: _.isObject(X.options.biServer) && !_.isEmpty(X.options.biServer),
+          emailAvailable: _.isString(X.options.datasource.smtpHost) && X.options.datasource.smtpHost !== "",
+          printAvailable: _.isString(X.options.datasource.printer) && X.options.datasource.printer !== "",
           version: X.version
         });
       callback(callbackObj);

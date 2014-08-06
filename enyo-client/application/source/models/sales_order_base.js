@@ -1,13 +1,10 @@
 /*jshint indent:2, curly:true, eqeqeq:true, immed:true, latedef:true,
 newcap:true, noarg:true, regexp:true, undef:true, strict:true, trailing:true,
 white:true*/
-/*global XT:true, XM:true, Backbone:true, _:true */
+/*global XT:true, XM:true, Backbone:true, _:true, async:true */
 
 (function () {
   "use strict";
-
-
-
 
   // ..........................................................
   // PRIVATE
@@ -53,7 +50,12 @@ white:true*/
       taxDetails = taxDetails.concat(lineItem.taxDetail);
     };
 
-    _.each(model.get('lineItems').models, forEachCalcFunction);
+    // Line items should not include deleted.
+    var lineItems = _.filter(model.get("lineItems").models, function (item) {
+      return item.status !== XM.Model.DESTROYED_DIRTY;
+    });
+
+    _.each(lineItems, forEachCalcFunction);
 
     // Add freight taxes to the mix
     taxDetails = taxDetails.concat(model.freightTaxDetail);
@@ -105,6 +107,7 @@ white:true*/
   var _calculatePrice = function (model) {
     var K = model.getClass(),
       item = model.get("item"),
+      site = model.get("site"),
       characteristics = model.get("characteristics"),
       isConfigured = item ? item.get("isConfigured") : false,
       counter = isConfigured ? characteristics.length + 1 : 1,
@@ -165,6 +168,7 @@ white:true*/
     itemOptions.asOf = asOf;
     itemOptions.currency = currency;
     itemOptions.effective = parentDate;
+    itemOptions.site = site;
     itemOptions.error = function (err) {
       model.trigger("invalid", err);
     };
@@ -223,19 +227,32 @@ white:true*/
   };
 
 
-  /**
-    Mixin for shared quote or sales order functions.
-  */
+  // Shared between SalesOrder, SalesOrderLine, Quote, QuoteLine
   XM.SalesOrderBaseMixin = {
+    isActive: function () {
+      var K = XM.SalesOrderBase,
+        status = this.get("status");
+      return status === K.OPEN_STATUS;
+    },
+
     /**
     Returns quote or sales order status as a localized string.
 
     @returns {String}
     */
-    getOrderStatusString: function () {
+    formatStatus: function () {
       var K = XM.SalesOrderBase,
-        status = this.get("status");
-      return status === K.OPEN_STATUS ? "_open".loc() : "_closed".loc();
+        status = this.get('status');
+
+      switch (status)
+      {
+      case K.OPEN_STATUS:
+        return '_open'.loc();
+      case K.CLOSED_STATUS:
+        return '_closed'.loc();
+      case K.CANCELLED_STATUS:
+        return '_cancelled'.loc();
+      }
     }
   };
 
@@ -244,6 +261,7 @@ white:true*/
 
     @extends XM.Document
   */
+  // TODO #refactor this can just be a mixin, as with XM.SalesOrderLineBase -> XM.SalesOrderLineMixin
   XM.SalesOrderBase = XM.Document.extend(/** @lends XM.SalesOrderBase.prototype */{
 
     freightDetail: undefined,
@@ -263,7 +281,8 @@ white:true*/
           freight: 0,
           miscCharge: 0,
           total: 0,
-          site: XT.defaultSite().toJSON()
+          site: XT.defaultSite().toJSON(),
+          currency: XT.baseCurrency().id
         };
 
       // the name of this field is different for different business objects
@@ -274,7 +293,7 @@ white:true*/
 
     readOnlyAttributes: [
       "freightWeight",
-      "getOrderStatusString",
+      "formatStatus",
       "lineItems",
       "allocatedCredit",
       "balance",
@@ -369,6 +388,7 @@ white:true*/
       var pricePolicy = XT.session.settings.get("soPriceEffective");
       this.on('add:lineItems remove:lineItems', this.lineItemsDidChange);
       this.on('add:lineItems remove:lineItems change:miscCharge', this.calculateTotals);
+      this.on('change:saleType', this.saleTypeDidChange);
       this.on('change:customer', this.customerDidChange);
       this.on('change:freight', this.freightDidChange);
       this.on('change:shipto', this.shiptoDidChange);
@@ -382,6 +402,14 @@ white:true*/
       } else if (pricePolicy === "ScheduleDate") {
         this.requiredAttributes.push("scheduleDate");
       }
+
+      if (this.saleTypeDidChange) {
+        // inherit sale type defaults up front
+        this.saleTypeDidChange();
+      }
+
+      // We'll be using this more in the future
+      this.meta = new Backbone.Model();
     },
 
     /**
@@ -389,6 +417,8 @@ white:true*/
     */
     initialize: function (attributes, options) {
       XM.Document.prototype.initialize.apply(this, arguments);
+
+      // These should be reworked to hang off meta
       this.freightDetail = [];
       this.freightTaxDetail = [];
     },
@@ -657,7 +687,7 @@ white:true*/
           site: customer.get("preferredSite") ?
             XM.Site.findOrCreate({code: customer.get("preferredSite").id}) : // SiteRelation -> Site
             this.get("site"),
-          currency: customer.get("currency")
+          currency: customer.get("currency") || this.get("currency")
         };
         if (billtoContact) {
           _.extend(billtoAttrs, {
@@ -858,6 +888,12 @@ white:true*/
         options = {},
         that = this;
 
+      // In addition to updates to line items, update workflow
+      // items if applicable
+      if (this.updateWorkflowItemShipDate) {
+        this.updateWorkflowItemShipDate();
+      }
+
       if (!lineItems.length) { return; }
 
       options.type = XM.Model.QUESTION;
@@ -865,56 +901,55 @@ white:true*/
       // Confirm the user really wants to reschedule, then check whether all lines
       // can be updated to the requested schedule date
       options.callback = function (response) {
-        var counter = lineItems.length,
-          custOptions = {},
-          results = [],
-          id,
-          reschedule = function (ids) {
-            _.each(ids, function (id) {
+        var processLine,
+          finish,
+          reschedule = function (results) {
+            _.each(results, function (id) {
               lineItems.get(id).set("scheduleDate", scheduleDate);
             });
           };
 
         if (response.answer) {
-          // Callback for each check
-          custOptions.success = function (canPurchase) {
-            counter--;
-            if (canPurchase) { results.push(id); }
+          processLine = function (line, done) {
+            var custOptions = {},
+              item = line.getValue("item");
+            custOptions.success = function (canPurchase) {
+              if (canPurchase) {
+                done(null, {
+                  id: line.id
+                });
+              } else { done(); }
+              return;
+            };
 
-            // If all items have been checked, proceed
-            if (!counter) {
+            customer.canPurchase(item, scheduleDate, custOptions);
+          };
 
-              // First check for mix of items that can be rescheduled and not
-              // If partial, then ask if they only want to reschedule partial
-              if (results.length && results.length !== lineItems.length) {
-                message = "_partialReschedule".loc() + "_continue?".loc();
-                options.callback = function (response) {
-                  if (response.answer) { reschedule(results); }
+          finish = function (err, results) {
+            // First check for mix of items that can be rescheduled and not
+            // If partial, then ask if they only want to reschedule partial
+            if (results.length && results.length !== lineItems.length) {
+              message = "_partialReschedule".loc() + "_continue?".loc();
+              options.callback = function (response) {
+                if (response.answer) { reschedule(results); }
 
-                  // Recalculate the date because some lines may not have changed
-                  that.calculateScheduleDate();
-                };
-                that.notify(message, options);
+                // Recalculate the date because some lines may not have changed
+                that.calculateScheduleDate();
+              };
+              that.notify(message, options);
 
-              // If we have results, then reschedule all of them
-              } else if (results.length) {
-                reschedule(results);
+            // If we have results, then reschedule all of them
+            } else if (results.length) {
+              reschedule(results);
 
-              // No lines can be rescheduled, just tell user "no can do"
-              } else {
-                that.notify("_noReschedule".loc());
-                that.calculateScheduleDate(); // Recalculate the date
-              }
+            // No lines can be rescheduled, just tell user "no can do"
+            } else {
+              that.notify("_noReschedule".loc());
+              that.calculateScheduleDate(); // Recalculate the date
             }
           };
 
-          // Loop through each item and see if we can sell on
-          // requested date
-          _.each(lineItems.models, function (line) {
-            var item = line.getValue("item");
-            id = line.id;
-            customer.canPurchase(item, scheduleDate, custOptions);
-          });
+          async.mapSeries(lineItems.models, processLine, finish);
         }
       };
       this.notify(message, options);
@@ -926,7 +961,7 @@ white:true*/
     shiptoDidChange: function () {
       var shipto = this.get("shipto"),
         shiptoContact = shipto ? shipto.get("contact") : false,
-        shiptoAddress = shiptoContact ? shiptoContact.get("address") : false,
+        shiptoAddress = shipto ? shipto.get("address") : false,
         shiptoAttrs;
 
       if (!shipto) { return; }
@@ -965,6 +1000,8 @@ white:true*/
           shiptoCountry: shiptoAddress.getValue("country")
         });
       }
+      // XXX in XM.Return I got this to work using {silent: true}, which
+      // is tjw-approved. -SMH
       this.off(this.shipAddressEvents, this.shiptoAddressDidChange);
       this.set(shiptoAttrs);
       this.on(this.shipAddressEvents, this.shiptoAddressDidChange);
@@ -972,6 +1009,14 @@ white:true*/
     },
 
     shiptoAddressDidChange: function () {
+      // XXX #refactor
+      // what if relation widget just validated its fields against its backing
+      // entity and notified the user of mismatch? then there's no
+      // abraKadabra('shiptoAddress') if they hit a stray key while tabbing
+      // through the form and the on/off problem is solved as a byproduct.
+      // we could address later the problem that the View knows more about which 
+      // attributes are shared in relations than the ORM
+      //
       // If the address was manually changed, then clear shipto
       this.unset("shipto");
     },
@@ -1018,7 +1063,7 @@ white:true*/
       // The prevStatus is used because the current
       // status is BUSY_COMMITTING once save has begun.
       validItems = _.filter(lineItems.models, function (item) {
-        return item._prevStatus !== K.DESTROYED_DIRTY;
+        return item.previousStatus() !== K.DESTROYED_DIRTY;
       });
 
       if (!validItems.length) {
@@ -1058,17 +1103,278 @@ white:true*/
       @type String
       @default C
     */
-    CLOSED_STATUS: "C"
+    CLOSED_STATUS: "C",
+
+    /**
+      Order is cancelled.
+
+      @static
+      @constant
+      @type String
+      @default X
+    */
+    CANCELLED_STATUS: "X",
+
+    /**
+      Order is cancelled.
+
+      @static
+      @constant
+      @type String
+      @default N
+    */
+    CREDIT_HOLD_TYPE: "C",
+
+    /**
+      Order hold type is shipping.
+
+      @static
+      @constant
+      @type String
+      @default N
+    */
+    SHIPPING_HOLD_TYPE: "S",
+
+    /**
+      Order hold type is packing.
+
+      @static
+      @constant
+      @type String
+      @default N
+    */
+    PACKING_HOLD_TYPE: "P",
+
+    /**
+      Order hold type is return.
+
+      @static
+      @constant
+      @type String
+      @default N
+    */
+    RETURN_HOLD_TYPE: "R",
+
+    /**
+      Order hold type is none.
+
+      @static
+      @constant
+      @type String
+      @default N
+    */
+    NONE_HOLD_TYPE: "N"
 
   });
 
 
-  /**
-    @class
 
-    @extends XM.Model
-  */
-  XM.SalesOrderLineBase = XM.Model.extend(/** @lends XM.SalesOrderLineBase.prototype */{
+  // Shared among SalesOrderLine, QuoteLine, InvoiceLine, ReturnLine
+  XM.OrderLineMixin = {
+    /**
+      Updates `sellingUnits` array from server
+
+      @param {Boolean} Set default units from item. Default = true;
+      @returns {Object} Receiver
+    */
+    fetchSellingUnits: function (resetDefaults) {
+      resetDefaults = _.isBoolean(resetDefaults) ? resetDefaults : true;
+      var that = this,
+        item = this.get("item"),
+        options = {};
+
+      if (resetDefaults) {
+        this.unset("quantityUnit");
+        this.unset("priceUnit");
+      }
+      this.sellingUnits.reset();
+
+      if (!item) { return this; }
+
+      // Fetch and update selling units
+      options.success = function (resp) {
+        // Resolve and add each id found
+        _.each(resp, function (id) {
+          var unit = XM.units.get(id);
+          that.sellingUnits.add(unit);
+        });
+
+        // Set the item default selections
+        if (resetDefaults) {
+          that.set({
+            quantityUnit: item.get("inventoryUnit"),
+            priceUnit: item.get("priceUnit"),
+            priceUnitRatio: item.get("priceUnitRatio")
+          });
+        }
+      };
+      item.sellingUnits(options);
+      return this;
+    },
+
+    priceUnitDidChange: function () {
+      var quantityUnit = this.get("quantityUnit"),
+        priceUnit = this.get("priceUnit"),
+        item = this.getValue("item"),
+        inventoryUnit = item ? item.getValue("inventoryUnit") : false,
+        that = this,
+        options = {};
+
+      if (!inventoryUnit || !quantityUnit || !priceUnit) { return; }
+
+      if (inventoryUnit.id === priceUnit.id) {
+        this.set("priceUnitRatio", 1);
+        that.calculateExtendedPrice();
+        that.calculatePrice(true);
+      } else {
+        // Unset price ratio so we can't save until we get an answer
+        that.unset("priceUnitRatio");
+
+        // Lookup unit of measure ratio
+        options.success = function (ratio) {
+          that.set("priceUnitRatio", ratio);
+          that.calculateExtendedPrice();
+          that.calculatePrice(true);
+        };
+        item.unitToUnitRatio(priceUnit, inventoryUnit, options);
+      }
+    },
+
+    quantityUnitDidChange: function () {
+      var quantity = this.get("quantity"),
+        quantityUnit = this.get("quantityUnit"),
+        item = this.getValue("item"),
+        inventoryUnit = item ? item.get("inventoryUnit") : false,
+        that = this,
+        options = {},
+        isFractionalCache,
+        ratioCache;
+
+      if (!inventoryUnit || !quantityUnit) { return; }
+
+      this.set("priceUnit", quantityUnit);
+      if (quantityUnit.id === item.get("inventoryUnit").id) {
+        this.set("quantityUnitRatio", 1);
+        this._unitIsFractional = item.get("isFractional");
+        this.setReadOnly("priceUnit", false);
+        that.calculatePrice(true);
+        that.recalculateParent();
+      } else {
+        // Unset so we can not save until we get a new ratio value
+        this.unset("quantityUnitRatio");
+
+        // Price unit must be set to quantity unit and be read only
+        this.setReadOnly("priceUnit", true);
+
+        // Lookup unit of measure ratio and fractional
+        options.success = function (resp) {
+          if (_.isNumber(resp) && _.isUndefined(isFractionalCache)) {
+            ratioCache = resp; // Got ratio back, but no fractional yet
+          } else if (_.isBoolean(resp) && _.isUndefined(ratioCache)) {
+            isFractionalCache = resp; // Got fractional back but no ratio yet
+          } else {
+            that._unitIsFractional = _.isBoolean(isFractionalCache) ?
+              isFractionalCache : resp;
+            that.set("quantityUnitRatio", ratioCache || resp);
+            if (!that._unitIsFractional && Math.round(quantity) !== quantity) {
+              that.unset("quantity");
+              that.notify("_notFractional".loc);
+            } else {
+              that.calculatePrice(true);
+              that.recalculateParent();
+            }
+          }
+        };
+        item.unitToUnitRatio(quantityUnit, inventoryUnit, options);
+        item.unitFractional(quantityUnit, options);
+      }
+    },
+
+    recalculateParent: function (calcFreight) {
+      var parent = this.getParent();
+      if (parent) { parent.calculateTotals(calcFreight); }
+    },
+
+    quantityChanged: function () {
+      this.calculatePrice();
+      this.recalculateParent();
+    },
+
+    save: function () {
+      var quantity = this.get("quantity"),
+        quantityUnitRatio = this.get("quantityUnitRatio"),
+        itemIsNotFractional = !this.get("item.isFractional"),
+        scale = this._unitIsFractional ? 2 : 0;
+
+      // Check inventory quantity against conversion fractional setting
+      // If invalid, notify user and update to a valid quantity
+      if (itemIsNotFractional) {
+        if (Math.abs((quantity * quantityUnitRatio) -
+            Math.round(quantity * quantityUnitRatio)) > 0.01) {
+          this.notify("_updateFractional".loc());
+          quantity = XT.math.add(quantity * quantityUnitRatio, 0.5, 1);
+          quantity = quantity / quantityUnitRatio;
+          quantity = XT.math.round(quantity, scale);
+          this.set("quantity", quantity);
+          return false;
+        }
+      }
+      return XM.Document.prototype.save.apply(this, arguments);
+    },
+
+    validate: function () {
+      var that = this,
+        quantity = this.get("quantity"),
+        hasAltQuantity = _.contains(this.getAttributeNames(), this.altQuantityAttribute),
+        altQuantity = this.get(this.altQuantityAttribute),
+        extraRequiredFields = [],
+        requiredFieldsError;
+
+      // Check alt quantity
+      if (hasAltQuantity && (altQuantity || 0) <= 0) {
+        // TODO: put in attribute name as param
+        return XT.Error.clone('xt2013');
+      }
+
+      // Check quantity
+      if ((quantity || 0) <= 0) {
+        return XT.Error.clone('xt2013');
+      }
+
+      // Check order quantity against fractional setting
+      if (!this._unitIsFractional && Math.round(quantity) !== quantity) {
+        return XT.Error.clone('xt2014');
+      }
+      if (!this._unitIsFractional && hasAltQuantity && Math.round(altQuantity) !== altQuantity) {
+        return XT.Error.clone('xt2014');
+      }
+
+      // Checks item values line up with isMiscellaneous, if applicable
+      if (_.contains(this.getAttributeNames(), "isMiscellaneous")) {
+        extraRequiredFields = this.get("isMiscellaneous") ?
+          ["itemNumber", "itemDescription", "salesCategory"] :
+          ["item"];
+      }
+
+      _.each(extraRequiredFields, function (req) {
+        var value = that.get(req),
+          params = {recordType: that.recordType};
+
+        if (value === undefined || value === null || value === "") {
+          params.attr = ("_" + req).loc();
+          requiredFieldsError = XT.Error.clone('xt1004', { params: params });
+        }
+      });
+      if (requiredFieldsError) {
+        return requiredFieldsError;
+      }
+
+      return XM.Document.prototype.validate.apply(this, arguments);
+    }
+  };
+
+  // Shared between SalesOrderLine and QuoteLine
+  XM.SalesOrderLineMixin = {
 
     sellingUnits: undefined,
 
@@ -1091,14 +1397,13 @@ white:true*/
       this.on("change:item", this.itemDidChange);
       this.on("change:site", this.siteDidChange);
       this.on("change:price", this.priceDidChange);
-      this.on('change:quantity', this.quantityDidChange);
+      this.on('change:quantity', this.quantityChanged);
       this.on('change:unitCost', this.calculateMarkupPrice);
       this.on('change:priceUnit', this.priceUnitDidChange);
       this.on('change:' + this.parentKey, this.parentDidChange);
       this.on('change:taxType', this.calculateTax);
       this.on('change:quantityUnit', this.quantityUnitDidChange);
-      this.on('change:scheduleDate', this.scheduleDateDidChange);
-      this.on('statusChange', this.statusDidChange);
+      this.on('change:scheduleDate', this.scheduleDateChanged);
 
       // Only recalculate price on date changes if pricing is date driven
       if (settings.get("soPriceEffective") === "ScheduleDate") {
@@ -1466,47 +1771,6 @@ white:true*/
       return this;
     },
 
-    /**
-      Updates `sellingUnits` array from server
-
-      @param {Boolean} Set default units from item. Default = true;
-      @returns {Object} Receiver
-    */
-    fetchSellingUnits: function (resetDefaults) {
-      resetDefaults = _.isBoolean(resetDefaults) ? resetDefaults : true;
-      var that = this,
-        item = this.get("item"),
-        options = {};
-
-      if (resetDefaults) {
-        this.unset("quantityUnit");
-        this.unset("priceUnit");
-      }
-      this.sellingUnits.reset();
-
-      if (!item) { return this; }
-
-      // Fetch and update selling units
-      options.success = function (resp) {
-        // Resolve and add each id found
-        _.each(resp, function (id) {
-          var unit = XM.units.get(id);
-          that.sellingUnits.add(unit);
-        });
-
-        // Set the item default selections
-        if (resetDefaults) {
-          that.set({
-            quantityUnit: item.get("inventoryUnit"),
-            priceUnit: item.get("priceUnit"),
-            priceUnitRatio: item.get("priceUnitRatio")
-          });
-        }
-      };
-      item.sellingUnits(options);
-      return this;
-    },
-
     itemDidChange: function () {
       var parent = this.getParent(),
         taxZone = parent ? parent.get("taxZone") : undefined,
@@ -1519,6 +1783,7 @@ white:true*/
         options = {},
         itemCharAttrs,
         charTypes,
+        partNumberAlias,
         len,
         i;
 
@@ -1534,6 +1799,21 @@ white:true*/
       }
 
       if (!item) { return; }
+
+      if (parent && parent.get("customer")) {
+        //
+        // If this item has an alias specific to a particular account which happens
+        // to be the account on the sales order, then put that alias into the customer
+        // part number field. If there are more than one match, then just choose the
+        // first.
+        //
+        partNumberAlias = _.find(item.get("aliases").models, function (alias) {
+          return alias.get("account").id === parent.get("customer").id;
+        });
+        if (partNumberAlias) {
+          this.set({customerPartNumber: partNumberAlias.get("aliasNumber")});
+        }
+      }
 
       // Reset Unit Cost
       this.off("unitCost", this.unitCostDidChange);
@@ -1619,6 +1899,10 @@ white:true*/
           this.set("scheduleDate", scheduleDate);
         }
         parent.calculateScheduleDate();
+
+        if (!this.get("site")) {
+          this.set("site", parent.get("site") || XT.defaultSite());
+        }
       }
     },
 
@@ -1642,117 +1926,7 @@ white:true*/
       this.calculatePercentages();
     },
 
-    priceUnitDidChange: function () {
-      var quantityUnit = this.get("quantityUnit"),
-        priceUnit = this.get("priceUnit"),
-        item = this.getValue("item"),
-        inventoryUnit = item ? item.getValue("inventoryUnit") : false,
-        that = this,
-        options = {};
-
-      if (!inventoryUnit || !quantityUnit || !priceUnit) { return; }
-
-      if (inventoryUnit.id === priceUnit.id) {
-        this.set("priceUnitRatio", 1);
-        that.calculateExtendedPrice();
-        that.calculatePrice(true);
-      } else {
-        // Unset price ratio so we can't save until we get an answer
-        that.unset("priceUnitRatio");
-
-        // Lookup unit of measure ratio
-        options.success = function (ratio) {
-          that.set("priceUnitRatio", ratio);
-          that.calculateExtendedPrice();
-          that.calculatePrice(true);
-        };
-        item.unitToUnitRatio(priceUnit, inventoryUnit, options);
-      }
-    },
-
-    quantityDidChange: function () {
-      this.calculatePrice();
-      this.recalculateParent();
-    },
-
-    quantityUnitDidChange: function () {
-      var quantity = this.get("quantity"),
-        quantityUnit = this.get("quantityUnit"),
-        item = this.getValue("item"),
-        inventoryUnit = item ? item.get("inventoryUnit") : false,
-        that = this,
-        options = {},
-        isFractionalCache,
-        ratioCache;
-
-      if (!inventoryUnit || !quantityUnit) { return; }
-
-      this.set("priceUnit", quantityUnit);
-      if (quantityUnit.id === item.get("inventoryUnit").id) {
-        this.set("quantityUnitRatio", 1);
-        this._unitIsFractional = item.get("isFractional");
-        this.setReadOnly("priceUnit", false);
-        that.calculatePrice(true);
-        that.recalculateParent();
-      } else {
-        // Unset so we can not save until we get a new ratio value
-        this.unset("quantityUnitRatio");
-
-        // Price unit must be set to quantity unit and be read only
-        this.setReadOnly("priceUnit", true);
-
-        // Lookup unit of measure ratio and fractional
-        options.success = function (resp) {
-          if (_.isNumber(resp) && _.isUndefined(isFractionalCache)) {
-            ratioCache = resp; // Got ratio back, but no fractional yet
-          } else if (_.isBoolean(resp) && _.isUndefined(ratioCache)) {
-            isFractionalCache = resp; // Got fractional back but no ratio yet
-          } else {
-            that._unitIsFractional = _.isBoolean(isFractionalCache) ?
-              isFractionalCache : resp;
-            that.set("quantityUnitRatio", ratioCache || resp);
-            if (!that._unitIsFractional && Math.round(quantity) !== quantity) {
-              that.unset("quantity");
-              that.notify("_notFractional".loc);
-            } else {
-              that.calculatePrice(true);
-              that.recalculateParent();
-            }
-          }
-        };
-        item.unitToUnitRatio(quantityUnit, inventoryUnit, options);
-        item.unitFractional(quantityUnit, options);
-      }
-    },
-
-    recalculateParent: function (calcFreight) {
-      var parent = this.getParent();
-      if (parent) { parent.calculateTotals(calcFreight); }
-    },
-
-    save: function () {
-      var quantity = this.get("quantity"),
-        quantityUnitRatio = this.get("quantityUnitRatio"),
-        itemIsNotFractional = !this.get("item.isFractional"),
-        scale = this._unitIsFractional ? 2 : 0;
-
-      // Check inventory quantity against conversion fractional setting
-      // If invalid, notify user and update to a valid quantity
-      if (itemIsNotFractional) {
-        if (Math.abs((quantity * quantityUnitRatio) -
-            Math.round(quantity * quantityUnitRatio)) > 0.01) {
-          this.notify("_updateFractional".loc());
-          quantity = XT.math.add(quantity * quantityUnitRatio, 0.5, 1);
-          quantity = quantity / quantityUnitRatio;
-          quantity = XT.math.round(quantity, scale);
-          this.set("quantity", quantity);
-          return false;
-        }
-      }
-      return XM.Document.prototype.save.apply(this, arguments);
-    },
-
-    scheduleDateDidChange: function () {
+    scheduleDateChanged: function () {
       var item = this.getValue("item"),
         parent = this.getParent(),
         customer = parent.get("customer"),
@@ -1782,39 +1956,25 @@ white:true*/
     },
 
     statusDidChange: function () {
-      var status = this.getStatus();
+      var status = this.getStatus(),
+        parent = this.getParent();
       if (status === XM.Model.READY_CLEAN) {
         this.setReadOnly("item");
         this.setReadOnly("site");
+      } else if (status === XM.Model.DESTROYED_DIRTY) {
+        parent.calculateTotals();
       }
     },
 
-    validate: function () {
-      var quantity = this.get("quantity");
-
-      // Check quantity
-      if ((quantity || 0) <= 0) {
-        return XT.Error.clone('xt2013');
-      }
-
-      // Check order quantity against fractional setting
-      if (!this._unitIsFractional && Math.round(quantity) !== quantity) {
-        return XT.Error.clone('xt2014');
-      }
-
-      return XM.Document.prototype.validate.apply(this, arguments);
-    }
-
-
-  });
-  XM.SalesOrderLineBase = XM.SalesOrderLineBase.extend(XM.SalesOrderBaseMixin);
+  };
 
 
   // ..........................................................
   // CLASS METHODS
   //
 
-  _.extend(XM.SalesOrderLineBase, /** @lends XM.SalesOrderLine# */{
+  // Shared between SalesOrderLine and QuoteLine
+  XM.SalesOrderLineStaticMixin = {
 
     // ..........................................................
     // CONSTANTS
@@ -1860,6 +2020,6 @@ white:true*/
     */
     ALWAYS_UPDATE: 3
 
-  });
+  };
 
 }());

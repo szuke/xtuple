@@ -1,100 +1,123 @@
 /*
-
-  To compile to .css:
+  To compile this .less file to .css:
   lessc screen.less > ../stylesheets/screen.css
   Use -compress for a compressed .css with no comments
-
 */
 
-/*
-  These variables will show in css as their hex values
-*/
+// Colors
 @highlight: #d6f1ff;
 @orange: #f60;
-@bright-orange: #f49200;
-@sky-blue: #9cf;
-@slate-blue: #226b9a;
+@bright-orange: #ff6529;
+@sky-blue: #9Cf;
 @light-blue: #35a8ee;
 @blue: #0000ff;
-@lightest-gray: #eee;
+@slate-blue: #357ec7;
+@dark-slate-blue: #1a4f77;
+@lightest-gray: #efefef;
+@button-gray: #e1e1e1;
+@earl-grey: #f3f3f3;
 @silver: #aaa;
-@smoke: #ddd;
-@gray: #8d8d8d;
-@med-gray: #999;
-@charcoal: #555;
-@header-gray: #4c4c4c;
-@dim-gray: #696969;
-@dark-gray: #333;
+@smoke: #d7d7d7;
+@gray: #d8d8d8;
+@med-gray: #939393;
+@charcoal: #666;
+@header-gray: #505050;
+@dim-gray: #777;
+@dark-gray: #373737;
 @blue-gray: #93a1a1;
 @near-black: #0e0e0e;
-@black: #000;
-@white: #fff;
-@ghost: #f8f8ff;
+@black: #070707;
+@white: #fdfdfd;
+@ghost: #f8f8f8;
 @red: #c51616;
 @bright-red: #ff0000;
 @green: #009000;
 @light-orange: #ff9c00;
+@item-hilite-background: #226b9a;
 
-/* Helper classes for css3 */
+@text-shadow: fade(#222, 45%);
 
-@import "mixins.less";
+// For calendar popup
+@control-bg: @header-gray;
 
-/**
-  Less styles for the
-*/
-@import "picker.less";
+// Fonts
+// ------
+@baseFont: 'Helvetica Neue', Helvetica, 'Nimbus Sans L', Arial, sans-serif;
+@groupboxFont: "Lucida Sans Unicode", "Lucida Grande", arial, sans-serif;
+@startupFont: Segoe UI, Prelude Medium, Helvetica, Verdana, sans-serif;
+@baseFontSize: 100%;
+@panelsFontSize: 5em;
+@iconFontSize: 60%;
+@totalsFontSize: 14px;
+@buttonFontSize: 20px;
+@buttonTextFontSize: 17px;
 
-/**
-  Styles relating to the groupbox and widgets contained
-    by a groupbox
-*/
-@import "groupbox.less";
+// sizing
+@defaultPanelWidth: 320px;
+@toolbarHeight: 55px;
+@searchLength: 185px;
 
-/**
-  Styles relating to grid-entry
-*/
-@import "grid.less";
-
-/**
-  Styles relating to the dashboard
-*/
-@import "dashboard.less";
-
-/**
-  Styles relating to Lists
-*/
-@import "list.less";
-
-/**
-  Styles relating to the parameter widget
-*/
-@import "pullout.less";
-
-/**
-  Import for Font-Awesome icons
-*/
+// libs
 @import "../../lib/font-awesome/less/font-awesome.less";
+@import "../../lib/font-onyx/lib/Icon.less";
 
 body {
-  font-family: "arial", "arial black";
-  font-size: 100%;
+  font-family: @baseFont;
+  font-size: @baseFontSize;
+  background-color: @white;
 }
 
-.bggrad {
-  /* Radial Gradient */
-  #gradient > .radial(@dim-gray, @dark-gray);
-  background-color: @med-gray;
+.enyo-fit {
+  bottom: 4px !important;
 }
 
-.app > * {
-  width: 320px;
-  .box-shadow(-4px -4px 4px rgba(0,0,0,0.3));
-  background: @charcoal;
+.disabled {
+  opacity: 0.8;
+  cursor: default;
 }
 
-.panels > * {
-  border: 2px solid @dark-gray;
-  font-size: 5em;
+a, .hyperlink {
+  color: @slate-blue;
+  cursor: pointer;
+}
+
+.xv-invisible-wrapper {
+  padding: 0;
+  border: none;
+}
+
+  // This gives them 4 lines of description
+.xv-limit-description {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+
+.xv-app-panel {
+  /* Setting this as min-width overrides enyo-narrow 100% */
+  width: @defaultPanelWidth;
+  // TODO: replace with textured background?
+  background-color: @white;
+  .box-shadow(-2px -2px 6px rgba(0,0,0,0.20));
+}
+
+/*
+  Media query for responsive design. This adapts to smaller
+  displays.
+*/
+@media (max-width: 480px) {
+  .pullout-menu {
+    display: block;
+    margin: 0;
+  }
+  .xv-app-panel > * {
+    min-width: 100%;
+    max-width: 100%;
+  }
+  .enyo-fit {
+    margin-bottom: -4px !important;
+  }
 }
 
 .wide > * {
@@ -106,149 +129,89 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
-.developer-ui-container {
-  .box-shadow(#333 4px 4px 10px -4px);
-  .border-top-right-radius(10px);
-  top: 100px;
-  left: 0;
-  position: absolute;
-  background-color: @smoke;
-  z-index: 10;
-  .developer-rows {
-    .row {
-      display: block;
-      margin: 10px;
+.wide > * {
+  min-width: 50%;
+}
+
+.xv-version-label {
+  padding: 10px;
+}
+
+.xv-popup-button {
+  margin: 4px;
+}
+
+.xv-error, .xv-negative {
+  color: @bright-red;
+}
+
+/**
+  Default button bar with margins and border-radius
+*/
+.xv-buttons {
+  margin: 5px;
+  &.center {
+    text-align: center;
+  }
+
+  .onyx-button {
+    margin: 2px;
+    min-height: 40px;
+    min-width: 60px;
+    background: @button-gray;
+    color: @charcoal;
+    font-size: @buttonFontSize;
+
+    &[class^="icon-"]:before, &[class*=" icon-"]:before {
+      vertical-align: middle;
+      margin-right: 5px;
+    }
+    &.text {
+      font-size: @buttonTextFontSize;
+    }
+    &.selected {
+      background: @slate-blue;
+      color: @white;
     }
   }
-  .onyx-grabber {
-    &.developer-grabber {
-      .box-shadow(#333 4px 4px 10px -4px);
-      .border-top-right-radius(10px);
-      .border-bottom-right-radius(10px);
-      background-color: @smoke;
-      position: absolute;
-      right: -47px;
-      top: 0;
-      height: 54px;
-      width: 50px;
-    }
+}
+
+.xv-assignment-box {
+  .xv-flexible-label {
+    width: 85%;
+  }
+  .xv-label {
+    width: 250px;
   }
 }
 
-.item {
-  background-color: @dark-gray;
-  border-bottom: 1px solid @near-black;
-  position: relative;
-  padding: 16px 12px;
+.xv-parameter-title {
+  padding-top: 8px;
+  font-size: large;
+  text-align: center;
 }
 
-.item {
-  &.onyx-selected {
-    background-color: @slate-blue;
-  }
-}
+/**
+  Default popup style
+*/
+.xv-popup {
+  background: @header-gray;
+  margin: 0;
+  max-height: 400px;
+  width: 400px;
+  min-width: @defaultPanelWidth;
+  padding: 7px;
+  text-align: center;
 
-.onyx-button {
-  &.save {
-    background-color: @light-blue;
-  }
-}
+  &.xv-groupbox-popup {
+    .xv-workspace-container > .xv-workspace > .xv-workspace-panel;
+    color: @black;
+    padding: 7px;
 
-.left {
-  color: @white;
-}
-
-.right-float {
-  float: right;
-  display: block;
-}
-
-.left-float {
-  float: left;
-  display: block;
-  margin-right: 3px;
-}
-
-// XXX hack here (and in other places that reference issue 18397)
-// can be removed once enyo fixes ENYO-1104
-.text-shadow-none {
-   text-shadow: none;
-}
-.text-shadow-0 {
-  text-shadow: 0px 0px @black;
-}
-// end hack
-
-.xt-app {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  .xv-postbooks {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-  }
-}
-
-.xv-login {
-  .xv-login-form {
-    position: absolute;
-    height: 250px;
-    width: 300px;
-    top: 50%;
-    left: 50%;
-    margin-top: -125px;
-    margin-left: -150px;
-    .xv-message-box {
-      font-size: 12px;
-      &.error {
-        color: @bright-red;
-      }
-      text-align: center;
-      padding: 10px;
-    }
-  }
-  .xv-organizations-selection {
-    position: absolute;
-    height: 300px;
-    width: 400px;
-    top: 50%;
-    left: 50%;
-    margin-top: -150px;
-    margin-left: -200px;
-    .xv-organization-row {
+    .xv-message {
+      color: @red;
       padding: 5px;
-      cursor: pointer;
-      &:hover {
-        background-color: @smoke;
-      }
     }
-  }
-}
-
-.xv-startup-panel {
-  background: @dark-gray;
-  .xv-startup-divider {
-    width: 70%;
-    margin: 0 auto 8px auto;
-    top: 200px;
-    position: relative;
-    color: @bright-orange;
-    text-transform: uppercase;
-    font-family: Segoe UI, Prelude Medium, Helvetica, Verdana, sans-serif;
-    font-size: 14px;
-    font-weight: bold;
-    border: none;
-  }
-  .xv-startup-progress {
-    width: 70%;
-    margin: 0 auto 0 auto;
-    top: 200px;
-    position: relative;
   }
 }
 
@@ -280,269 +243,9 @@ body {
   }
 }
 
-.xv-button-bar {
-  text-align: center;
-  .onyx-button {
-    margin: 5px 5px 0 0;
-  }
-}
-
-.xv-version-label {
-  padding: 10px;
-}
-
-/*
-  Media query for responsive design. This adapts to smaller
-  displays.
-*/
-@media (max-width: 480px) {
-  .pullout-menu {
-    display: block;
-    margin: 0;
-  }
-  .app-panels > * {
-       min-width: 100%;
-       max-width: 100%;
-   }
-}
-
-/*
-  XV Views
-*/
-
-/* List */
-.xv-list {
-  background-color: @white;
-  .xv-list-item {
-    @include box-sizing(border-box);
-    background-color: @white;
-    padding-top: 3px;
-    padding-bottom: 3px;
-    border-bottom: 1px solid @smoke;
-    &.header {
-      padding-top: 0;
-    }
-    &.inactive {
-      background-color: @gray;
-      color: @black;
-      .xv-list-column {
-        .xv-list-attr {
-          background-color: @gray;
-          &.placeholder {
-            color: @gray;
-          }
-        }
-      }
-    }
-    .xv-list-column {
-      &.short {
-        width: 9em;
-      }
-      &.first {
-        width: 19em;
-      }
-      &.second {
-        width: 10em;
-      }
-      &.third {
-        width: 4.5em;
-      }
-      &.money {
-        width: 5em;
-      }
-      &.descr {
-        width: 15.56em;
-      }
-      &.icon {
-        width: 1.5em;
-      }
-      .list-icon {
-        padding: 2px;
-        color: @charcoal;
-        vertical-align: sub;
-        border: 1px solid @lightest-gray;
-        .border-radius(2px);
-      }
-    }
-    &.item-selected {
-      background: @slate-blue url(../../../../../../assets/item-hilite.png/) repeat-x bottom;
-      .xv-list-attr {
-        color: @white;
-        background: none;
-        &.placeholder {
-          font-style: italic;
-          color: @sky-blue;
-        }
-        &.hyperlink {
-          color: @bright-orange;
-          background: transparent;
-        }
-      }
-      .xv-list-attr {
-        &.header {
-          background: @sky-blue;
-        }
-      }
-      .xv-list-column {
-        .xv-list-attr {
-          color: @white;
-          background: none;
-          &.placeholder {
-            font-style: italic;
-            color: SkyBlue;
-          }
-          &.hyperlink {
-            color: @bright-orange;
-            background: transparent;
-          }
-        }
-      }
-    }
-  }
-}
-
-.xv-list-item > * {
-  display: inline-block;
-  vertical-align: middle;
-}
-
-.xv-list-gear-icon-button {
-  float: right;
-  display: none;
-  margin-top: -4px;
-}
-
-.xv-list-attr {
-  padding: 5px;
-  font-size: .8em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: @black;
-  background-color: @white;
-  &.header {
-    padding: 4px;
-    background: @gray;
-    font-size: .7em;
-    font-weight: bold;
-    text-transform: uppercase;
-    color: @white;
-  }
-  &.footer {
-    padding: 4px;
-    background: @gray;
-    font-size: .7em;
-    font-weight: bold;
-    text-transform: uppercase;
-    color: @black;
-  }
-  &.right {
-    position: absolute;
-    right: 0;
-    height: 20px;
-  }
-  &.text-align-right {
-    text-align: right;
-  }
-  &.bold {
-    font-weight: bold;
-  }
-  &.error {
-    color: @bright-red;
-  }
-  &.italic {
-    font-style: italic;
-  }
-  &.placeholder {
-    font-style: italic;
-    color: @blue-gray;
-  }
-  &.hyperlink {
-    color: blue;
-  }
-}
-
-/* Navigator */
-.xv-navigator-header {
-  font-size: small;
-  font-weight: bold;
-  text-transform: uppercase;
-  color: @orange;
-  padding-left: 20px;
-  border-bottom: 1px solid @near-black;
-}
-
-.xv-workspace-header {
-  color: @white;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding: 8px 0 0 8px;
-}
-
-/* Characteristics */
-.xv-characteristic-picker {
-  .onyx-picker-decorator .onyx-button {
-    width: 130px;
-  }
-}
-
-.xv-characteristic-item {
-  border-bottom: 1px solid @silver;
-  .onyx-input-decorator > input {
-    width: 115px;
-    margin-top: 10px;
-    margin-bottom: 10px;
-  }
-}
-
-.xv-characteristic-button {
-  margin-right: 4px;
-}
-
-.xv-characteristic-buttons {
-  margin: 8px;
-}
-
-.xv-popup-button {
-  margin: 4px;
-}
-
-.xv-scroller {
-  background: @white;
-}
-
-.xv-error {
-  color: @bright-red;
-}
-
-.xv-negative {
-  color: @red;
-}
-
-.xv-assignment-box {
-  .xv-decorated-label {
-    width: 85%;
-  }
-  .xv-label {
-    width: 250px;
-  }
-}
-
-.xv-parameter-title {
-  padding-top: 8px;
-  font-size: large;
-  text-align: center;
-}
-
-/* CommentBox */
 .xv-comment-box {
-  .onxy-groupbox-header {
-    max-width: 320px;
-  }
   .xv-comment-box-repeater {
     background: @white;
-    width: 320px;
   }
   .xv-comment-box-label {
     padding: 5px;
@@ -553,9 +256,7 @@ body {
     text-overflow: ellipsis;
   }
   .xv-comment-box-textblock {
-    padding: 5px;
     font-size: small;
-    overflow: hidden;
     &.disabled {
       color: @dim-gray;
     }
@@ -567,206 +268,22 @@ body {
   }
 }
 
-/*
-  XV Widgets
-*/
-
-.xv-numberwidget {
-  input {
-    text-align: right;
-  }
-}
-
-.xv-addresswidget {
-  background-color: @white;
-  padding: 4px;
-  .xv-addresswidget-viewer {
-    border: 0;
-    font-size: medium;
-    display: inline;
-    &.placeholder {
-      font-style: italic;
-      color: @blue-gray;
-    }
-    &.hyperlink {
-      color: @blue;
-    }
-    &.disabled {
-      color: @dim-gray;
-    }
-  }
-}
-
-.xv-addresswidget-input-decorator {
-  background: @white;
-  display: block;
-  margin: 4px;
-  &.short {
-    width: 40%;
-  }
-}
-
-.xv-addresswidget-combobox-decorator {
-  background: @white;
-  display: block;
-  margin: 4px;
-  width: 80%;
-  padding-right: 0;
-  .xv-combobox-input {
-    width: 80%;
-  }
-  .xv-combobox {
-    padding: 0;
-    width: 100%;
-  }
-}
-
-.xv-addresswidget-input {
-  width: 100%;
-}
-
-.xv-addresswidget-button {
-  margin-right: 4px;
-}
-
-.xv-addresswidget-buttons {
-  margin-top: 4px;
-}
-
-.xv-button-section {
-  .xv-addresswidget-buttons;
-  margin: 0;
-  background-color: @charcoal;
-}
-
-.xv-addresswidget-editor-header {
-  padding: 4px;
-}
-
-.xv-addresswidget-editor {
-  width: 320px;
-  padding: 8px;
-  padding-right: 16px;
-}
-
-.xv-addresslist-attr {
-  padding: 5px;
-  font-size: 13px;
-  white-space: normal;
-  overflow: auto;
-  color: #000;
-  background-color: @white;
-}
-
-/* RelationWidget */
-.xv-relationwidget-completer {
-  left: -200px;
-  top: 15px;
-}
-
-.xv-completer-sidecar {
-  color: @blue-gray;
-}
-
-.xv-relationwidget-column {
-  &.left {
-    padding-right: 18px;
-    color: #000;
-    width: 140px;
-  }
-}
-
-.xv-relationwidget-icon {
-  top: 2px;
-  left: 8px;
-  position: relative;
-}
-
-.xv-relationwidget-description {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-indent: 140px;
-  font-size: small;
-  padding-bottom: 4px;
-  max-width: 325px;
-  &.disabled {
-    color: @dim-gray;
-  }
-  &.label {
-    text-indent: 0;
-    text-align: right;
-
-  }
-  &.hasLabel {
-    text-indent: 0;
-  }
-  &.hyperlink {
-    color: blue;
-  }
-}
-
-.xv-private-item-site-widget {
-  border-bottom-color: rgb(170, 170, 170);
-  border-bottom-width: 1px;
-  border-bottom-style: solid;
-}
-
-/* RelationsEditorBox */
-.xv-relations-editor-box {
-  .xv-groupbox {
-    margin-right: 0;
-    padding: 0;
-    border: none;
-  }
-  &.panel {
-    width: 350px;
-  }
-}
-
-/* ListRelationsBox */
-.xv-list-relations-box {
-  &.panel {
-    width: 625px;
-  }
-}
-
-.xv-short-relations-box {
-  &.panel {
-    width: 500px;
-  }
-}
-
-.xv-label {
-  width: 130px;
-  padding: 8px;
-  text-align: right;
-  &.disabled {
-    color: @dim-gray;
-  }
-}
-
-.xv-decorated-label {
-  width: 130px;
-  padding: 14px 8px 8px 8px;
-  text-align: right;
-  &.disabled {
-    color: @dim-gray;
-  }
+.icon-folder-open-alt, .icon-calendar, .icon-sort, .icon-angle-up, .icon-angle-down {
+  color: @slate-blue;
+  vertical-align: middle;
+  text-align: center;
 }
 
 .xv-short-textarea {
   .xv-textarea-input {
-    min-height: 0px;
+    min-height: 0;
   }
 }
 .xv-textarea-input {
   width: 90%;
-  height: 100%;
   min-height: 100px;
   margin: 6px;
-  border: #ddd 2px solid;
-  color: @black;
+  border: #eee 2px solid;
 }
 
 .xv-documents-picker-label {
@@ -781,6 +298,7 @@ body {
 }
 
 .xv-half-check {
+  // TODO: replace this image with font
   background:
     transparent
     url(../../../../../../assets/checkbox.png)
@@ -789,41 +307,82 @@ body {
     scroll;
 }
 
-.xv-textarea {
-  background-color: @white;
-  &.max-height {
-    height: 100%;
-  }
-}
-
 .xv-menuitem {
   &.disabled {
     color: @dim-gray;
   }
 }
 
-/* This is for styling the moved items in the more toolbar*/
+/* This is for styling the moved items in the more toolbar */
 .xv-toolbar-moved {
   width: 220px;
 }
 
-.xv-totals-panel {
-  padding: 0;
-  background-color: @white;
-  font-size: 13px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  .onyx-input, .onyx-button {
-    font-size: 13px;
+.icon-folder-open-alt, .icon-calendar, .icon-sort, .icon-angle-up, .icon-angle-down, .icon-save {
+  color: @slate-blue;
+  vertical-align: middle;
+}
+
+.onyx-toolbar {
+  height: @toolbarHeight;
+  padding: 4px;
+  background: @header-gray;
+  border: none;
+
+  .onyx-icon-button, .onyx-popup-decorator {
+    margin: 0 5px 0 3px;
+    div {
+      text-shadow: none;
+      color: @white;
+    }
+    &.lock {
+      div {
+        color: @light-orange;
+      }
+    }
+  }
+
+  .onyx-popup-decorator {
+    // cancel the margin that
+    // is on the icon if there's a menu
+    .onyx-icon-button {
+      margin: 0;
+    }
+    text-align: center;
+    width: 50px;
+    height: 40px;
+  }
+
+  .onyx-menu {
+    margin-top: 10px;
+  }
+
+  .spacer {
+    margin: 0;
+  }
+
+  .xv-toolbar-label, .xv-search {
+    width: @searchLength;
+    margin: 0;
+    margin-left: 6px;
+  }
+  .xv-search {
+    color: @med-gray;
   }
 }
 
-.xv-totals-panel {
-  .xv-label, .onyx-input-decorator {
-    padding: 3px;
-  }
-  .xv-label, .xv-picker-label {
-    width: 110px;
-  }
-}
+// local imports
+@import "mixins.less";
+
+@import "navigator.less";
+@import "startup.less";
+@import "workspace.less";
+@import "model-decorator.less";
+@import "picker.less";
+@import "grid.less";
+@import "dashboard.less";
+@import "list.less";
+@import "pullout.less";
+@import "relations.less";
+@import "address.less";
+@import "search.less";

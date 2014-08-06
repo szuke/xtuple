@@ -18,8 +18,7 @@ regexp:true, undef:true, trailing:true, white:true */
     },
     collection: "XM.creditCardGateways",
     controlValueChanged: function (inSender, inEvent) {
-      console.log(inEvent);
-      if (inEvent.value !== "Authorize.Net") {
+      if (!XM.creditCardGateways.find(function (model) { return model.id === inEvent.value; })) {
         this.doNotify({message: "_unsupportedGateway".loc()});
       }
       return this.inherited(arguments);
@@ -71,11 +70,9 @@ regexp:true, undef:true, trailing:true, white:true */
       this.inherited(arguments);
       this.createComponent({
         name: "comboboxNote",
-        container: this.$.fittableColumns,
+        container: this.$.container,
         classes: "xv-combobox-note"
       });
-      this.$.input.applyStyle("padding-top", "8px");
-      this.$.input.applyStyle("padding-left", "8px");
     },
     /**
       Populate the note field

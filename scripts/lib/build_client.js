@@ -10,9 +10,6 @@ var _ = require('underscore'),
   path = require('path'),
   rimraf = require('rimraf');
 
-  // TODO: relax the assumption that extension builds are js only (i.e. allow extension css)
-  // TODO: right now we just give the latest versions available in the db. This might possibly change.
-
 (function () {
   "use strict";
 
@@ -24,18 +21,21 @@ var _ = require('underscore'),
   exports.getClientSql = function (extPath, callback) {
     var extName,
       constructQuery = function (contents, extension, version, language) {
-        return "select xt.insert_client($$" + contents +
+        if (!contents || contents === "undefined") {
+          return "";
+        }
+        return "select xt.js_init();select xt.insert_client($$" + contents +
           "$$, '" + extension +
           "', '" + version +
           "', '" + language + "');";
       };
 
-    if (extPath.indexOf("/lib/orm") >= 0) {
-      // this is lib/orm. There is nothing here to install on the client.
+    if (extPath.indexOf("/lib/orm") >= 0 || extPath.indexOf("foundation-database") >= 0) {
+      // There is nothing here to install on the client.
       callback(null, "");
       return;
 
-    } else if (extPath.indexOf("extensions") < 0) {
+    } else if (extPath.indexOf("extensions") < 0 && extPath.indexOf("node_modules") < 0) {
       // this is the core app, which has a slightly different process.
       fs.readFile(path.join(__dirname, "build/core.js"), "utf8", function (err, jsCode) {
         if (err) {
@@ -61,7 +61,7 @@ var _ = require('underscore'),
 
     } else {
       extName = path.basename(extPath).replace(/\/$/, ""); // the name of the extension
-      fs.readFile(path.join(__dirname, "build", extName + ".js"), "utf8", function (err, code) {
+      fs.readFile(path.join(__dirname, "build", extName + ".js"), "utf8", function (err, jsCode) {
         if (err) {
           if (err.code === 'ENOENT') {
             // it's not necessarily an error if there's no code here.
@@ -72,27 +72,31 @@ var _ = require('underscore'),
           callback(err);
           return;
         }
-        // get the extension version from the database manifest file
-        fs.readFile(path.join(extPath, "database/source/manifest.js"), "utf8", function (err, manifestContents) {
-          if (err) {
-            callback(err);
-            return;
-          }
-          var manifestDetails = JSON.parse(manifestContents);
-          if (!manifestDetails.version) {
-            // if the extensions don't declare their version, default to the package version
-            fs.readFile(path.join(__dirname, "../../package.json"), "utf8", function (err, packageJson) {
-              if (err) {
-                callback(err);
-                return;
-              }
-              var packageDetails = JSON.parse(packageJson);
-              callback(null, constructQuery(code, extName, packageDetails.version, "js"));
-            });
+        fs.readFile(path.join(__dirname, "build", extName + ".css"), "utf8", function (err, cssCode) {
+          // get the extension version from the database manifest file
+          fs.readFile(path.join(extPath, "database/source/manifest.js"), "utf8", function (err, manifestContents) {
+            if (err) {
+              callback(err);
+              return;
+            }
+            var manifestDetails = JSON.parse(manifestContents);
+            if (!manifestDetails.version) {
+              // if the extensions don't declare their version, default to the package version
+              fs.readFile(path.join(__dirname, "../../package.json"), "utf8", function (err, packageJson) {
+                if (err) {
+                  callback(err);
+                  return;
+                }
+                var packageDetails = JSON.parse(packageJson);
+                callback(null, constructQuery(cssCode, extName, packageDetails.version, "css") +
+                  constructQuery(jsCode, extName, packageDetails.version, "js"));
+              });
 
-          } else {
-            callback(null, constructQuery(code, extName, manifestDetails.version, "js"));
-          }
+            } else {
+              callback(null, constructQuery(cssCode, extName, manifestDetails.version, "css") +
+                constructQuery(jsCode, extName, manifestDetails.version, "js"));
+            }
+          });
         });
       });
     }
@@ -104,6 +108,7 @@ var _ = require('underscore'),
   var buildExtension = function (extPath, callback) {
     // regex: remove trailing slash
     var extName = path.basename(extPath).replace(/\/$/, ""), // the name of the extension
+      cssFilename = extName + ".css",
       jsFilename = extName + ".js";
 
     // create the package file for enyo to use
@@ -114,7 +119,7 @@ var _ = require('underscore'),
         return;
       }
       // run the enyo deployment method asyncronously
-      var rootDir = path.join(extPath, "../..");
+      var rootDir = path.join(extPath, extPath.indexOf("node_modules") >= 0 ? "../../enyo-client/extensions/" : "../..");
       // we run the command from /scripts/lib, so that is where build directories and other
       // temp files are going to go.
       console.log("building " + extName);
@@ -130,9 +135,11 @@ var _ = require('underscore'),
           }
           // rename the file with the name of the extension so that we won't need to recreate it
           // in the case of multiple databases wanting the same client code
-          fs.rename(path.join(__dirname, "build/app.js"), path.join(__dirname, "build", jsFilename), function (err) {
-            callback(err);
-          });
+          fs.renameSync(path.join(__dirname, "build/app.js"), path.join(__dirname, "build", jsFilename));
+          if (fs.existsSync(path.join(__dirname, "build/app.css"))) {
+            fs.renameSync(path.join(__dirname, "build/app.css"), path.join(__dirname, "build", cssFilename));
+          }
+          callback();
         }
       );
     });
@@ -155,7 +162,8 @@ var _ = require('underscore'),
       fs.readdir(path.join(__dirname, "../../enyo-client/application/build"), function (err, files) {
         var readFile;
         if (err) {
-          callback(err);
+          callback("Error: cannot find 'enyo-client/application/build'. Ensure that the " +
+            "git submodules are up to date." + err);
           return;
         } else if (files.length < 4) {
           callback("Error: was not able to build all core files. Built files are: " +
@@ -211,19 +219,21 @@ var _ = require('underscore'),
   };
 
   var build = function (extPath, callback) {
-    if (extPath.indexOf("/lib/orm") >= 0) {
-      // this is lib/orm. There is nothing here to install on the client.
+    var isNodeModule = extPath.indexOf("node_modules") >= 0;
+
+    if (extPath.indexOf("/lib/orm") >= 0 || extPath.indexOf("foundation-database") >= 0) {
+      // There is nothing here to install on the client.
       callback();
       return;
     }
 
-    if (extPath.indexOf("extensions") < 0) {
+    if (extPath.indexOf("extensions") < 0 && !isNodeModule) {
       // this is the core app, which has a different deploy process.
       buildCore(callback);
       return;
     }
 
-    var enyoDir = path.join(extPath, "../../enyo");
+    var enyoDir = path.join(extPath, isNodeModule ? "../../enyo-client/extensions/enyo" : "../../enyo");
     fs.exists(path.join(extPath, "client"), function (exists) {
       if (!exists) {
         console.log(extPath + " has no client code. Not trying to build it.");
@@ -287,24 +297,17 @@ var _ = require('underscore'),
         callback(err);
         return;
       }
-      fs.unlink(path.join(__dirname, "package.js"), function (err) {
-        if (err) {
-          callback(err);
-          return;
-        }
-        var buildDirs = [
-          path.join(__dirname, "build"),
-          path.join(__dirname, "deploy"),
-          path.join(__dirname, "../../enyo-client/application/build"),
-          path.join(__dirname, "../../enyo-client/application/deploy"),
-          path.join(__dirname, "../../enyo-client/extensions/build"),
-          path.join(__dirname, "../../enyo-client/extensions/builds"),
-          path.join(__dirname, "../../enyo-client/extensions/deploy")
-        ];
-        async.map(buildDirs, rimraf, function (err) {
-          callback(err);
-        });
-      });
+      var buildDirs = [
+        path.join(__dirname, "package.js"),
+        path.join(__dirname, "build"),
+        path.join(__dirname, "deploy"),
+        path.join(__dirname, "../../enyo-client/application/build"),
+        path.join(__dirname, "../../enyo-client/application/deploy"),
+        path.join(__dirname, "../../enyo-client/extensions/build"),
+        path.join(__dirname, "../../enyo-client/extensions/builds"),
+        path.join(__dirname, "../../enyo-client/extensions/deploy")
+      ];
+      async.map(buildDirs, rimraf, callback);
     });
   };
 

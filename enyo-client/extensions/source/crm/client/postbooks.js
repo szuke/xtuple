@@ -1,7 +1,7 @@
 /*jshint bitwise:true, indent:2, curly:true, eqeqeq:true, immed:true,
 latedef:true, newcap:true, noarg:true, regexp:true, undef:true,
 trailing:true, white:true*/
-/*global XT:true, XV:true, XM:true, enyo:true*/
+/*global XT:true, XV:true, XM:true, enyo:true, console:true */
 
 (function () {
 
@@ -10,7 +10,8 @@ trailing:true, white:true*/
       module,
       relevantPrivileges,
       configurationJson,
-      configuration;
+      configuration,
+      isBiAvailable;
 
     // ..........................................................
     // APPLICATION
@@ -27,6 +28,7 @@ trailing:true, white:true*/
 
     panels = [
       {name: "itemList", kind: "XV.ItemList"},
+      {name: "itemGroupList", kind: "XV.ItemGroupList"},
       {name: "currencyList", kind: "XV.CurrencyList"},
       {name: "stateList", kind: "XV.StateList"},
       {name: "countryList", kind: "XV.CountryList"},
@@ -51,14 +53,34 @@ trailing:true, white:true*/
       name: "crm",
       label: "_crm".loc(),
       panels: [
-        {name: "crmDashboard", kind: "XV.CrmDashboard"},
         {name: "accountList", kind: "XV.AccountList"},
         {name: "contactList", kind: "XV.ContactList"},
+        {name: "crm_activityList", kind: "XV.ActivityList"},
         {name: "toDoList", kind: "XV.ToDoList"},
         {name: "opportunityList", kind: "XV.OpportunityList"},
         {name: "incidentList", kind: "XV.IncidentList", toggleSelected: false}
       ]
     };
+
+    if (XT.session.settings.get("DashboardLite")) {
+      var dashboardModule = {
+        name: "dashboardLite",
+        label: "_dashboard".loc(),
+        panels: [
+          {
+            name: "dashboardLite",
+            kind: "XV.DashboardLite",
+            newActions: [
+              {name: "assignedIncidents", label: "_assignedIncidents".loc(), item: "XV.AssignedIncidentBarChart"},
+              {name: "opportunities", label: "_opportunities".loc(), item: "XV.OpportunityBarChart"}
+            ]
+          }
+        ]
+      };
+
+      XT.app.$.postbooks.insertModule(dashboardModule, 0);
+    }
+
     XT.app.$.postbooks.insertModule(module, 0);
 
     relevantPrivileges = [
@@ -73,10 +95,12 @@ trailing:true, white:true*/
       "MaintainAllIncidents",
       "MaintainAllOpportunities",
       "MaintainAllToDoItems",
+      "MaintainCharacteristics",
       "MaintainIncidentCategories",
       "MaintainIncidentPriorities",
       "MaintainIncidentResolutions",
       "MaintainIncidentSeverities",
+      "MaintainItemGroups",
       "MaintainOpportunitySources",
       "MaintainOpportunityStages",
       "MaintainOpportunityTypes",
@@ -88,6 +112,7 @@ trailing:true, white:true*/
       "MaintainPersonalToDoItems",
       "MaintainTitles",
       "ReassignToDoItems",
+      "ViewAddresses",
       "ViewAllContacts",
       "ViewAllCRMAccounts",
       "ViewAllIncidentHistory",
@@ -95,6 +120,7 @@ trailing:true, white:true*/
       "ViewAllOpportunities",
       "ViewAllProjects",
       "ViewAllToDoItems",
+      "ViewCharacteristics",
       "ViewPersonalContacts",
       "ViewPersonalCRMAccounts",
       "ViewPersonalIncidents",
@@ -109,7 +135,6 @@ trailing:true, white:true*/
       "ViewClassCodes",
       "ViewItemMasters",
       "ViewProductCategories",
-      "ViewUOMs",
       "ConfigureCRM",
       "EditOthersComments",
       "EditOwnComments",
@@ -122,5 +147,4 @@ trailing:true, white:true*/
     XT.session.addRelevantPrivileges(module.name, relevantPrivileges);
 
   };
-
 }());

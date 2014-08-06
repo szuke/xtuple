@@ -25,7 +25,6 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
     // is a function that returns another function, and express allows routes to
     // be defined in such a way as to chain these types of functions together in an array.
     ensureLogin = require('connect-ensure-login').ensureLoggedIn(logoutPath),
-    analysis = require('./analysis'),
     app = require('./app'),
     auth = require('./auth'),
     authorizeNet = require('./authorize-net'),
@@ -34,16 +33,17 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
     email = require('./email'),
     exxport = require('./export'),
     data = require('./data'),
-    olapData = require('./olapdata'),
-    dataFromKey = require('./data_from_key'),
     file = require('./file'),
+    generateReport = require('./generate_report'),
+    generateOauthKey = require('./generate_oauth_key'),
+    installExtension = require('./install_extension'),
     locale = require('./locale'),
     passport = require('passport'),
     redirector = require('./redirector'),
-    report = require('./report'),
     recover = require('./recover'),
     restDiscovery = require('./restDiscovery'),
     restRouter = require('./restRouter'),
+    revokeOauthToken = require('./revoke_oauth_token'),
     vcfExport = require('./vcfExport');
 
   //
@@ -69,11 +69,6 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
   exports.get = [ensureLogin, data.get];
   exports.patch = [ensureLogin, data.patch];
   exports.post = [ensureLogin, data.post];
-  
-  //
-  //  OLAP query route
-  //
-  exports.queryOlapCatalog = [ensureLogin, olapData.queryOlapCatalog];
 
   //
   // REST API Routes
@@ -94,15 +89,16 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
   exports.creditCard = [ensureLogin, authorizeNet.transact];
   exports.changePassword = [ensureLogin, changePassword.changePassword];
   exports.clientCode = [ensureLogin, clientCode.clientCode];
-  exports.dataFromKey = dataFromKey.dataFromKey; // don't authenticate
   exports.email = [ensureLogin, email.email];
   exports.exxport = [ensureLogin, exxport.exxport];
   exports.file = [ensureLogin, file.file];
+  exports.generateOauthKey = [ensureLogin, generateOauthKey.generateKey];
+  exports.generateReport = [ensureLogin, generateReport.generateReport];
+  exports.installExtension = [ensureLogin, installExtension.installExtension];
   exports.locale = [ensureLogin, locale.locale];
   exports.redirect = redirector.redirect;
-  exports.report = [ensureLogin, report.report];
-  exports.analysis = [ensureLogin, analysis.analysis];
   exports.resetPassword = [ensureLogin, changePassword.resetPassword];
+  exports.revokeOauthToken = [ensureLogin, revokeOauthToken.revokeToken];
   exports.vcfExport = [ensureLogin, vcfExport.vcfExport];
 
 }());

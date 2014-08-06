@@ -1,6 +1,8 @@
 select xt.install_js('XT','Session','xtuple', $$
-  /* Copyright (c) 1999-2011 by OpenMFG LLC, d/b/a xTuple.
+  /* Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
      See www.xm.ple.com/CPAL for the full text of the software license. */
+
+(function () {
 
   XT.Session = {};
 
@@ -26,9 +28,11 @@ select xt.install_js('XT','Session','xtuple', $$
             + 'coalesce(locale_qtyper_scale, 6) as "quantityPerScale", '
             + 'coalesce(locale_uomratio_scale, 6) as "unitRatioScale", '
             + 'coalesce(locale_percent_scale, 2) as "percentScale", '
-            + 'coalesce(locale_weight_scale, 2) as "weightScale" '
+            + 'coalesce(locale_weight_scale, 2) as "weightScale", '
+            + 'coalesce(localeext_hours_scale, 2) as "hoursScale" '
             + 'from locale '
             + 'join usr on usr_locale_id = locale_id '
+            + 'left join xt.localeext on locale_id=localeext_id '
             + 'left join lang on locale_lang_id = lang_id '
             + 'left join country on locale_country_id = country_id '
             + 'where usr_username = $1 ',
@@ -39,7 +43,7 @@ select xt.install_js('XT','Session','xtuple', $$
         "from xt.dict " +
         "left join xt.ext on dict_ext_id = ext_id " +
         "left join xt.usrext on ext_id = usrext_ext_id " +
-        "left join xt.grpext on ext_id = grpext_id " +
+        "left join xt.grpext on ext_id = grpext_ext_id " +
         "left join usrgrp on grpext_grp_id = usrgrp_grp_id " +
         "where dict_language_name = $1 " +
         "and dict_is_database = false " +
@@ -54,22 +58,23 @@ select xt.install_js('XT','Session','xtuple', $$
       throw "No result for locale. Username probably does not exist in the instance database";
     } else if (rec.language && rec.country) {
       culture = rec.language + '_' + rec.country;
-    } else if (rec.language) {
-      culture = rec.language;
+    } else {
+      /* Sensible default if locale is not fully set */
+      culture = "en_US";
     }
     rec.culture = culture;
-
 
     /* might as well request the translations in here too */
     strings = plv8.execute(dictionarySql, [culture, XT.username]);
     if(strings.length === 0) {
+      /* Sensible default if locale is fully set but no dictionary exists */
       strings = plv8.execute(dictionarySql, ["en_US"]);
     }
     rec.strings = strings.map(function (row) {
       return JSON.parse(row.dict_strings);
     });
 
-    return JSON.stringify(rec);
+    return rec;
   }
 
   /**
@@ -85,11 +90,11 @@ select xt.install_js('XT','Session','xtuple', $$
       if (XM.hasOwnProperty(type) &&
           XM[type].settings &&
           typeof XM[type].settings === 'function') {
-        settings = XT.extend(settings, JSON.parse(XM[type].settings()));
+        settings = XT.extend(settings, XM[type].settings());
       }
     }
 
-    return JSON.stringify(settings);
+    return settings;
   }
 
   /**
@@ -109,7 +114,7 @@ select xt.install_js('XT','Session','xtuple', $$
               ') grppriv on (grppriv_priv_id=priv_id); '
       rec = plv8.execute(sql, [ XT.username ] );
 
-    return rec.length ? JSON.stringify(rec) : '{}';
+    return rec.length ? rec : {};
   }
 
 
@@ -122,7 +127,7 @@ select xt.install_js('XT','Session','xtuple', $$
   XT.Session.preferences = function() {
     var sql = "select * from xt.userpref where userpref_usr_username = $1 " +
               "and userpref_name != 'PreferredWarehouse' " +
-              "union " + 
+              "union " +
               /* Sorry, we've just got to share this one... */
               "select usrpref_id, usrpref_username, usrpref_name, warehous_code " +
               "from usrpref " +
@@ -135,7 +140,7 @@ select xt.install_js('XT','Session','xtuple', $$
     result.map(function (res) {
       resultObj[res.userpref_name] = res.userpref_value;
     });
-    return JSON.stringify(resultObj);
+    return resultObj;
   }
 
   /*
@@ -191,7 +196,7 @@ select xt.install_js('XT','Session','xtuple', $$
     @param {String} Schema name
     @returns {Hash}
   */
-  XT.Session.schema = function(schema) {
+  XT.Session.schema = function(schema, table) {
     var sql = 'select c.relname as "type", ' +
               '  attname as "column", ' +
               '  typcategory as "category", ' +
@@ -202,6 +207,7 @@ select xt.install_js('XT','Session','xtuple', $$
               '  join pg_type t on a.atttypid = t.oid ' +
               ' join xt.orm on lower(orm_namespace) = n.nspname and xt.decamelize(orm_type) = c.relname and not orm_ext ' +
               'where n.nspname = $1 ' +
+              (table ? ' and c.relname = $2 ' : '') +
               'and relkind = \'v\' ' +
               'and orm_context = \'xtuple\' ' +
               'union all ' +
@@ -219,12 +225,13 @@ select xt.install_js('XT','Session','xtuple', $$
               '  left join xt.grpext on ext_id=grpext_ext_id ' +
               '  left join usrgrp on usrgrp_grp_id=grpext_grp_id ' +
               'where n.nspname = $1 ' +
+              (table ? ' and c.relname = $2 ' : '') +
               ' and relkind = \'v\' ' +
               ' and orm_context != \'xtuple\' ' +
-              ' and (usrext_usr_username = $2 or usrgrp_username = $2) ' +
+              ' and (usrext_usr_username = $3 or usrgrp_username = $3) ' +
               ' group by c.relname, attname, typcategory, n.nspname, attnum ' +
               'order by type, attnum',
-      recs = plv8.execute(sql, [schema, XT.username]),
+      recs = plv8.execute(sql, [schema, table, XT.username]),
       type,
       prev = '',
       name,
@@ -351,7 +358,8 @@ select xt.install_js('XT','Session','xtuple', $$
       if (propertyIsValid(orm, name)) {
         column = {
           name: name,
-          category: recs[i].category
+          category: recs[i].category,
+          type: XT.Orm.getType(orm, name)
         }
         result[type]['columns'].push(column);
       }
@@ -378,7 +386,9 @@ select xt.install_js('XT','Session','xtuple', $$
       }
     }
 
-    return JSON.stringify(result);
+    return result;
   }
+
+}());
 
 $$ );

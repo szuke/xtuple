@@ -111,6 +111,16 @@ white:true*/
     WEIGHT_SCALE: 2,
 
     /**
+      System precision scale for hours.
+
+      @static
+      @constant
+      @type Number
+      @default 2
+    */
+    HOURS_SCALE: 2,
+
+    /**
       Maximum length of the history array
 
       @static
@@ -176,9 +186,10 @@ white:true*/
 
     baseCurrency: function () {
       if (baseCurr) { return baseCurr; }
-      baseCurr = _.find(XM.currencies.models, function (curr) {
+      baseCurr = XM.currencies ? _.find(XM.currencies.models, function (curr) {
         return curr.get('isBase');
-      });
+      }) : false;
+      
       return baseCurr;
     },
 

@@ -82,6 +82,15 @@
         }
       },
       {
+        "name": "grantedPrivileges",
+        "toMany": {
+          "column": "usr_username",
+          "type": "UserAccountPrivilegeAssignment",
+          "inverse": "userAccount",
+          "isNested": true
+        }
+      },
+      {
         "name": "grantedExtensions",
         "toMany": {
           "column": "usr_username",
@@ -93,6 +102,99 @@
     ],
     "isSystem": true,
     "sourceCode": "U"
+  },
+  {
+    "context": "xtuple",
+    "nameSpace": "SYS",
+    "type": "UserAccountPrivilegeAssignment",
+    "table": "usrpriv",
+    "idSequenceName": "usrpriv_usrpriv_id_seq",
+    "comment": "User Account Privilege Assignment Map",
+    "privileges": {
+      "all": {
+        "create": true,
+        "read": true,
+        "update": false,
+        "delete": true
+      }
+    },
+    "properties": [
+      {
+        "name": "id",
+        "attr": {
+          "type": "Number",
+          "column": "usrpriv_id",
+          "isPrimaryKey": true
+        }
+      },
+      {
+        "name": "uuid",
+        "attr": {
+          "type": "String",
+          "column": "obj_uuid",
+          "isNaturalKey": true
+        }
+      },
+      {
+        "name": "userAccount",
+        "attr": {
+          "type": "String",
+          "column": "usrpriv_username",
+          "required": true
+        }
+      },
+      {
+        "name": "privilege",
+        "toOne": {
+          "type": "Privilege",
+          "column": "usrpriv_priv_id",
+          "required": true
+        }
+      }
+    ],
+    "isNestedOnly": true,
+    "isSystem": true
+  },
+  {
+    "context": "xtuple",
+    "nameSpace": "SYS",
+    "type": "Privilege",
+    "table": "priv",
+    "comment": "Privilege Map",
+    "privileges": {
+      "all": {
+        "create": false,
+        "read": true,
+        "update": false,
+        "delete": false
+      }
+    },
+    "properties": [
+      {
+        "name": "id",
+        "attr": {
+          "type": "Number",
+          "column": "priv_id",
+          "isPrimaryKey": true
+        }
+      },
+      {
+        "name": "name",
+        "attr": {
+          "type": "String",
+          "column": "priv_name",
+          "isNaturalKey": true
+        }
+      },
+      {
+        "name": "module",
+        "attr": {
+          "type": "String",
+          "column": "priv_module"
+        }
+      }
+    ],
+    "isSystem": true
   },
   {
     "context": "xtuple",
@@ -134,6 +236,15 @@
         }
       },
       {
+        "name": "grantedPrivileges",
+        "toMany": {
+          "type": "UserAccountRolePrivilegeAssignment",
+          "column": "grp_id",
+          "inverse": "userAccountRole",
+          "isNested": true
+        }
+      },
+      {
         "name": "grantedExtensions",
         "toMany": {
           "column": "grp_id",
@@ -143,6 +254,56 @@
         }
       }
     ],
+    "isSystem": true
+  },
+  {
+    "context": "xtuple",
+    "nameSpace": "SYS",
+    "type": "UserAccountRolePrivilegeAssignment",
+    "table": "grppriv",
+    "idSequenceName": "grppriv_grppriv_id_seq",
+    "comment": "User Account Role Privilege Assignment Map",
+    "privileges": {
+      "all": {
+        "create": true,
+        "read": true,
+        "update": false,
+        "delete": true
+      }
+    },
+    "properties": [
+      {
+        "name": "id",
+        "attr": {
+          "type": "Number",
+          "column": "grppriv_id",
+          "isPrimaryKey": true
+        }
+      },
+      {
+        "name": "uuid",
+        "attr": {
+          "type": "String",
+          "column": "obj_uuid",
+          "isNaturalKey": true
+        }
+      },
+      {
+        "name": "userAccountRole",
+        "attr": {
+          "type": "Number",
+          "column": "grppriv_grp_id"
+        }
+      },
+      {
+        "name": "privilege",
+        "toOne": {
+          "type": "Privilege",
+          "column": "grppriv_priv_id"
+        }
+      }
+    ],
+    "isNestedOnly": true,
     "isSystem": true
   },
   {
@@ -399,6 +560,54 @@
         "attr": {
           "type": "String",
           "column": "recover_ip"
+        }
+      }
+    ],
+    "isSystem": true
+  },
+  {
+    "context": "xtuple",
+    "nameSpace": "SYS",
+    "type": "ReportDefinition",
+    "table": "xt.rptdef",
+    "idSequenceName": "rptdef_rptdef_id_seq",
+    "comment": "Report Definition Table Map",
+    "privileges": {
+      "all": {
+        "create": false,
+        "read": true,
+        "update": false,
+        "delete": false
+      }
+    },
+    "properties": [
+      {
+        "name": "id",
+        "attr": {
+          "type": "Number",
+          "column": "rptdef_id",
+          "isPrimaryKey": true
+        }
+      },
+      {
+        "name": "recordType",
+        "attr": {
+          "type": "String",
+          "column": "rptdef_record_type"
+        }
+      },
+      {
+        "name": "grade",
+        "attr": {
+          "type": "Number",
+          "column": "rptdef_grade"
+        }
+      },
+      {
+        "name": "definition",
+        "attr": {
+          "type": "String",
+          "column": "rptdef_definition"
         }
       }
     ],
