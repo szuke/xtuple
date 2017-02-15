@@ -7,7 +7,7 @@ SELECT xt.add_column('cohist', 'cohist_invcitem_id',   'INTEGER',       NULL, 'p
 
 COMMENT ON COLUMN public.cohist.cohist_listprice   IS 'List price of Item.';
 COMMENT ON COLUMN public.cohist.cohist_coitem_id   IS 'Sales Order line ID that generated this history record.';
-COMMENT ON COLUMN public.cohist.cohist_invcitem_id IS 'Invoice ID that generated this history record.';
+COMMENT ON COLUMN public.cohist.cohist_invchead_id IS 'Invoice ID that generated this history record.';
 COMMENT ON COLUMN public.cohist.cohist_invcitem_id IS 'Invoice line ID that generated this history record.';
 
 SELECT xt.add_constraint('cohist',
