@@ -33,7 +33,7 @@ we've taken special care to implement it reliably across the application.
 
 ### Getting involved
 
-Fork us, take a test drive with our [free trial](http://www.xtuple.com/free-trial), 
+Fork us, take a test drive with our [free demo](http://www.xtuple.com/free-demo), 
 [file an issue](https://www.xtuple.org/bugs).
 
 ### What's Here?
