@@ -1,8 +1,8 @@
-CREATE OR REPLACE FUNCTION deleteItem(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION deleteItem(pItemid INTEGER)
+RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pItemid ALIAS FOR $1;
   _result INTEGER;
 
 BEGIN
@@ -12,7 +12,7 @@ BEGIN
   WHERE (bomitem_item_id=pItemid)
   LIMIT 1;
   IF (FOUND) THEN
-    RETURN -1;
+    RAISE EXCEPTION 'Item cannot be deleted as it is used in a BOM [xtuple: deleteItem, -1]';
   END IF;
 
   SELECT itemsite_id INTO _result
@@ -20,7 +20,7 @@ BEGIN
   WHERE (itemsite_item_id=pItemid)
   LIMIT 1;
   IF (FOUND) THEN
-    RETURN -2;
+    RAISE EXCEPTION 'Item cannot be deleted as it has an associated Item Site [xtuple: deleteItem, -2]';
   END IF;
 
   SELECT itemsub_id INTO _result
@@ -28,7 +28,7 @@ BEGIN
   WHERE (itemsub_sub_item_id=pItemid)
   LIMIT 1;
   IF (FOUND) THEN
-    RETURN -3;
+    RAISE EXCEPTION 'Item cannot be deleted as there are substitute records [xtuple: deleteItem, -3]';
   END IF;
 
   IF (fetchmetricbool('RevControl')) THEN
@@ -38,8 +38,16 @@ BEGIN
     AND (rev_target_type = 'BOM'))
     LIMIT 1;
     IF (FOUND) THEN
-      RETURN -6;
+      RAISE EXCEPTION 'Item cannot be deleted as there are revision control records [xtuple: deleteItem, -6]';
     END IF;
+  END IF;
+
+  SELECT invcitem_id INTO _result
+  FROM invcitem
+  WHERE (invcitem_item_id=pItemid)
+  LIMIT 1;
+  IF (FOUND) THEN
+    RAISE EXCEPTION 'Item cannot be deleted as it has been invoiced [xtuple: deleteItem, -7]';
   END IF;
 
   DELETE FROM bomhead

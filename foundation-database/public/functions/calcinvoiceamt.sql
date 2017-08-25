@@ -1,5 +1,7 @@
+DROP FUNCTION IF EXISTS public.calcinvoiceamt(integer, text);
+
 CREATE OR REPLACE FUNCTION calcInvoiceAmt(pInvcheadid INTEGER) RETURNS NUMERIC STABLE AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
 
@@ -9,8 +11,9 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION calcInvoiceAmt(pInvcheadid INTEGER,
-                                          pType TEXT) RETURNS NUMERIC STABLE AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
+                                          pType TEXT,
+                                          pInvcitemid INTEGER DEFAULT NULL) RETURNS NUMERIC STABLE AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _subtotal NUMERIC := 0.0;
@@ -38,7 +41,9 @@ BEGIN
     LEFT OUTER JOIN coitem ON (coitem_id=invcitem_coitem_id)
     LEFT OUTER JOIN itemsite ON (itemsite_item_id=invcitem_item_id AND
                                  itemsite_warehous_id=invcitem_warehous_id)
-  WHERE (invcitem_invchead_id=pInvcheadid);
+  WHERE (invcitem_invchead_id=pInvcheadid)
+   AND CASE WHEN pinvcitemid IS NOT NULL THEN
+        (invcitem_id=pInvcitemid) ELSE true END;
 
   IF (pType IN ('T', 'X')) THEN
     SELECT COALESCE(SUM(tax), 0.0) INTO _tax

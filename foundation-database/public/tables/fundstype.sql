@@ -1,5 +1,7 @@
 SELECT xt.create_table('fundstype', 'public');
 
+ALTER TABLE public.fundstype DISABLE TRIGGER ALL;
+
 select xt.add_column('fundstype', 'fundstype_id','SERIAL', 'PRIMARY KEY',    'public');
 select xt.add_column('fundstype', 'fundstype_code', 'TEXT', 'NOT NULL', 'public');
 select xt.add_column('fundstype', 'fundstype_name', 'TEXT', 'NOT NULL', 'public');
@@ -19,6 +21,8 @@ SELECT xt.add_index('fundstype', 'fundstype_code', 'fundstype_fundstype_code_idx
 SELECT xt.add_index('fundstype', 'fundstype_name', 'fundstype_fundstype_name_idx', 'btree', 'public');
 SELECT xt.add_index('fundstype', 'fundstype_external', 'fundstype_fundstype_external_idx', 'btree', 'public');
 
+ALTER TABLE public.fundstype ENABLE TRIGGER ALL;
+
 COMMENT ON TABLE  public.fundstype IS 'Lists the different type of funding sources availble for Cash Receipts. Maps their code to their name. Flags external types.';
 COMMENT ON COLUMN public.fundstype.fundstype_code IS 'Abbreviation for this funding type.';
 COMMENT ON COLUMN public.fundstype.fundstype_name IS 'Name of this funding type.';
@@ -27,6 +31,3 @@ COMMENT ON COLUMN public.fundstype.fundstype_creditcard IS 'A flag to indicate i
 COMMENT ON COLUMN public.fundstype.fundstype_external IS 'A flag to indicate if this funding type is used for external gateways like Credit Cards and Bank Accounts.';
 COMMENT ON COLUMN public.fundstype.fundstype_prepay IS 'A flag to indicate if this funding type Cash Receipts go to the Customer Prepaid Account.';
 COMMENT ON COLUMN public.fundstype.fundstype_extension IS 'The name of the extension that added this funding type.';
-
-GRANT ALL ON TABLE public.fundstype TO xtrole;
-GRANT ALL ON SEQUENCE public.fundstype_fundstype_id_seq TO xtrole;

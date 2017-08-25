@@ -37,14 +37,12 @@ BEGIN
   GROUP BY apopen_amount, apopen_paid, apopen_curr_id, apopen_curr_rate, apopen_docdate, prepared, selected;
 
   IF (_amount < 0) THEN
-    RETURN -1;
+    RAISE EXCEPTION '[xtuple: applyAPCreditMemoToBalance, -1]';
   END IF;
 
 --  Loop through the apopen items in order of due date
-  FOR _r IN SELECT target.apopen_id AS apopenid,
-                   currToCurr(target.apopen_curr_id,source.apopen_curr_id, 
-                     target.apopen_amount - target.apopen_paid - COALESCE(prepared,0.0) - COALESCE(selected,0.0) - COALESCE(applied,0.0),
-                     current_date) AS balance
+  FOR _r IN SELECT target.apopen_id AS apopenid, target.apopen_curr_id AS curr_id,
+                   target.apopen_amount - target.apopen_paid - COALESCE(prepared,0.0) - COALESCE(selected,0.0) - COALESCE(applied,0.0) AS balance
            FROM apopen AS source, apopen AS target
              LEFT OUTER JOIN (SELECT apcreditapply_target_apopen_id AS applied_apopen_id,
                                      SUM(currToCurr(apcreditapply_curr_id, apopen_curr_id, apcreditapply_amount, apopen_docdate)) AS applied
@@ -73,8 +71,8 @@ BEGIN
 --  Determine the amount to apply
     IF (_r.balance <= 0.0) THEN
       CONTINUE;
-    ELSEIF (_r.balance > _amount) THEN
-      _applyAmount := _amount;
+    ELSEIF (_r.balance > currToCurr(_curr_id, _r.curr_id, _amount, current_date)) THEN
+      _applyAmount := currToCurr(_curr_id, _r.curr_id, _amount, current_date);
     ELSE
       _applyAmount := _r.balance;
     END IF;
@@ -110,10 +108,10 @@ BEGIN
       ( apcreditapply_source_apopen_id, apcreditapply_target_apopen_id,
         apcreditapply_amount, apcreditapply_curr_id )
       VALUES
-      ( pApopenid, _r.apopenid, _applyAmount, _curr_id );
+      ( pApopenid, _r.apopenid, _applyAmount, _r.curr_id );
     END IF;
 
-    _amount := (_amount - _applyAmount);
+    _amount := (_amount - currToCurr(_r.curr_id, _curr_id, _applyAmount, current_date));
     IF (_amount = 0) THEN
       EXIT;
     END IF;

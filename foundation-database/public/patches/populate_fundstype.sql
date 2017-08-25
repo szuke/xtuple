@@ -46,7 +46,7 @@ INSERT INTO fundstype (
 )
 SELECT
   'M',
-  'Master Card',
+  'MasterCard',
   'Payment by Master Card credit card',
   TRUE,
   TRUE,

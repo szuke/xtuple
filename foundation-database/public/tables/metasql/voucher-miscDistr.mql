@@ -4,7 +4,7 @@
 --        used by voucher, miscVoucher
 --        Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 --        See www.xtuple.com/CPAL for the full text of the software license.
-SELECT vodist_id,
+SELECT vodist_id, 1 AS vodist_type,
        (formatGLAccount(accnt_id) || ' - ' || accnt_descrip) AS account,
        vodist_notes,
        vodist_amount, 'curr' AS vodist_amount_xtnumericrole 
@@ -14,7 +14,8 @@ WHERE ( (vodist_poitem_id=-1)
   AND (vodist_tax_id=-1)
   AND (vodist_vohead_id=<? value('vohead_id') ?>) ) 
 UNION ALL 
-SELECT vodist_id, (expcat_code || ' - ' || expcat_descrip) AS account,
+SELECT vodist_id, 2 AS vodist_type,
+       (expcat_code || ' - ' || expcat_descrip) AS account,
        vodist_notes,
        vodist_amount, 'curr' AS vodist_amount_xtnumericrole 
 FROM vodist, expcat 
@@ -22,7 +23,19 @@ WHERE ( (vodist_poitem_id=-1)
   AND   (vodist_expcat_id=expcat_id)
   AND   (vodist_vohead_id=<? value('vohead_id') ?>) ) 
 UNION ALL 
-SELECT vodist_id, (tax_code || ' - ' || tax_descrip) AS account,
+SELECT vodist_id, 3 AS vodist_type,
+       format('Freight Distribution: %s Voucher #%s Items', vend_number, vohead_number) AS account,
+       vodist_notes,
+       vodist_amount, 'curr' AS vodist_amount_xtnumericrole 
+FROM vodist
+JOIN vohead ON (vohead_id=vodist_freight_vohead_id)
+JOIN vendinfo ON (vohead_vend_id=vend_id) 
+WHERE ( (vodist_poitem_id=-1)
+  AND   (vodist_costelem_id > 0)
+  AND   (vodist_vohead_id=<? value('vohead_id') ?>) ) 
+UNION ALL 
+SELECT vodist_id, 4 AS vodist_type,
+       (tax_code || ' - ' || tax_descrip) AS account,
        vodist_notes,
        vodist_amount, 'curr' AS vodist_amount_xtnumericrole 
 FROM vodist, tax 

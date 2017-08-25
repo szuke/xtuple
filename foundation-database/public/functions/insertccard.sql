@@ -109,8 +109,8 @@ BEGIN
                       has to be 16 digits.';
   END IF;
    IF (_result = -6) THEN
-    RAISE EXCEPTION 'The first two digits for a valid Master Card
-                      number must be between 51 and 55';
+    RAISE EXCEPTION 'The first six digits for a valid Master Card
+                      number must be between 510000 and 559999 or between 222100 and 272099';
   END IF;
   IF (_result = -7) THEN
     RAISE EXCEPTION 'The first digit for a valid Visa number must

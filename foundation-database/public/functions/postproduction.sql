@@ -1,26 +1,22 @@
 -- Function: postproduction(integer, numeric, boolean, integer, timestamp with time zone)
 
--- DROP FUNCTION postproduction(integer, numeric, boolean, integer, timestamp with time zone);
-
-CREATE OR REPLACE FUNCTION postproduction(
-    integer,
-    numeric,
-    boolean,
-    integer,
-    timestamp with time zone)
-  RETURNS integer AS
+DROP FUNCTION IF EXISTS postproduction(integer, numeric, boolean, integer, timestamp with time zone);
+DROP FUNCTION IF EXISTS postproduction(integer, numeric, boolean, integer, timestamp with time zone, boolean);
+CREATE OR REPLACE FUNCTION postproduction(pWoid integer,
+                                          pQty numeric,
+                                          pBackflush boolean,
+                                          pItemlocSeries integer,
+                                          pGlDistTS timestamp with time zone,
+                                          pPreDistributed boolean DEFAULT FALSE,
+                                          pPostDistDetail boolean DEFAULT TRUE)
+RETURNS integer AS
 $BODY$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pWoid          ALIAS FOR $1;
-  pQty           ALIAS FOR $2;
-  pBackflush     ALIAS FOR $3;
-  pItemlocSeries ALIAS FOR $4;
-  pGlDistTS      ALIAS FOR $5;
-  _test          INTEGER;
+  _whsId         INTEGER;
   _invhistid     INTEGER;
-  _itemlocSeries INTEGER;
+  _itemlocSeries INTEGER := COALESCE(pItemlocSeries, NEXTVAL('itemloc_series_seq'));
   _parentQty     NUMERIC;
   _r             RECORD;
   _sense         TEXT;
@@ -29,8 +25,16 @@ DECLARE
   _ucost         NUMERIC;
   _prevItemsite  INTEGER;
   _prevQty       NUMERIC;
+  _controlled    BOOLEAN := FALSE;
+  _hasControlledMaterialItems BOOLEAN := FALSE;
 
 BEGIN
+  IF (pPreDistributed AND COALESCE(pItemlocSeries, 0) = 0) THEN 
+    RAISE EXCEPTION 'pItemlocSeries is Required when pPreDistributed [xtuple: postProduction, -4]';
+  -- TODO - find why/how passing 0 instead of null for pItemlocSeries
+  ELSIF (_itemlocSeries = 0) THEN
+    _itemlocSeries := NEXTVAL('itemloc_series_seq');
+  END IF;
 
   IF (pQty = 0) THEN
     RETURN 0;
@@ -47,7 +51,7 @@ BEGIN
   END IF;
 
 --  Make sure that all Component Item Sites exist
-  SELECT bomitem_id INTO _test
+  SELECT itemsite_warehous_id INTO _whsId
   FROM wo, bomitem, itemsite
   WHERE ( (wo_itemsite_id=itemsite_id)
    AND (itemsite_item_id=bomitem_parent_item_id)
@@ -69,7 +73,7 @@ BEGIN
     RETURN -2;
   END IF;
 
-  SELECT formatWoNumber(pWoid) INTO _woNumber;
+  _woNumber := formatWoNumber(pWoid);
 
   SELECT roundQty(item_fractional, pQty) INTO _parentQty
   FROM wo, itemsite, item
@@ -77,43 +81,40 @@ BEGIN
    AND (itemsite_item_id=item_id)
    AND (wo_id=pWoid));
 
---  Create the material receipt transaction
-  IF (pItemlocSeries = 0) THEN
-    SELECT NEXTVAL('itemloc_series_seq') INTO _itemlocSeries;
-  ELSE
-    _itemlocSeries = pItemlocSeries;
-  END IF;
-
   IF (pBackflush) THEN
     _prevItemsite := 0;
     _prevQty := 0.0;
-    FOR _r IN SELECT itemsite_id, womatl_id, womatl_qtyiss +
+    FOR _r IN SELECT itemsite_id, isControlledItemsite(itemsite_id) AS controlled, womatl_id, womatl_qtyiss +
 		     (CASE
 		       WHEN (womatl_qtywipscrap >  ((womatl_qtyfxd + (_parentQty + wo_qtyrcv) * womatl_qtyper) * womatl_scrap)) THEN
                          (womatl_qtyfxd + (_parentQty + wo_qtyrcv) * womatl_qtyper) * womatl_scrap
 		       ELSE
 		         womatl_qtywipscrap
 		      END) AS consumed,
-		     (womatl_qtyfxd + ((_parentQty + wo_qtyrcv) * womatl_qtyper)) * (1 + womatl_scrap) AS expected
+		     (womatl_qtyfxd + ((_parentQty + wo_qtyrcv) * womatl_qtyper)) * (1 + womatl_scrap) AS expected,
+         _parentQty * womatl_qtyper AS return_qty
 	      FROM womatl, wo, itemsite, item
 	      WHERE ((womatl_issuemethod IN ('L', 'M'))
 		AND  (womatl_wo_id=pWoid)
 		AND  (womatl_wo_id=wo_id)
 		AND  (womatl_itemsite_id=itemsite_id)
-		AND  (itemsite_item_id=item_id)) LOOP
+		AND  (itemsite_item_id=item_id))
+    ORDER BY womatl_id LOOP
       -- Don't issue more than should have already been consumed at this point
       IF (pQty > 0) THEN
         IF (noNeg(_r.expected - _r.consumed) > 0) THEN
           IF (_r.itemsite_id != _prevItemsite) THEN
             _prevQty := 0.0;
           END IF;
-          SELECT issueWoMaterial(_r.womatl_id, noNeg(_r.expected - _r.consumed), _itemlocSeries, pGlDistTS, _prevQty) INTO _itemlocSeries;
+          SELECT issueWoMaterial(_r.womatl_id, noNeg(_r.expected - _r.consumed), _itemlocSeries,
+            pGlDistTS, NULL, _prevQty, pPreDistributed, FALSE) INTO _itemlocSeries;
+          
           _prevItemsite := _r.itemsite_id;
           _prevQty := _prevQty+noNeg(_r.expected - _r.consumed);
         END IF;
       ELSE
-        -- Used by postMiscProduction of disassembly
-        SELECT returnWoMaterial(_r.womatl_id, (_r.expected * -1.0), _itemlocSeries, CURRENT_TIMESTAMP, true) INTO _itemlocSeries;
+        -- Used by postMiscProduction of disassembly, postProduction with negative qty, postProduction when disassembly
+        _itemlocSeries := returnWoMaterial(_r.womatl_id, _r.return_qty * -1, _itemlocSeries, CURRENT_TIMESTAMP, true, pPreDistributed, FALSE);
       END IF;
 
       UPDATE womatl
@@ -121,6 +122,10 @@ BEGIN
       WHERE ( (womatl_issuemethod='M')
        AND (womatl_id=_r.womatl_id) );
 
+      IF (_r.controlled) THEN
+        _hasControlledMaterialItems := true;
+      END IF;
+      
     END LOOP;
   END IF;
 
@@ -157,12 +162,16 @@ BEGIN
                        'W/O', 'WO', _woNumber, '', ('Receive Inventory ' || item_number || ' ' || _sense || ' Manufacturing'),
                        costcat_asset_accnt_id, getPrjAccntId(wo_prj_id, costcat_wip_accnt_id), _itemlocSeries, pGlDistTS,
                        -- the following is only actually used when the item is average or job costed
-                       _wipPost, NULL, 0.0 ) INTO _invhistid
+                       _wipPost, NULL, 0.0, pPreDistributed ), isControlledItemsite(itemsite_id) INTO _invhistid, _controlled
   FROM wo, itemsite, item, costcat
   WHERE ( (wo_itemsite_id=itemsite_id)
    AND (itemsite_item_id=item_id)
    AND (itemsite_costcat_id=costcat_id)
    AND (wo_id=pWoid) );
+
+  IF (NOT FOUND) THEN
+    RAISE EXCEPTION 'Missing cost category [xtuple: postProduction, -6]';
+  END IF;
 
   IF (pQty < 0 ) THEN
     _wipPost := _wipPost * -1;
@@ -181,38 +190,38 @@ BEGIN
    AND (itemsite_item_id=item_id)
    AND (wo_id=pWoid));
 
-
-
---  ROB Distribute to G/L - create Cost Variance, debit WIP
   PERFORM insertGLTransaction( 'W/O', 'WO', _woNumber,
                                ('Post Other Cost ' || item_number || ' ' || _sense || ' Manufacturing'),
                                getPrjAccntId(wo_prj_id, costelem_exp_accnt_id),
                                getPrjAccntId(wo_prj_id,costcat_wip_accnt_id), _invhistid,
 			       (CASE WHEN itemsite_costmethod = 'S' THEN itemcost_stdcost ELSE itemcost_actcost END * _parentQty),
                                 pGlDistTS::DATE )
-FROM wo, costelem, itemcost, costcat, itemsite, item
-WHERE
-  ((wo_id=pWoid) AND
-  (wo_itemsite_id=itemsite_id) AND
-  (itemsite_item_id=item_id) AND
-  (costelem_id = itemcost_costelem_id) AND
-  (itemcost_item_id = itemsite_item_id) AND
-  (itemsite_costcat_id = costcat_id) AND
-  (costelem_exp_accnt_id) IS NOT NULL  AND
-  (costelem_sys = false));
---End
+  FROM wo, costelem, itemcost, costcat, itemsite, item
+  WHERE
+    ((wo_id=pWoid) AND
+    (wo_itemsite_id=itemsite_id) AND
+    (itemsite_item_id=item_id) AND
+    (costelem_id = itemcost_costelem_id) AND
+    (itemcost_item_id = itemsite_item_id) AND
+    (itemsite_costcat_id = costcat_id) AND
+    (costelem_exp_accnt_id) IS NOT NULL  AND
+    (costelem_sys = false));
 
-
---  Make sure the W/O is at issue status
   UPDATE wo
   SET wo_status='I'
   WHERE (wo_id=pWoid);
 
+  IF (pPreDistributed AND (pPostDistDetail OR _controlled)) THEN
+    IF (postDistDetail(_itemlocSeries) <= 0 AND (_controlled OR _hasControlledMaterialItems)) THEN
+      PERFORM postEvent('PostProductionDistributionWarning', 'W',
+                        pWoid, _whsId, _woNumber,
+                        NULL, NULL, NULL, NULL);
+    END IF;
+  END IF;
+
   RETURN _itemlocSeries;
 
 END;
-$BODY$
-  LANGUAGE plpgsql VOLATILE
-  COST 100;
-ALTER FUNCTION postproduction(integer, numeric, boolean, integer, timestamp with time zone)
+$BODY$ LANGUAGE plpgsql;
+ALTER FUNCTION postproduction(integer, numeric, boolean, integer, timestamp with time zone, boolean, boolean)
   OWNER TO admin;

@@ -103,6 +103,10 @@ BEGIN
             AND  (shiphead_order_type=_r.shiphead_order_type)
             AND  (shiphead_id=shipitem_shiphead_id)
             AND  (shipitem_orderitem_id=_r.shipitem_orderitem_id));
+
+          IF NOT FOUND THEN
+            RAISE EXCEPTION 'Missing cost category [xtuple: returnShipmentTransaction, -1]';
+          END IF;
  
           -- We know the distribution so post this through so the any w/o activity knows about it
           PERFORM postItemlocseries(_itemlocSeries);
@@ -143,9 +147,13 @@ BEGIN
           AND  (itemsite_costcat_id=costcat_id)
           AND  (toitem_id=_r.shipitem_orderitem_id));
 
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'Missing cost category [xtuple: returnShipmentTransaction, -2]';
+      END IF;
+
       ELSE
         -- Don't know what kind of order this is
-        RETURN -11;
+        RAISE EXCEPTION 'Can not Return Shipment for order type % [xtuple: returnShipmentTransaction, -11, %]', _r.shiphead_order_type, _r.shiphead_order_type;
       END IF;
 
       UPDATE shiphead

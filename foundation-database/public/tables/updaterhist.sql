@@ -1,4 +1,7 @@
 select xt.create_table('updaterhist', 'public');
+
+ALTER TABLE public.updaterhist DISABLE TRIGGER ALL;
+
 select xt.add_column('updaterhist','updaterhist_id', 'SERIAL', 'PRIMARY KEY', 'public');
 select xt.add_column('updaterhist','updaterhist_user', 'TEXT', 'NOT NULL', 'public');
 select xt.add_column('updaterhist','updaterhist_start', 'TIMESTAMP WITH TIME ZONE', 'NOT NULL', 'public');
@@ -13,3 +16,6 @@ select xt.add_column('updaterhist','updaterhist_prepkgver', 'TEXT', '', 'public'
 select xt.add_column('updaterhist','updaterhist_postpkgver', 'TEXT', '', 'public');
 select xt.add_column('updaterhist','updaterhist_predbver', 'TEXT', 'NOT NULL', 'public');
 select xt.add_column('updaterhist','updaterhist_postdbver', 'TEXT', 'NOT NULL', 'public');
+
+ALTER TABLE public.updaterhist ENABLE TRIGGER ALL;
+

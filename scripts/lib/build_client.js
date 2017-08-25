@@ -48,8 +48,8 @@ var _ = require('underscore'),
       // There is nothing here to install on the client.
       callback(null, "");
       return;
-
-    } else if (extPath.indexOf("extension") < 0 && extPath.indexOf("node_modules") < 0) {
+    } else if (fs.existsSync(path.resolve(extPath, "enyo-client")) &&
+               fs.existsSync(path.resolve(extPath, "node-datasource"))) {
       // this is the core app, which has a slightly different process.
       fs.readFile(path.join(__dirname, "build/core.js"), "utf8", function (err, jsCode) {
         if (err) {
@@ -272,14 +272,15 @@ var _ = require('underscore'),
       return;
     }
 
-    if (extPath.indexOf("extension") < 0 && !isNodeModule) {
+    if (fs.existsSync(path.resolve(extPath, "enyo-client")) &&
+        fs.existsSync(path.resolve(extPath, "node-datasource"))) {
       // this is the core app, which has a different deploy process.
       buildCore(callback);
       return;
     }
 
     var enyoDir = "";
-    // If `extensions` is in the path, it's for a group of exentions. e.g.
+    // If `extensions` is in the path, it's for a group of extensions. e.g.
     // `private-extensions` or `xtuple-extensions`. If not, it's a single
     // e.g. `xdruple-extension`. Set `enyoDir` accordingly.
     if (extPath.indexOf("extensions") < 0 && extPath.indexOf("extension") >= 0 && !isNodeModule) {

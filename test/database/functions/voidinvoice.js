@@ -119,7 +119,7 @@ var _      = require("underscore"),
         datasource.query(sql, cred, function (err, res) {
           assert.isNull(err);
           assert.equal(res.rowCount, 1);
-          assert.equal(res.rows[0].result, 0, "itemlocseries");
+          assert.operator(res.rows[0].result, ">", 0, "itemlocseries");
           done();
         });
       } else {

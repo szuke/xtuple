@@ -1,97 +1,69 @@
-
-CREATE OR REPLACE FUNCTION forwardUpdateInvBalance(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION forwardUpdateInvBalance(pInvbalId INTEGER) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pInvbalid ALIAS FOR $1;
-  _p RECORD;
-  _r RECORD;
-  _qohEnding NUMERIC;
-  _valueEnding NUMERIC;
-  _nnEnding NUMERIC;
-  _nnvalEnding NUMERIC;
+  _numRows INTEGER;
 
 BEGIN
 
-  SELECT invbal_itemsite_id, 
-         invbal_qoh_ending,
-         invbal_value_ending,
-         invbal_nn_ending,
-         invbal_nnval_ending,
-         period_end INTO _p
-  FROM invbal
-    JOIN period ON (invbal_period_id=period_id)
-    JOIN itemsite ON (invbal_itemsite_id=itemsite_id)
-  WHERE (invbal_id=pInvbalid);
-
-  _qohEnding = _p.invbal_qoh_ending;
-  _valueEnding = _p.invbal_value_ending;
-  _nnEnding = _p.invbal_nn_ending;
-  _nnvalEnding = _p.invbal_nnval_ending;
-
---  Find all of the subsequent periods and their inventory balance, if they exist
-  FOR _r IN SELECT period_id, period_end,
-                   invbal_id, 
-                   invbal_qty_in, invbal_qty_out,
-                   invbal_value_in, invbal_value_out,
-                   invbal_nn_in, invbal_nn_out,
-                   invbal_nnval_in, invbal_nnval_out
-            FROM period 
-              LEFT OUTER JOIN invbal
-                 ON ( (invbal_period_id=period_id) AND (invbal_itemsite_id=_p.invbal_itemsite_id) )
-            WHERE (period_start > _p.period_end)
-            ORDER BY period_start LOOP
-
-    IF (_r.invbal_id IS NULL) THEN
-
-      INSERT INTO invbal
-      ( invbal_period_id, invbal_itemsite_id,
-        invbal_qoh_beginning, invbal_qoh_ending,
-        invbal_qty_in, invbal_qty_out,
-        invbal_value_beginning, invbal_value_ending,
-        invbal_value_in, invbal_value_out, 
-        invbal_nn_beginning, invbal_nn_ending,
-        invbal_nn_in, invbal_nn_out,
-        invbal_nnval_beginning, invbal_nnval_ending,
-        invbal_nnval_in, invbal_nnval_out, 
-        invbal_dirty )
-      VALUES
-      ( _r.period_id, _p.invbal_itemsite_id,
-        _qohEnding, _qohEnding,
-        0, 0, 
-        _valueEnding, _valueEnding,
-        0, 0,
-        _nnEnding, _nnEnding,
-        0, 0, 
-        _nnvalEnding, _nnvalEnding,
-        0, 0,
-        FALSE );
-    ELSE
-      UPDATE invbal
-      SET invbal_qoh_beginning = (_qohEnding),
-          invbal_qoh_ending = (_qohEnding + _r.invbal_qty_in - _r.invbal_qty_out),
-          invbal_value_beginning = (_valueEnding),
-          invbal_value_ending = (_valueEnding + _r.invbal_value_in - _r.invbal_value_out),
-          invbal_nn_beginning = (_nnEnding),
-          invbal_nn_ending = (_nnEnding + _r.invbal_nn_in - _r.invbal_nn_out),
-          invbal_nnval_beginning = (_nnvalEnding),
-          invbal_nnval_ending = (_nnvalEnding + _r.invbal_nnval_in - _r.invbal_nnval_out),
-          invbal_dirty = FALSE
-      WHERE (invbal_id=_r.invbal_id);
-
-      _qohEnding = (_qohEnding + _r.invbal_qty_in - _r.invbal_qty_out);
-      _valueEnding = (_valueEnding + _r.invbal_value_in - _r.invbal_value_out);
-      _nnEnding = (_nnEnding + _r.invbal_nn_in - _r.invbal_nn_out);
-      _nnvalEnding = (_nnvalEnding + _r.invbal_nnval_in - _r.invbal_nnval_out);
-    END IF;
-  END LOOP;
+  INSERT INTO invbal
+  (invbal_period_id, invbal_itemsite_id, invbal_dirty)
+  SELECT after.period_id, invbal_itemsite_id, FALSE
+    FROM invbal
+    JOIN period ON invbal_period_id=period_id
+    JOIN period after ON after.period_start > period.period_start
+   WHERE invbal_id=pInvbalId
+     AND NOT EXISTS (SELECT 1
+                       FROM invbal test
+                      WHERE invbal_itemsite_id=test.invbal_itemsite_id
+                        AND after.period_id=test.invbal_period_id);
 
   UPDATE invbal
-  SET invbal_dirty = false
-  WHERE (invbal_id=pInvbalid);
+     SET invbal_qoh_beginning=total.qtystart,
+         invbal_qoh_ending=total.qtyend,
+         invbal_value_beginning=total.valstart,
+         invbal_value_ending=total.valend,
+         invbal_nn_beginning=total.nnstart,
+         invbal_nn_ending=total.nnend,
+         invbal_nnval_beginning=total.nnvalstart,
+         invbal_nnval_ending=total.nnvalend
+    FROM
+    (SELECT next.invbal_id AS invbal_id,
+            start.invbal_qoh_ending +
+            COALESCE(SUM(next.invbal_qty_in-next.invbal_qty_out) OVER prev, 0.0) AS qtystart,
+            start.invbal_qoh_ending +
+            SUM(next.invbal_qty_in-next.invbal_qty_out) OVER curr AS qtyend,
+            start.invbal_value_ending +
+            COALESCE(SUM(next.invbal_value_in-next.invbal_value_out) OVER prev, 0.0) AS valstart,
+            start.invbal_value_ending +
+            SUM(next.invbal_value_in-next.invbal_value_out) OVER curr AS valend,
+            start.invbal_nn_ending +
+            COALESCE(SUM(next.invbal_nn_in-next.invbal_nn_out) OVER prev, 0.0) AS nnstart,
+            start.invbal_nn_ending +
+            SUM(next.invbal_nn_in-next.invbal_nn_out) OVER curr AS nnend,
+            start.invbal_nnval_ending +
+            COALESCE(SUM(next.invbal_nnval_in-next.invbal_nnval_out) OVER prev, 0.0) AS nnvalstart,
+            start.invbal_nnval_ending +
+            SUM(next.invbal_nnval_in-next.invbal_nnval_out) OVER curr AS nnvalend
+       FROM invbal start
+       JOIN period ON start.invbal_period_id=period.period_id
+       JOIN period after ON after.period_start > period.period_start
+       JOIN invbal next ON start.invbal_itemsite_id=next.invbal_itemsite_id
+                       AND after.period_id=next.invbal_period_id
+      WHERE start.invbal_id=pInvbalId
+     WINDOW prev AS (ORDER BY after.period_start
+                     ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),
+            curr AS (ORDER BY after.period_start
+                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) total
+   WHERE invbal.invbal_id=total.invbal_id;
 
-  RETURN pInvbalid;
+  GET DIAGNOSTICS _numRows := ROW_COUNT;
+
+  UPDATE invbal
+  SET invbal_dirty=FALSE
+  WHERE invbal_id=pInvbalId;
+
+  RETURN _numRows;
 
 END;
-$$ LANGUAGE 'plpgsql';
-
+$$ LANGUAGE plpgsql;

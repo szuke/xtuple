@@ -6,7 +6,7 @@ CREATE OR REPLACE FUNCTION listprice(pItemid INTEGER,
                                      pShiptoid INTEGER DEFAULT (NULL),
                                      pSiteid INTEGER DEFAULT (NULL),
                                      pAsOf DATE DEFAULT CURRENT_DATE) RETURNS NUMERIC AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _ips RECORD;
@@ -45,7 +45,7 @@ BEGIN
 -- 6. Customer Type Pattern
 
 -- Find the best List Price Schedule Price
- 
+
   SELECT INTO _ips
     *, currToBase(ipshead_curr_id, protoprice, pAsOf) AS rightprice
   FROM (
@@ -80,14 +80,9 @@ BEGIN
   ) AS proto
   ORDER BY assignseq, itemmatched DESC, protoprice
   LIMIT 1;
- 
+
   IF (_ips.rightprice IS NOT NULL) THEN
     RETURN _ips.rightprice;
-  END IF;
-
---  If item is exclusive then list list price does not apply
-  IF (_item.item_exclusive) THEN
-    RETURN -9999.0;
   END IF;
 
   RETURN _item.item_listprice;

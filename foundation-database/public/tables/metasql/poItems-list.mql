@@ -1,7 +1,7 @@
 -- Group: poItems
 -- Name: list
 -- Notes: used by purchaseOrder
---        Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+--        Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 --        See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT poitem.*,
@@ -20,14 +20,9 @@ SELECT poitem.*,
             WHEN (poitem_order_type='W') THEN formatWoNumber(womatl_wo_id)
             ELSE ''
        END AS order_number,
-       CASE WHEN (poitem_expcat_id IS NOT NULL) THEN expcat_code
-            WHEN (itemsite_id IS NULL) THEN poitem_vend_item_number
-            ELSE item_number
-       END AS item_number,
-       CASE WHEN (poitem_expcat_id IS NOT NULL) THEN expcat_descrip
-            WHEN (itemsite_id IS NULL) THEN firstLine(poitem_vend_item_descrip)
-            ELSE (item_descrip1 || ' ' || item_descrip2)
-       END AS item_descrip,
+       COALESCE(item_number, NULLIF(poitem_vend_item_number, ''), expcat_code) AS item_number,
+       COALESCE(NULLIF(TRIM((item_descrip1 || ' ' || item_descrip2)),''), NULLIF(firstLine(poitem_vend_item_descrip),''), expcat_descrip)
+            AS item_descrip,
        contrct_number, 
        poitem_rlsd_duedate AS orgl_duedate,
        (poitem_unitprice * poitem_qty_ordered) AS extprice,

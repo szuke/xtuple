@@ -5,7 +5,7 @@
 --        display class.  Used to be printed version got an extra parameter. Formatted
 --        values slow things down considerably on screen version otherwise. This
 --        should go away if/when we get OpenRPT to do its own formatting.
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 <? if exists("totalOnly") ?>
@@ -44,6 +44,7 @@ SELECT -1 AS id,
        invchead_invcdate AS docdate,
        NULL::date AS aropen_duedate,
        invchead_ordernumber AS ordernumber,
+       invchead_ponumber AS custpo,
        cohead_id AS ordernumber_xtidrole,
        <? value("invoice") ?>  AS doctype,
        NULL AS doctype_qtforegroundrole,
@@ -105,7 +106,7 @@ WHERE ((NOT invchead_posted)
            invchead_recurring,      invchead_invcnumber,    invchead_posted,
            invchead_ordernumber,    cohead_id,
            cust_id,                 cust_number,            cust_name,
-           invchead_recurring_invchead_id, invchead_notes
+           invchead_recurring_invchead_id, invchead_notes,  invchead_ponumber
 
 UNION
 <? endif ?>
@@ -122,6 +123,7 @@ SELECT -1 AS id,
        cmhead_docdate AS docdate,
        NULL::date AS aropen_duedate,
        NULL::text AS ordernumber,
+       cmhead_custponumber AS custpo,
        -1 AS ordernumber_xtidrole,
        <? value("return") ?>  AS doctype,
        CASE WHEN (NOT cmhead_posted) THEN 'emphasis'
@@ -181,7 +183,8 @@ WHERE ((NOT cmhead_posted)
   GROUP BY id,                      altId,                  cmhead_id,
            cmhead_docdate,          cmhead_posted,          cmhead_curr_id,
            cmhead_number,           cmhead_posted,          cmhead_comments,
-           cust_id,                 cust_number,            cust_name
+           cust_id,                 cust_number,            cust_name,
+           cmhead_custponumber
 
 UNION
 <? endif ?>
@@ -201,6 +204,7 @@ SELECT aropen_id AS id,
        aropen_docdate AS docdate,
        aropen_duedate,
        aropen_ordernumber AS ordernumber,
+       aropen_ponumber AS custpo,
        COALESCE(cohead_id,-1) AS ordernumber_xtidrole,
        CASE WHEN (aropen_doctype='I') THEN <? value("invoice") ?>
             WHEN (aropen_doctype='C') THEN <? value("creditMemo") ?>
@@ -306,7 +310,7 @@ WHERE ((true)
            aropen_closedate,        aropen_curr_rate,       cmhead_id,
            cust_id, 		    cust_number,            cust_name,
            cohead_id,               ccpay_id,               ccard_number,
-           invchead_recurring_invchead_id
+           invchead_recurring_invchead_id,                 aropen_ponumber
 UNION
 SELECT -1,
        4 AS altId,
@@ -316,6 +320,7 @@ SELECT -1,
        aropen_docdate AS docdate,
        NULL AS aropen_duedate,
        CAST(incdt_number AS text) AS ordernumber,
+       NULL AS custpo,
        incdt_id AS ordernumber_xtidrole,
        NULL AS doctype,
        NULL AS doctype_qtforegroundrole,

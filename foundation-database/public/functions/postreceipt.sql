@@ -1,170 +1,146 @@
-CREATE OR REPLACE FUNCTION postreceipt(integer, integer)
-  RETURNS integer AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+DROP FUNCTION IF EXISTS postreceipt(INTEGER, INTEGER);
+CREATE OR REPLACE FUNCTION postreceipt(precvId INTEGER, 
+                                       pItemlocSeries INTEGER,
+                                       pPreDistributed BOOLEAN DEFAULT FALSE)
+  RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  precvid		ALIAS FOR $1;
-  _itemlocSeries	INTEGER := COALESCE($2, 0);
-  _glDate		TIMESTAMP WITH TIME ZONE;
-  _o			RECORD;
-  _ordertypeabbr	TEXT;
-  _r			RECORD;
-  _ra			RECORD;
-  _recvinvqty          NUMERIC := 0.00;
-  _recvvalue		NUMERIC := 0.00;
-  _pricevar            NUMERIC := 0.00;
-  _tmp			INTEGER;
-  _coheadid		INTEGER;
-  _coitemid		INTEGER;
-  _linenumber          INTEGER;
-  _invhistid		INTEGER;
-  _ship               	BOOLEAN;
-  _i			RECORD;
+  _itemlocSeries	INTEGER := COALESCE(pItemlocSeries, NEXTVAL('itemloc_series_seq'));
+  _glDate	TIMESTAMP WITH TIME ZONE;
+  _o RECORD;
+  _ordertypeabbr TEXT;
+  _r RECORD;
+  _ra	RECORD;
+  _recvinvqty NUMERIC := 0.00;
+  _recvvalue NUMERIC := 0.00;
+  _pricevar NUMERIC := 0.00;
+  _tmp INTEGER;
+  _coheadid INTEGER;
+  _coitemid	 INTEGER;
+  _linenumber  INTEGER;
+  _invhistid	 INTEGER;
+  _ship  BOOLEAN;
+  _sourceItemsiteControlled BOOLEAN;
+  _i RECORD;
 
 BEGIN
-  SELECT recv_id, recv_order_type, recv_orderitem_id, recv_qty,
-	 round(currToBase(recv_freight_curr_id, recv_freight, recv_date::DATE),
-	       2) AS recv_freight_base,
-	 recv_freight, recv_freight_curr_id, recv_date, recv_gldistdate,
-	 itemsite_id, itemsite_item_id, item_inv_uom_id, itemsite_costmethod,
-         itemsite_controlmethod, vend_name, item_number, item_fractional
-	 INTO _r
-  FROM recv LEFT OUTER JOIN itemsite ON (recv_itemsite_id=itemsite_id)
-            LEFT OUTER JOIN item ON (itemsite_item_id=item_id)
-            LEFT OUTER JOIN vendinfo ON (recv_vend_id=vend_id)
-  WHERE ((recv_id=precvid)
-    AND  (NOT recv_posted));
+  IF (pPreDistributed AND COALESCE(pItemlocSeries, 0) = 0) THEN 
+    RAISE EXCEPTION 'pItemlocSeries is Required when pPreDistributed [xtuple: postReceipt, -7]';
+  -- TODO - find why/how passing 0 instead of null for pItemlocSeries
+  ELSIF (_itemlocSeries = 0) THEN
+    _itemlocSeries := NEXTVAL('itemloc_series_seq');
+  END IF;
+
+  SELECT recv_id, recv_order_type, recv_orderitem_id, recv_qty, 
+    round(currToBase(recv_freight_curr_id, recv_freight, recv_date::DATE), 2) AS recv_freight_base,
+	  recv_freight, recv_freight_curr_id, recv_date, recv_gldistdate, recv_purchcost, recv_order_number,
+	  itemsite_id, itemsite_item_id, item_inv_uom_id, itemsite_costmethod, 
+    itemsite_controlmethod, vend_name, item_number, item_fractional, isControlledItemsite(itemsite_id) AS controlled,
+    orderitem_id, orderitem_orderhead_id, orderitem_linenumber, orderitem_qty_invuomratio INTO _r
+  FROM recv 
+    JOIN orderitem ON recv_orderitem_id = orderitem_id AND orderitem_orderhead_type = recv_order_type
+    LEFT OUTER JOIN itemsite ON recv_itemsite_id = itemsite_id
+    LEFT OUTER JOIN item ON itemsite_item_id = item_id
+    LEFT OUTER JOIN vendinfo ON recv_vend_id=vend_id
+  WHERE recv_id = precvid
+    AND NOT recv_posted;
 
   IF (NOT FOUND) THEN
-    IF (_itemlocSeries = 0) THEN
-      RETURN -10;
-    END IF;
-    RETURN _itemlocSeries;
-
+    RAISE EXCEPTION 'This receipt line has already been posted. recv_id: %. 
+      [xtuple: postReceipt, -10, %]', precvid, precvid;
   ELSEIF (_r.recv_qty <= 0) THEN
-    RETURN -11;
+    RAISE EXCEPTION 'Can not post receipt for qty %. Please correct qty and try again. 
+      [xtuple: postReceipt, -11, %]', _r.recv_qty, _r.recv_qty;
+  END IF;
 
-  ELSIF (_r.recv_order_type ='PO') THEN
+  IF (_r.recv_order_type ='PO') THEN
     _ordertypeabbr := ('P/O for ' || _r.vend_name || ' for item ' || _r.item_number);
 
-    SELECT pohead_number AS orderhead_number, poitem_id AS orderitem_id,
-           poitem_linenumber AS orderitem_linenumber,
-	   currToBase(pohead_curr_id,
-                      COALESCE(recv_purchcost, poitem_unitprice),
-		      recv_date::DATE) AS item_unitprice_base,
-	   poitem_invvenduomratio AS invvenduomratio,
-	   pohead_orderdate AS orderdate, pohead_dropship,
-	   poitem_prj_id AS prj_id INTO _o
-    FROM recv, pohead, poitem
-    WHERE ((recv_orderitem_id=poitem_id)
-      AND  (poitem_pohead_id=pohead_id)
-      AND  (NOT recv_posted)
-      AND  (recv_id=precvid));
+    SELECT currToBase(pohead_curr_id,
+        COALESCE(_r.recv_purchcost, poitem_unitprice),
+        _r.recv_date::DATE) AS item_unitprice_base,
+      poitem_prj_id AS prj_id INTO _o
+    FROM poitem, pohead
+    WHERE poitem_id = _r.recv_orderitem_id
+      AND poitem_pohead_id = pohead_id;
+
   ELSIF (_r.recv_order_type ='RA') THEN
     _ordertypeabbr := 'R/A for item ' || _r.item_number;
 
-    SELECT rahead_id AS orderhead_id, rahead_number AS orderhead_number, raitem_id AS orderitem_id,
-           raitem_linenumber AS orderitem_linenumber,
-	   currToBase(rahead_curr_id, raitem_unitprice,
-		    recv_date::DATE) AS item_unitprice_base,
-	   raitem_qty_invuomratio AS invvenduomratio,
-	   rahead_authdate AS orderdate,
-	   raitem_unitcost AS unitcost,
-	   rahead_prj_id AS prj_id INTO _o
-    FROM recv, rahead, raitem
-    WHERE ((recv_orderitem_id=raitem_id)
-      AND  (raitem_rahead_id=rahead_id)
-      AND  (NOT recv_posted)
-      AND  (recv_id=precvid));
+    SELECT currToBase(rahead_curr_id, raitem_unitprice, _r.recv_date::DATE) AS item_unitprice_base,
+      rahead_prj_id AS prj_id, raitem_unitcost INTO _o
+    FROM raitem, rahead
+    WHERE raitem_id = _r.recv_orderitem_id
+      AND raitem_rahead_id = rahead_id;
+
   ELSIF (_r.recv_order_type ='TO') THEN
      _ordertypeabbr := 'T/O for item ' || _r.item_number;
 
-    SELECT tohead_number AS orderhead_number, toitem_id AS orderitem_id,
-           toitem_linenumber AS orderitem_linenumber,
-	   toitem_stdcost AS item_unitprice_base,
-	   1.0 AS invvenduomratio,
-	   tohead_orderdate AS orderdate,
-	   NULL AS prj_id INTO _o
-    FROM recv, tohead, toitem
-    WHERE ((recv_orderitem_id=toitem_id)
-      AND  (toitem_tohead_id=tohead_id)
-      AND  (NOT recv_posted)
-      AND  (recv_id=precvid));
-  ELSE
-    RETURN -13;	-- don't know how to handle this order type
-  END IF;
-
-  IF (NOT FOUND) THEN
-    IF (_itemlocSeries = 0) THEN
-      RETURN -10;
-    END IF;
-    RETURN _itemlocSeries;
-  END IF;
-
-  IF (_itemlocSeries = 0) THEN
-    _itemlocSeries := NEXTVAL('itemloc_series_seq');
-  ELSEIF (_itemlocSeries < 0) THEN
-    RETURN _itemlocSeries;
+    SELECT toitem_stdcost AS item_unitprice_base,
+      NULL AS prj_id INTO _o
+    FROM toitem
+    WHERE toitem_id = _r.recv_orderitem_id;
+  ELSE -- don't know how to handle this order type
+    RAISE EXCEPTION 'Cant post receipt for this order type [xtuple: postReceipt, -13]';
   END IF;
 
   _glDate := COALESCE(_r.recv_gldistdate, _r.recv_date);
-  _recvinvqty := roundQty(_r.item_fractional, (_r.recv_qty * _o.invvenduomratio));
+  _recvinvqty := roundQty(_r.item_fractional, (_r.recv_qty * _r.orderitem_qty_invuomratio));
 
   IF ( (_r.recv_order_type = 'PO') AND
         (_r.itemsite_id = -1 OR _r.itemsite_id IS NULL OR _r.itemsite_controlmethod = 'N') ) THEN
 
-    IF (_r.itemsite_id IS NOT NULL) THEN
-      SELECT insertGLTransaction( fetchJournalNumber('GL-MISC'),
-				  'S/R', _r.recv_order_type,
-                                (_o.orderhead_number::TEXT || '-' || _o.orderitem_linenumber::TEXT),
-	  			  'Receive Non-Controlled Inventory from ' || _ordertypeabbr,
-				   costcat_liability_accnt_id,
-				   getPrjAccntId(_o.prj_id, costcat_exp_accnt_id), -1,
-				   round((_o.item_unitprice_base * _r.recv_qty),2),
-				   _glDate::DATE, false ) INTO _tmp
-      FROM poitem, itemsite, costcat
-      WHERE((poitem_itemsite_id=itemsite_id)
-        AND (itemsite_costcat_id=costcat_id)
-        AND (poitem_id=_o.orderitem_id));
-    ELSE
-      SELECT insertGLTransaction(fetchJournalNumber('GL-MISC'),
-				  'S/R', _r.recv_order_type,
-                                (_o.orderhead_number::TEXT || '-' || _o.orderitem_linenumber::TEXT),
-	  			  'Receive Non-Inventory from ' || 'P/O for ' || _r.vend_name || ' for ' || expcat_code,
-				   expcat_liability_accnt_id,
-				   getPrjAccntId(_o.prj_id, expcat_exp_accnt_id), -1,
-				   round((_o.item_unitprice_base * _r.recv_qty),2),
-				   _glDate::DATE, false ) INTO _tmp
-      FROM poitem, expcat
-      WHERE((poitem_expcat_id=expcat_id)
-        AND (poitem_id=_o.orderitem_id));
-    END IF;
+    IF (round((_o.item_unitprice_base * _r.recv_qty),2) <> 0) THEN
+      IF (_r.itemsite_id IS NOT NULL ) THEN
+        SELECT insertGLTransaction( fetchJournalNumber('GL-MISC'),
+          'S/R', _r.recv_order_type,
+          (_r.recv_order_number::TEXT || '-' || _r.orderitem_linenumber::TEXT),
+          'Receive Non-Controlled Inventory from ' || _ordertypeabbr,
+          costcat_liability_accnt_id,
+          getPrjAccntId(poitem_prj_id, costcat_exp_accnt_id), -1,
+          round((_o.item_unitprice_base * _r.recv_qty),2),
+          _glDate::DATE, false ) INTO _tmp
+        FROM poitem, itemsite, costcat
+        WHERE poitem_itemsite_id = itemsite_id
+          AND itemsite_costcat_id = costcat_id
+          AND poitem_id = _r.orderitem_id;
+      ELSE
+        SELECT insertGLTransaction(fetchJournalNumber('GL-MISC'),
+          'S/R', _r.recv_order_type,
+          (_r.recv_order_number::TEXT || '-' || _r.orderitem_linenumber::TEXT),
+          'Receive Non-Inventory from ' || 'P/O for ' || _r.vend_name || ' for ' || expcat_code,
+          expcat_liability_accnt_id,
+          getPrjAccntId(poitem_prj_id, expcat_exp_accnt_id), -1,
+          round((_o.item_unitprice_base * _r.recv_qty),2),
+          _glDate::DATE, false ) INTO _tmp
+        FROM poitem, expcat
+        WHERE poitem_expcat_id = expcat_id
+          AND poitem_id = _r.orderitem_id;
+      END IF;
 
-
-    IF (_tmp < 0 AND _tmp != -3) THEN -- error but not 0-value transaction
-      RETURN _tmp;
-    ELSE
       -- Posting to trial balance is deferred to prevent locking
       INSERT INTO itemlocpost ( itemlocpost_glseq, itemlocpost_itemlocseries)
       VALUES ( _tmp, _itemlocSeries );
-
     END IF;
 
-    SELECT insertGLTransaction( fetchJournalNumber('GL-MISC'),
-				'S/R', _r.recv_order_type,
-                              (_o.orderhead_number::TEXT || '-' || _o.orderitem_linenumber::TEXT),
-				'Receive Non-Inventory Freight from ' || _ordertypeabbr,
-				 expcat_liability_accnt_id,
-				 getPrjAccntId(_o.prj_id, expcat_freight_accnt_id), -1,
-				 _r.recv_freight_base,
-				 _glDate::DATE, false ) INTO _tmp
-    FROM poitem, expcat
-    WHERE((poitem_expcat_id=expcat_id)
-      AND (poitem_id=_o.orderitem_id));
+    IF (round(_r.recv_freight_base,2) <> 0) THEN
+      SELECT insertGLTransaction( fetchJournalNumber('GL-MISC'),
+        'S/R', _r.recv_order_type,
+        (_r.recv_order_number::TEXT || '-' || _r.orderitem_linenumber::TEXT),
+        'Receive Non-Inventory Freight from ' || _ordertypeabbr,
+        expcat_liability_accnt_id,
+        getPrjAccntId(poitem_prj_id, expcat_freight_accnt_id), -1,
+        _r.recv_freight_base,
+        _glDate::DATE, false ) INTO _tmp
+      FROM poitem, expcat
+      WHERE((poitem_expcat_id=expcat_id)
+        AND (poitem_id=_r.orderitem_id));
 
-    IF (_tmp < 0 AND _tmp != -3) THEN -- error but not 0-value transaction
-      RETURN _tmp;
-    ELSE
+      IF (_tmp < 0) THEN 
+        RETURN _tmp;
+      END IF;
+
       -- Posting to trial balance is deferred to prevent locking
       INSERT INTO itemlocpost ( itemlocpost_glseq, itemlocpost_itemlocseries)
       VALUES ( _tmp, _itemlocSeries );
@@ -174,43 +150,36 @@ BEGIN
 
     UPDATE poitem
     SET poitem_qty_received = (poitem_qty_received + _r.recv_qty),
-	poitem_freight_received = (poitem_freight_received + COALESCE(_r.recv_freight, 0))
-    WHERE (poitem_id=_o.orderitem_id);
+	    poitem_freight_received = (poitem_freight_received + COALESCE(_r.recv_freight, 0))
+    WHERE (poitem_id=_r.orderitem_id);
 
   ELSEIF ( (_r.recv_order_type = 'RA') AND
            (_r.itemsite_id = -1 OR _r.itemsite_id IS NULL) ) THEN
-    RAISE WARNING 'itemsite controlmethod is %, cannot post receipt.', _r.itemsite_controlmethod;
-    RETURN -14;	-- otherwise how do we get the accounts?
+    RAISE EXCEPTION 'Missing itemsite, can not post receipt. [xtuple: postReceipt, -14]';	-- otherwise how do we get the accounts?
 
   ELSEIF ( (_r.recv_order_type = 'TO') AND
            (_r.itemsite_id = -1 OR _r.itemsite_id IS NULL) ) THEN
-    RAISE WARNING 'itemsite missing';
-    RETURN -14;	-- otherwise how do we get the accounts?
-
+    RAISE EXCEPTION 'Missing itemsite, can not post transfer order receipt. [xtuple: postReceipt, -14]';
   ELSE	-- not ELSIF: some code is shared between diff order types
     IF (_r.recv_order_type = 'PO') THEN
       SELECT postInvTrans( itemsite_id, 'RP'::TEXT,
-			   _recvinvqty,
-			   'S/R'::TEXT,
-			   _r.recv_order_type::TEXT, _o.orderhead_number::TEXT || '-' || _o.orderitem_linenumber::TEXT,
-			   ''::TEXT,
-			   'Receive Inventory from ' || _ordertypeabbr,
-			   costcat_asset_accnt_id, costcat_liability_accnt_id,
-			   _itemlocSeries,
-			   _glDate,
-                           round((_o.item_unitprice_base * _r.recv_qty),2) -- always passing this in since it is ignored if it is not average costed item
-			   ) INTO _tmp
+        _recvinvqty,
+        'S/R'::TEXT,
+        _r.recv_order_type::TEXT, _r.recv_order_number::TEXT || '-' || _r.orderitem_linenumber::TEXT,
+        ''::TEXT,
+        'Receive Inventory from ' || _ordertypeabbr,
+        costcat_asset_accnt_id, costcat_liability_accnt_id,
+        _itemlocSeries,
+        _glDate,
+        round((_o.item_unitprice_base * _r.recv_qty),2), -- always passing this in since it is ignored if it is not average costed item
+        NULL, NULL, pPreDistributed) INTO _tmp
       FROM itemsite, costcat
       WHERE ( (itemsite_costcat_id=costcat_id)
        AND (itemsite_id=_r.itemsite_id) );
+      
       IF (NOT FOUND) THEN
-	RAISE EXCEPTION 'Could not post inventory transaction: no cost category found for itemsite_id %',
-	  _r.itemsite_id;
-      ELSIF (_tmp < -1) THEN -- less than -1 because -1 means it is a none controlled item
-	IF(_tmp = -3) THEN
-	  RETURN -12; -- The GL trans value was 0 which means we likely do not have a std cost
-	END IF;
-	RETURN _tmp;
+	      RAISE EXCEPTION 'Could not post inventory transaction: no cost category found for itemsite_id %
+          [xtuple: postReceipt, -39, %]', _r.itemsite_id, _r.itemsite_id;
       END IF;
 
       -- If the 'Purchase Price Variance on Receipt' option is true
@@ -226,68 +195,66 @@ BEGIN
           -- Record an additional GL Transaction for the purchase price variance
           SELECT insertGLTransaction( fetchJournalNumber('GL-MISC'),
 		 		       'S/R', _r.recv_order_type,
-                                     (_o.orderhead_number::TEXT || '-' || _o.orderitem_linenumber::TEXT),
-                                      'Purchase price variance adjusted for P/O ' || _o.orderhead_number || ' for item ' || _r.item_number,
+                                     (_r.recv_order_number::TEXT || '-' || _r.orderitem_linenumber::TEXT),
+                                      'Purchase price variance adjusted for P/O ' || _r.recv_order_number || ' for item ' || _r.item_number,
                                       costcat_liability_accnt_id,
                                       getPrjAccntId(_o.prj_id, costcat_purchprice_accnt_id), -1,
                                       _pricevar,
                                       _glDate::DATE, false ) INTO _tmp
           FROM itemsite, costcat
-          WHERE ((itemsite_costcat_id=costcat_id)
-             AND (itemsite_id=_r.itemsite_id) );
+          WHERE itemsite_costcat_id = costcat_id
+             AND itemsite_id = _r.itemsite_id;
           IF (NOT FOUND) THEN
-            RAISE EXCEPTION 'Could not insert G/L transaction: no cost category found for itemsite_id %',
-            _r.itemsite_id;
-          ELSIF (_tmp < 0 AND _tmp != -3) THEN -- error but not 0-value transaction
-            RETURN _tmp;
-          ELSE
-            -- Posting to trial balance is deferred to prevent locking
-            INSERT INTO itemlocpost ( itemlocpost_glseq, itemlocpost_itemlocseries)
-            VALUES ( _tmp, _itemlocSeries );
+            RAISE EXCEPTION 'Could not insert G/L transaction: no cost category found for itemsite_id % 
+              [xtuple: postReceipt, -42, %]', _r.itemsite_id, _r.itemsite_id;
           END IF;
-        END IF;
-      END IF;
 
-      SELECT insertGLTransaction(fetchJournalNumber('GL-MISC'),
-				  'S/R', _r.recv_order_type,
-                                (_o.orderhead_number::TEXT || '-' || _o.orderitem_linenumber::TEXT),
-				  'Receive Inventory Freight from ' || _o.orderhead_number || ' for item ' || _r.item_number,
-				   costcat_liability_accnt_id,
-				   getPrjAccntId(_o.prj_id, costcat_freight_accnt_id), -1,
-				   _r.recv_freight_base,
-				   _glDate::DATE, false ) INTO _tmp
-      FROM itemsite, costcat
-      WHERE ( (itemsite_costcat_id=costcat_id)
-       AND (itemsite_id=_r.itemsite_id) );
-      IF (NOT FOUND) THEN
-	RAISE EXCEPTION 'Could not insert G/L transaction: no cost category found for itemsite_id %',
-	  _r.itemsite_id;
-      ELSIF (_tmp < 0 AND _tmp != -3) THEN -- error but not 0-value transaction
-	RETURN _tmp;
-      ELSE
           -- Posting to trial balance is deferred to prevent locking
           INSERT INTO itemlocpost ( itemlocpost_glseq, itemlocpost_itemlocseries)
           VALUES ( _tmp, _itemlocSeries );
+        END IF;
       END IF;
 
+      IF (round(_r.recv_freight_base,2) <> 0) THEN
+        SELECT insertGLTransaction(fetchJournalNumber('GL-MISC'),
+  				  'S/R', _r.recv_order_type,
+                                  (_r.recv_order_number::TEXT || '-' || _r.orderitem_linenumber::TEXT),
+  				  'Receive Inventory Freight from ' || _r.recv_order_number || ' for item ' || _r.item_number,
+  				   costcat_liability_accnt_id,
+  				   getPrjAccntId(_o.prj_id, costcat_freight_accnt_id), -1,
+  				   _r.recv_freight_base,
+  				   _glDate::DATE, false ) INTO _tmp
+        FROM itemsite, costcat
+        WHERE ( (itemsite_costcat_id=costcat_id)
+         AND (itemsite_id=_r.itemsite_id) );
+
+        IF (NOT FOUND) THEN
+          RAISE EXCEPTION 'Could not insert G/L transaction: no cost category found for itemsite_id % 
+              [xtuple: postReceipt, -42, %]', _r.itemsite_id, _r.itemsite_id;
+        END IF;
+
+        -- Posting to trial balance is deferred to prevent locking
+        INSERT INTO itemlocpost ( itemlocpost_glseq, itemlocpost_itemlocseries)
+        VALUES ( _tmp, _itemlocSeries );
+      END IF;
+      
       UPDATE poitem
       SET poitem_qty_received = (poitem_qty_received + _r.recv_qty),
-	  poitem_freight_received = (poitem_freight_received + COALESCE(_r.recv_freight, 0))
-      WHERE (poitem_id=_o.orderitem_id);
+	      poitem_freight_received = (poitem_freight_received + COALESCE(_r.recv_freight, 0))
+      WHERE (poitem_id=_r.orderitem_id);
 
     ELSIF (_r.recv_order_type = 'RA') THEN
       SELECT rahead_id, rahead_number, rahead_cust_id, rahead_saletype_id,
              rahead_shipzone_id, rahead_timing, rahead_new_cohead_id,
-             raitem.*
-        INTO _ra
-	FROM rahead
+             raitem.* INTO _ra
+	    FROM rahead
         JOIN raitem ON (rahead_id=raitem_rahead_id)
-        WHERE (raitem_id=_r.recv_orderitem_id);
+      WHERE (raitem_id=_r.recv_orderitem_id);
 
-      IF (_r.itemsite_controlmethod = 'N') THEN
+      IF (_r.itemsite_controlmethod = 'N' AND (round((_o.item_unitprice_base * _r.recv_qty),2) <> 0)) THEN
         SELECT insertGLTransaction( fetchJournalNumber('GL-MISC'),
                                     'S/R', _r.recv_order_type,
-                                    (_o.orderhead_number::TEXT || '-' || _o.orderitem_linenumber::TEXT),
+                                    (_r.recv_order_number::TEXT || '-' || _r.orderitem_linenumber::TEXT),
                                     'Receive Non-Controlled Inventory from ' || _ordertypeabbr,
                                     costcat_liability_accnt_id,
                                     getPrjAccntId(_o.prj_id, costcat_exp_accnt_id), -1,
@@ -295,66 +262,66 @@ BEGIN
                                     _glDate::DATE, false ) INTO _tmp
         FROM itemsite JOIN costcat ON (costcat_id=itemsite_costcat_id)
         WHERE(itemsite_id=_r.itemsite_id);
+        
         IF (NOT FOUND) THEN
-          RAISE EXCEPTION 'Could not post inventory transaction: no cost category found for itemsite_id %', _r.itemsite_id;
---        ELSIF (_tmp < -1) THEN
---          RETURN _tmp;
+          RAISE EXCEPTION 'Could not insert G/L transaction: no cost category found for itemsite_id % 
+              [xtuple: postReceipt, -42, %]', _r.itemsite_id, _r.itemsite_id;
         END IF;
       ELSE
         SELECT postInvTrans(_r.itemsite_id, 'RR',
-                            _recvinvqty,
-                            'S/R',
-                            _r.recv_order_type, _ra.rahead_number::TEXT || '-' || _ra.raitem_linenumber::TEXT,
-                            '',
-                            'Receive Inventory from ' || _ordertypeabbr,
-                            costcat_asset_accnt_id,
-                            CASE WHEN(COALESCE(_ra.raitem_cos_accnt_id, -1) != -1) THEN
-                                  getPrjAccntId(_o.prj_id, _ra.raitem_cos_accnt_id)
-                                 WHEN (_ra.raitem_warranty) THEN
-                                  getPrjAccntId(_o.prj_id, resolveCOWAccount(_r.itemsite_id, _ra.rahead_cust_id, _ra.rahead_saletype_id, _ra.rahead_shipzone_id))
-                                 ELSE
-                                  getPrjAccntId(_o.prj_id, resolveCORAccount(_r.itemsite_id, _ra.rahead_cust_id, _ra.rahead_saletype_id, _ra.rahead_shipzone_id))
-                            END,
-                            _itemlocSeries, _glDate, COALESCE(_o.unitcost,stdcost(itemsite_item_id)) * _recvinvqty) INTO _tmp
+            _recvinvqty,
+            'S/R',
+            _r.recv_order_type, _ra.rahead_number::TEXT || '-' || _ra.raitem_linenumber::TEXT,
+            '',
+            'Receive Inventory from ' || _ordertypeabbr,
+            costcat_asset_accnt_id,
+            CASE 
+              WHEN(COALESCE(_ra.raitem_cos_accnt_id, -1) != -1) THEN
+                getPrjAccntId(_o.prj_id, _ra.raitem_cos_accnt_id)
+              WHEN (_ra.raitem_warranty) THEN
+                getPrjAccntId(_o.prj_id, resolveCOWAccount(_r.itemsite_id, _ra.rahead_cust_id, _ra.rahead_saletype_id, _ra.rahead_shipzone_id))
+              ELSE
+                getPrjAccntId(_o.prj_id, resolveCORAccount(_r.itemsite_id, _ra.rahead_cust_id, _ra.rahead_saletype_id, _ra.rahead_shipzone_id))
+            END,
+            _itemlocSeries, _glDate, COALESCE(_o.raitem_unitcost, stdcost(itemsite_item_id)) * _recvinvqty,
+            NULL, NULL, pPreDistributed) INTO _tmp
         FROM itemsite, costcat
         WHERE ( (itemsite_costcat_id=costcat_id)
          AND (itemsite_id=_r.itemsite_id) );
 
         IF (NOT FOUND) THEN
-          RAISE EXCEPTION 'Could not post inventory transaction: no cost category found for itemsite_id %', _r.itemsite_id;
-        ELSIF (_tmp < -1) THEN -- less than -1 because -1 means it is a none controlled item
-          IF(_tmp = -3) THEN
-            RAISE WARNING 'The GL trans value was 0 which means we likely do not have a std cost';
-            RETURN -12; -- The GL trans value was 0 which means we likely do not have a std cost
-          END IF;
-          RETURN _tmp;
+          RAISE EXCEPTION 'Could not post inventory transaction: no cost category found for itemsite_id %
+            [xtuple: postReceipt, -39, %]', _r.itemsite_id, _r.itemsite_id;
         END IF;
       END IF;
 
       INSERT INTO rahist (rahist_itemsite_id, rahist_date,
 			  rahist_descrip,
 			  rahist_qty, rahist_uom_id,
-			  rahist_source, rahist_source_id, rahist_rahead_id
-	  ) VALUES (_r.itemsite_id, _glDate,
-		      'Receive Inventory from ' || _ordertypeabbr,
-		      _recvinvqty, _r.item_inv_uom_id,
-		      'RR', _r.recv_id, _ra.rahead_id
-	          );
+			  rahist_source, rahist_source_id, rahist_rahead_id) 
+      VALUES (_r.itemsite_id, _glDate,
+        'Receive Inventory from ' || _ordertypeabbr,
+        _recvinvqty, _r.item_inv_uom_id,
+        'RR', _r.recv_id, _ra.rahead_id);
 
-      SELECT insertGLTransaction(fetchJournalNumber('GL-MISC'),
-				  'S/R', _r.recv_order_type,
-                                (_o.orderhead_number::TEXT || '-' || _o.orderitem_linenumber::TEXT),
-				  'Receive Inventory Freight from ' || _o.orderhead_number || ' for item ' || _r.item_number,
-				   costcat_liability_accnt_id,
-				   getPrjAccntId(_o.prj_id, costcat_freight_accnt_id), -1,
-				   _r.recv_freight_base,
-				   _glDate::DATE, false ) INTO _tmp
-      FROM itemsite, costcat
-      WHERE ( (itemsite_costcat_id=costcat_id)
-       AND (itemsite_id=_r.itemsite_id) );
-      IF (_tmp < 0 AND _tmp != -3) THEN -- error but not 0-value transaction
-	    RETURN _tmp;
-      ELSE
+      IF (round(_r.recv_freight_base,2) <> 0) THEN
+        SELECT insertGLTransaction(fetchJournalNumber('GL-MISC'),
+          'S/R', _r.recv_order_type,
+          (_r.recv_order_number::TEXT || '-' || _r.orderitem_linenumber::TEXT),
+          'Receive Inventory Freight from ' || _r.recv_order_number || ' for item ' || _r.item_number,
+          costcat_liability_accnt_id,
+          getPrjAccntId(_o.prj_id, costcat_freight_accnt_id), -1,
+          _r.recv_freight_base,
+          _glDate::DATE, false ) INTO _tmp
+        FROM itemsite, costcat
+        WHERE ( (itemsite_costcat_id=costcat_id)
+         AND (itemsite_id=_r.itemsite_id) );
+        
+        IF (NOT FOUND) THEN -- error but not 0-value transaction
+          RAISE EXCEPTION 'Could not insert G/L transaction: no cost category found for itemsite_id % 
+              [xtuple: postReceipt, -42, %]', _r.itemsite_id, _r.itemsite_id;
+        END IF;
+
         -- Posting to trial balance is deferred to prevent locking
         INSERT INTO itemlocpost ( itemlocpost_glseq, itemlocpost_itemlocseries)
         VALUES ( _tmp, _itemlocSeries );
@@ -363,28 +330,28 @@ BEGIN
       INSERT INTO rahist (rahist_date, rahist_descrip,
 			  rahist_source, rahist_source_id,
 			  rahist_curr_id, rahist_amount,
-			  rahist_rahead_id
-	  ) VALUES (_glDate, 'Receive Inventory Freight from ' || _ordertypeabbr,
-		  'RR', _r.recv_id, _r.recv_freight_curr_id, _r.recv_freight,
-		  _ra.rahead_id
-	  );
+			  rahist_rahead_id) 
+      VALUES (_glDate, 'Receive Inventory Freight from ' || _ordertypeabbr,
+  		  'RR', _r.recv_id, _r.recv_freight_curr_id, _r.recv_freight,
+  		  _ra.rahead_id
+  	  );
 
       UPDATE raitem
       SET raitem_qtyreceived = (raitem_qtyreceived + _r.recv_qty)
-      WHERE (raitem_id=_o.orderitem_id);
+      WHERE (raitem_id=_r.orderitem_id);
 
 -- Expire date doesn't mean anything once the RA is received
 -- WARNING: INSERTING 'NULL' MIGHT CAUSE PROBLEMS!!
       UPDATE rahead
       SET rahead_expiredate = NULL
-      WHERE (rahead_id=_o.orderhead_id);
+      WHERE (rahead_id=_r.orderitem_orderhead_id);
 
 --  Look for 'ship' lines
-    SELECT (count(*) > 0) INTO _ship
-    FROM raitem
-    WHERE ((raitem_disposition = 'S')
-     AND (raitem_new_coitem_id IS NULL)
-     AND (raitem_rahead_id=_ra.rahead_id));
+      SELECT (count(*) > 0) INTO _ship
+      FROM raitem
+      WHERE ((raitem_disposition = 'S')
+       AND (raitem_new_coitem_id IS NULL)
+       AND (raitem_rahead_id=_ra.rahead_id));
 
 --  If receiving a qty on a shippable and upon receipt item, create coitem
       IF ((_ra.rahead_timing='R') AND
@@ -523,33 +490,44 @@ BEGIN
         END IF;
       END IF;
 
-
     ELSIF (_r.recv_order_type = 'TO' AND fetchMetricBool('MultiWhs')) THEN
       SELECT interWarehouseTransfer(toitem_item_id, tohead_trns_warehous_id,
             tohead_dest_warehous_id, _r.recv_qty,
-            'TO', formatToNumber(toitem_id), 'Receive from Transit To Dest Warehouse', _itemlocSeries, _glDate ) INTO _tmp
-      FROM tohead, toitem
-      WHERE ((tohead_id=toitem_tohead_id)
-        AND  (toitem_id=_r.recv_orderitem_id));
+            'TO', formatToNumber(toitem_id), 'Receive from Transit To Dest Warehouse',
+            _itemlocSeries, _glDate, pPreDistributed, 
+            false), --pPostDistDetail set to false so that interWarehouseTransfer doesn't call postDistDetail in addition.
+            isControlledItemsite(srcitemsite.itemsite_id) INTO _tmp, _sourceItemsiteControlled
+      FROM tohead
+        JOIN toitem ON tohead_id = toitem_tohead_id 
+        JOIN item ON toitem_item_id = item_id
+        JOIN itemsite AS srcitemsite ON item_id = srcitemsite.itemsite_item_id 
+          AND tohead_trns_warehous_id = srcitemsite.itemsite_warehous_id
+      WHERE toitem_id=_r.recv_orderitem_id
+        AND item_type NOT IN ('R', 'F', 'J');
 
-      IF (_tmp < 0) THEN
-	    RETURN _tmp;
+      IF (NOT FOUND) THEN
+        RAISE EXCEPTION 'Could not find the transfer order item to post. 
+          Be sure the Item Type is not R, F or J [xtuple: postReceipt, -40]';
       END IF;
 
-      SELECT insertGLTransaction(fetchJournalNumber('GL-MISC'),
-				  'S/R', _r.recv_order_type,
-                                (_o.orderhead_number::TEXT || '-' || _o.orderitem_linenumber::TEXT),
-				  'Receive Inventory Freight from ' || _o.orderhead_number || ' for item ' || _r.item_number,
-				   costcat_toliability_accnt_id,
-				   costcat_freight_accnt_id, -1,
-				   _r.recv_freight_base,
-				   _glDate::DATE, false ) INTO _tmp
-      FROM itemsite, costcat
-      WHERE ( (itemsite_costcat_id=costcat_id)
-       AND (itemsite_id=_r.itemsite_id) );
-      IF (_tmp < 0 AND _tmp != -3) THEN -- error but not 0-value transaction
-	    RETURN _tmp;
-      ELSE
+      IF (round(_r.recv_freight_base,2) <> 0) THEN
+        SELECT insertGLTransaction(fetchJournalNumber('GL-MISC'),
+  				  'S/R', _r.recv_order_type,
+                                  (_r.recv_order_number::TEXT || '-' || _r.orderitem_linenumber::TEXT),
+  				  'Receive Inventory Freight from ' || _r.recv_order_number || ' for item ' || _r.item_number,
+  				   costcat_toliability_accnt_id,
+  				   costcat_freight_accnt_id, -1,
+  				   _r.recv_freight_base,
+  				   _glDate::DATE, false ) INTO _tmp
+        FROM itemsite, costcat
+        WHERE ( (itemsite_costcat_id=costcat_id)
+         AND (itemsite_id=_r.itemsite_id) );
+
+        IF (NOT FOUND) THEN
+          RAISE EXCEPTION 'Could not insert G/L transaction: no cost category found for itemsite_id % 
+              [xtuple: postReceipt, -42, %]', _r.itemsite_id, _r.itemsite_id;
+        END IF;
+
         -- Posting to trial balance is deferred to prevent locking
         INSERT INTO itemlocpost ( itemlocpost_glseq, itemlocpost_itemlocseries)
         VALUES ( _tmp, _itemlocSeries );
@@ -561,7 +539,7 @@ BEGIN
 				      currToCurr(_r.recv_freight_curr_id,
 						 toitem_freight_curr_id,
 						 _r.recv_freight, _glDate::DATE))
-      WHERE (toitem_id=_o.orderitem_id);
+      WHERE (toitem_id=_r.orderitem_id);
 
     END IF;
     IF(_r.itemsite_costmethod='A') THEN
@@ -579,23 +557,30 @@ BEGIN
 
   IF (_r.recv_order_type = 'PO') THEN
     -- If this is a drop-shipped PO, then Issue the item to Shipping and Ship the item
-    IF (_o.pohead_dropship = TRUE) THEN
+    -- Generate the PoItemDropShipped event
+    PERFORM postEvent('PoItemDropShipped', 'P', poitem_id,
+                      itemsite_warehous_id,
+                      (pohead_number || '-' || poitem_linenumber || ': ' || item_number),
+                      NULL, NULL, NULL, NULL)
+    FROM poitem JOIN itemsite ON (itemsite_id=poitem_itemsite_id)
+                JOIN item ON (item_id=itemsite_item_id)
+                JOIN pohead ON (pohead_id=poitem_pohead_id)
+    WHERE poitem_id = _r.orderitem_id
+      AND pohead_dropship = TRUE
+      AND poitem_duedate <= (CURRENT_DATE + itemsite_eventfence);
 
-      -- Generate the PoItemDropShipped event
-      PERFORM postEvent('PoItemDropShipped', 'P', poitem_id,
-                        itemsite_warehous_id,
-                        (pohead_number || '-' || poitem_linenumber || ': ' || item_number),
-                        NULL, NULL, NULL, NULL)
-      FROM poitem JOIN itemsite ON (itemsite_id=poitem_itemsite_id)
-                  JOIN item ON (item_id=itemsite_item_id)
-                  JOIN pohead ON (pohead_id=poitem_pohead_id)
-      WHERE (poitem_id=_o.orderitem_id)
-        AND (poitem_duedate <= (CURRENT_DATE + itemsite_eventfence));
+  END IF;
 
+  -- Post distribution detail regardless of loc/control methods because postItemlocSeries is required.
+  -- If it is a controlled item and the results were 0 something is wrong.
+  IF (pPreDistributed) THEN
+    IF (postDistDetail(_itemlocSeries) <= 0 AND (_r.controlled OR _sourceItemsiteControlled)) THEN
+      RAISE EXCEPTION 'Posting Distribution Detail Returned 0 Results, [xtuple: postReceipt, -41]';
     END IF;
   END IF;
+
   RETURN _itemlocSeries;
 
 END;
 $$ LANGUAGE plpgsql VOLATILE;
-ALTER FUNCTION postreceipt(integer, integer) OWNER TO admin;
+ALTER FUNCTION postreceipt(INTEGER, INTEGER, BOOLEAN) OWNER TO admin;

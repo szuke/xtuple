@@ -99,9 +99,11 @@ BEGIN
 
   IF (isPrePayFundsType(_p.cashrcpt_fundstype)) THEN
     SELECT ccpay_id, ccpay_type INTO _ccpayid, _cctype
-    FROM ccpay
-    WHERE ((ccpay_r_ordernum IN (CAST(pCashrcptid AS TEXT), _p.cashrcpt_docnumber))
-       AND (ccpay_status IN ('C', 'A')));
+      FROM ccpay
+     WHERE ccpay_r_ordernum IN (CAST(pCashrcptid AS TEXT), _p.cashrcpt_docnumber)
+       AND ccpay_status IN ('C', 'A')
+      ORDER BY ccpay_r_ordernum = _p.cashrcpt_docnumber DESC
+      LIMIT 1; -- see cashReceipt::save() call to cardproc->charge; docNumber takes precedence
 
     IF NOT FOUND THEN
       -- the following select seems to work except for xikar - bug 8848. why?

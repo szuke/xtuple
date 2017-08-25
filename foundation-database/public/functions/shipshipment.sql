@@ -133,7 +133,7 @@ BEGIN
       IF _c._value > 0 THEN
   --    Distribute to G/L, credit Shipping Asset, debit COS
 	SELECT MIN(insertGLTransaction( 'S/R', 'SH', _shiphead.shiphead_number,
-                                        ('Ship Order ' || _c.cohead_number || ' for Customer ' || _c.cohead_billtoname),
+                                        ('Ship Order ' || formatSoNumber(_c.coitem_id) || ' for Customer ' || _c.cohead_billtoname),
                                         getPrjAccntId(_c.cohead_prj_id, costcat_shipasset_accnt_id),
                                         CASE WHEN (COALESCE(_c.coitem_cos_accnt_id, -1) != -1)
                                                THEN getPrjAccntId(_c.cohead_prj_id, _c.coitem_cos_accnt_id)

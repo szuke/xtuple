@@ -12,8 +12,9 @@ BEGIN
 
   -- pApopenid is the apopen_id of the C/M being applied
 
-  SELECT apopen_docnumber, (apopen_amount - apopen_paid) AS balance,
-	 SUM(apcreditapply_amount) AS toApply
+  SELECT apopen_docnumber, ROUND((apopen_amount - apopen_paid), 2) AS balance,
+	 ROUND(SUM(currToCurr(apcreditapply_curr_id, apopen_curr_id,
+                        apcreditapply_amount, CURRENT_DATE)), 2) AS toApply
 	 INTO _src
   FROM apopen JOIN apcreditapply ON (apcreditapply_source_apopen_id=apopen_id)
   WHERE (apopen_id=pApopenid)
@@ -38,9 +39,9 @@ BEGIN
 
   -- loop thru the pending applications
   FOR _r IN SELECT apcreditapply_id, apcreditapply_target_apopen_id,
-                   apcreditapply_amount AS apply_amountSource,
-                   currToCurr(apcreditapply_curr_id, apopen_curr_id,
-                              apcreditapply_amount, CURRENT_DATE) AS apply_amountTarget,
+                   currToCurr(apcreditapply_curr_id, _src.apopen_curr_id,
+                              apcreditapply_amount, CURRENT_DATE) AS apply_amountSource,
+                   apcreditapply_amount AS apply_amountTarget,
                    apopen_id, apopen_doctype, apopen_docnumber,
                    apopen_curr_id, apopen_curr_rate, apopen_docdate,
                    (apopen_amount - apopen_paid) AS targetBalance
@@ -76,12 +77,14 @@ BEGIN
       ( apapply_vend_id, apapply_amount,
         apapply_source_apopen_id, apapply_source_doctype, apapply_source_docnumber,
         apapply_target_apopen_id, apapply_target_doctype, apapply_target_docnumber,
-        apapply_postdate, apapply_journalnumber, apapply_username, apapply_curr_id )
+        apapply_postdate, apapply_journalnumber, apapply_username, apapply_curr_id,
+        apapply_target_paid, apapply_target_curr_id )
       VALUES
       ( _src.apopen_vend_id, round(_r.apply_amountSource, 2),
         pApopenid, 'C', _src.apopen_docnumber,
         _r.apopen_id, _r.apopen_doctype, _r.apopen_docnumber,
-        CURRENT_DATE, 0, getEffectiveXtUser(), _src.apopen_curr_id );
+        CURRENT_DATE, 0, getEffectiveXtUser(), _src.apopen_curr_id,
+        round(_r.apply_amountTarget, 2), _r.apopen_curr_id );
 
     END IF;
 

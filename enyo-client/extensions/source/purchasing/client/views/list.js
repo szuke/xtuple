@@ -167,6 +167,8 @@ trailing:true, white:true, strict:false*/
         ]}
       ]
     });
+    
+    XV.registerModelList("XM.PurchaseType", "XV.PurchaseTypeList");    
 
   };
 }());

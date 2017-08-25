@@ -50,11 +50,6 @@ BEGIN
       RAISE NOTICE 'warranty=%', _itemlocdist.warranty;
     END IF;
 
---  Commit invhist to itemsite
-    IF (NOT _itemlocdist.itemsite_freeze) THEN
-	PERFORM postInvHist(_itemlocdist.invhistid);
-    END IF;
-
 --  Mark the invhist tuple for the itemlocdist in question as having detail
     UPDATE invhist
     SET invhist_hasdetail=TRUE
@@ -145,9 +140,6 @@ BEGIN
     END IF;
 
   END LOOP;
-
-  DELETE FROM itemlocdist
-  WHERE (itemlocdist_series=pItemlocSeries);
 
   RETURN _distCounter;
 

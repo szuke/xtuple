@@ -58,7 +58,7 @@ SELECT itemsrcp_id, itemsrc_id,
 FROM itemsrc JOIN vendinfo ON (vend_id=itemsrc_vend_id AND vend_active)
              JOIN item ON (item_id=itemsrc_item_id)
              JOIN uom ON (uom_id=item_inv_uom_id)
-             LEFT OUTER JOIN itemsrcp ON (itemsrcp_itemsrc_id=itemsrc_id)
+             <? if not exists("itemsrc_id") ?>LEFT OUTER<? endif ?> JOIN itemsrcp ON (itemsrcp_itemsrc_id=itemsrc_id)
              LEFT OUTER JOIN contrct ON (contrct_id=itemsrc_contrct_id)
              LEFT OUTER JOIN whsinfo ON (warehous_id=itemsrcp_warehous_id)
 WHERE ((true)
@@ -78,7 +78,9 @@ WHERE ((true)
   AND (itemsrc_id=<? value("itemsrc_id") ?>)
 <? endif ?>
 <? if exists("warehous_id") ?>
-  AND (itemsrcp_warehous_id=<? value("warehous_id") ?>)
+  AND (itemsrcp_warehous_id=CASE WHEN <? value("warehous_id") ?>=0 THEN -1
+                                 ELSE <? value("warehous_id") ?>
+                            END)
 <? endif ?>
 <? if exists("showDropShip") ?>
    AND (itemsrcp_dropship)

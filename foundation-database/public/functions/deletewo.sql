@@ -10,33 +10,38 @@ DECLARE
   itemType CHAR(1);
   ordtype CHAR(1);
   ordid INTEGER;
+  wipValue NUMERIC;
   returnCode INTEGER;
 
 BEGIN
-  SELECT wo_status, wo_ordtype, wo_ordid, item_type
-  INTO woStatus, ordtype, ordid, itemType
+  SELECT wo_status, wo_ordtype, wo_ordid, wo_wipvalue, item_type
+  INTO woStatus, ordtype, ordid, wipValue, itemType
   FROM wo JOIN itemsite ON (itemsite_id=wo_itemsite_id)
           JOIN item ON (item_id=itemsite_item_id)
   WHERE (wo_id=pWoid);
 
+  IF (wipValue > 0) THEN
+    RAISE EXCEPTION 'You cannot delete a W/O with outstanding WIP value [xtuple: deleteWo, -4]';
+  END IF;
+
   IF (pDeleteForce) THEN
     IF (NOT woStatus IN ('O', 'E', 'R', 'C')) THEN
-      RETURN -3;
+      RAISE EXCEPTION 'The Work Order cannot be deleted in the current status [xtuple: deleteWo, -3]';
     END IF;
   ELSE
     IF (NOT woStatus IN ('O', 'E')) THEN
-      RETURN -3;
+      RAISE EXCEPTION 'The Work Order cannot be deleted in the current status [xtuple: deleteWo, -3]';
     END IF;
 
     IF (itemType = 'J') THEN
-      RETURN -2;
+      RAISE EXCEPTION 'The Work Order cannot be deleted for Job Item Types [xtuple: deleteWo, -2]';
     END IF;
   END IF;
 
   IF fetchMetricBool('Routings') AND woStatus != 'C'
      AND packageIsEnabled('xtmfg') THEN
     IF EXISTS(SELECT 1 FROM xtmfg.wotc WHERE wotc_wo_id = pWoid) THEN
-      RETURN -1;
+      RAISE EXCEPTION 'The Work Order cannot be deleted because time clock entries exist [xtuple: deleteWo, -1]';
     END IF;
   END IF;
 

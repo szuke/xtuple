@@ -18,17 +18,7 @@ var _      = require("underscore"),
     it("should fail with missing pr and no itemlocseries", function (done) {
       var sql = "select postReceipt(-1, NULL) as result;";
       datasource.query(sql, adminCred, function (err, res) {
-        dblib.assertErrorCode(err, res, "postReceipt", -10);
-        done();
-      });
-    });
-
-    it("should return the itemlocseries with missing pr", function (done) {
-      var sql = "select postReceipt(-1, 15) as result;";
-      datasource.query(sql, adminCred, function (err, res) {
-        assert.isNull(err);
-        assert.equal(res.rowCount, 1);
-        assert.equal(res.rows[0].result, 15);
+        assert.isNotNull(err);
         done();
       });
     });
@@ -125,7 +115,7 @@ var _      = require("underscore"),
       var sql  = "select postReceipt($1, NULL) as result;",
           cred = _.extend({}, adminCred, { parameters: [ recv[0].recv_id ]});
       datasource.query(sql, cred, function (err, res) {
-        dblib.assertErrorCode(err, res, "postReceipt", -11);
+        assert.isNotNull(err);
         done();
       });
     });
@@ -145,7 +135,7 @@ var _      = require("underscore"),
       var sql  = "select postReceipt($1, NULL) as result;",
           cred = _.extend({}, adminCred, { parameters: [ recv[0].recv_id ]});
       datasource.query(sql, cred, function (err, res) {
-        dblib.assertErrorCode(err, res, "postReceipt", -13);
+        assert.isNotNull(err);
         done();
       });
     });

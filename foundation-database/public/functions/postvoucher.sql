@@ -7,9 +7,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION postvoucher(pVoheadid integer,
-                                       pJournalNumber integer,
-                                       pPostCosts boolean)
+CREATE OR REPLACE FUNCTION postvoucher(
+    pvoheadid integer,
+    pjournalnumber integer,
+    ppostcosts boolean)
   RETURNS integer AS $$
 -- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
@@ -27,6 +28,7 @@ DECLARE
   _p RECORD;
   _r RECORD;
   _costx RECORD;
+  _fdist RECORD;
   _pPostCosts BOOLEAN;
   _pExplain BOOLEAN;
   _pLowLevel BOOLEAN;
@@ -35,7 +37,7 @@ DECLARE
   _firstExchDateFreight	DATE;
   _tmpTotal		NUMERIC;
   _glDate		DATE;
-
+  
 BEGIN
 
   RAISE DEBUG 'postVoucher(%, %, %)', pVoheadid, pJournalNumber, pPostCosts;
@@ -88,7 +90,7 @@ BEGIN
    WHERE ( (vodist_vohead_id=pVoheadid)
      AND   (vodist_tax_id=-1) )
   UNION ALL
-  SELECT vohead_freight AS amount
+  SELECT (vohead_freight - vohead_freight_distributed) AS amount
     FROM vohead
    WHERE (vohead_id=pVoheadid)     
   UNION ALL
@@ -277,7 +279,7 @@ BEGIN
 --      IF ( (pPostCosts) AND (_d.vodist_costelem_id <> -1) ) THEN
       IF ( (_d.vodist_costelem_id <> -1) AND
            (_g.itemsite_item_id <> -1) AND
-           (_g.item_type <> 'M') ) THEN
+           (_g.item_type <> 'M') ) THEN 
         PERFORM updateCost( _g.itemsite_item_id, _d.vodist_costelem_id,
                             _pExplain, (_d.vodist_amount / (_g.voitem_qty * _g.poitem_invvenduomratio)),
 			    _p.vohead_curr_id );
@@ -365,27 +367,41 @@ BEGIN
   END LOOP;
 
 --  Loop through the vodist records for the passed vohead that
---  are not posted against a P/O Item
+--  are not posted against a P/O Item (Misc. Distributions)
 --  Skip the tax distributions
-  FOR _d IN SELECT vodist_id, vodist_discountable,
+  FOR _d IN SELECT vodist_id, vodist_discountable, 
 		   currToBase(_p.vohead_curr_id, vodist_amount,
 			      _p.vohead_distdate) AS vodist_amount_base,
 		   vodist_amount,
-		   vodist_accnt_id, vodist_expcat_id
+		   vodist_accnt_id, vodist_expcat_id, vodist_costelem_id,
+		   vodist_freight_vohead_id, vodist_freight_dist_method  
             FROM vodist
             WHERE ( (vodist_vohead_id=pVoheadid)
              AND (vodist_poitem_id=-1)
              AND (vodist_tax_id=-1) ) LOOP
 
 --  Distribute from the misc. account
-    IF (_d.vodist_accnt_id = -1) THEN
+    IF (_d.vodist_expcat_id > 0) THEN  -- Expense Category
       PERFORM insertIntoGLSeries( _sequence, 'A/P', 'VO', text(_p.vohead_number),
 			  expcat_exp_accnt_id,
 			  round(_d.vodist_amount_base, 2) * -1,
 			  _glDate, _p.glnotes )
          FROM expcat
         WHERE (expcat_id=_d.vodist_expcat_id);
-    ELSE
+    ELSIF (_d.vodist_costelem_id > 0) THEN  -- Freight/Duty Distribution
+      FOR _fdist IN
+        SELECT freightdistr_accnt_id,
+                SUM(freightdistr_amount) AS freightdistr_amount
+         FROM calculatefreightdistribution(_d.vodist_freight_vohead_id, _d.vodist_costelem_id,
+                                           _d.vodist_freight_dist_method, _d.vodist_amount, true)
+        GROUP BY freightdistr_accnt_id 
+      LOOP
+        PERFORM insertIntoGLSeries( _sequence, 'A/P', 'VO', text(_p.vohead_number),
+			  _fdist.freightdistr_accnt_id,
+			  round(_fdist.freightdistr_amount, 2) * -1,
+			  _glDate, _p.glnotes );
+      END LOOP;  			  
+    ELSE -- G/L Account
       PERFORM insertIntoGLSeries( _sequence, 'A/P', 'VO', text(_p.vohead_number),
 			  _d.vodist_accnt_id,
 			  round(_d.vodist_amount_base, 2) * -1,
@@ -404,11 +420,11 @@ BEGIN
   END LOOP;
 
 -- Post Voucher (header) Freight
-  IF (_p.vohead_freight > 0) THEN
+  IF ((_p.vohead_freight - _p.vohead_freight_distributed) > 0) THEN
     RAISE DEBUG 'postVoucher: _p.vohead_freight=%', _p.vohead_freight;
     PERFORM insertIntoGLSeries( _sequence, 'A/P', 'VO', text(_p.vohead_number),
 			  expcat_exp_accnt_id,
-			  round(_p.vohead_freight, 2) * -1,
+			  round(currtobase(_p.vohead_curr_id, _p.vohead_freight, _glDate), 2) * -1,
 			  _glDate, _p.glnotes )
         FROM expcat
         WHERE (expcat_id=_p.vohead_freight_expcat_id);
@@ -441,7 +457,6 @@ BEGIN
     apopen_docnumber, apopen_invcnumber, apopen_ponumber, apopen_reference,
     apopen_amount, apopen_paid, apopen_notes, apopen_username, apopen_posted,
     apopen_curr_id, apopen_discountable_amount )
--- TODO: 
   SELECT pJournalNumber, vohead_docdate, vohead_duedate, _glDate, TRUE,
          vohead_terms_id, vohead_vend_id, 'V',
          vohead_number, vohead_invcnumber, COALESCE(TEXT(pohead_number), 'Misc.'), vohead_reference,
@@ -477,5 +492,5 @@ BEGIN
   RETURN pJournalNumber;
 
 END;
-
 $$ LANGUAGE plpgsql;
+

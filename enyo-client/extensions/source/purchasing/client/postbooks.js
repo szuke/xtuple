@@ -20,8 +20,8 @@ trailing:true, white:true, strict:false*/
       {name: "unitList", kind: "XV.UnitList"},
       {name: "stateList", kind: "XV.StateList"},
       {name: "countryList", kind: "XV.CountryList"},
-      {name: "purchaseEmailProfileList", kind: "XV.PurchaseEmailProfileList"},
-      {name: "purchaseTypeList", kind: "XV.PurchaseTypeList"}
+      {name: "purchaseTypeList", kind: "XV.PurchaseTypeList"},
+      {name: "purchaseEmailProfileList", kind: "XV.PurchaseEmailProfileList"}
     ];
 
     XT.app.$.postbooks.appendPanels("setup", panels);

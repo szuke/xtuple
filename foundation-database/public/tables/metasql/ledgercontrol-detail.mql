@@ -15,8 +15,8 @@ CASE WHEN glamount != subledger THEN 'emphasis'
 (--        Payables
 SELECT 'Payables' AS ledger,  sum(trialbal_ending) AS glamount,
 (SELECT 
-SUM( CASE WHEN apopen_doctype IN ('V', 'D') THEN (apopen_amount - apopen_paid)
-ELSE (apopen_amount - apopen_paid) * -1 END) 
+ROUND(SUM( CASE WHEN apopen_doctype IN ('V', 'D') THEN (apopen_amount - apopen_paid)/apopen_curr_rate
+ELSE (apopen_amount - apopen_paid)/apopen_curr_rate * -1 END),2) 
   FROM apopen WHERE apopen_open AND apopen_docdate <= period_end) AS subledger
 
    FROM trialbal
@@ -27,12 +27,19 @@ JOIN period ON current_date BETWEEN period_start AND period_end AND trialbal_per
 UNION ALL
 -- Uninvoiced Receipts
 SELECT 'Uninvoiced Receipts' AS ledger,  sum(trialbal_ending) AS glamount,
-(SELECT 
+
+(SELECT COALESCE(
 SUM( CASE WHEN recv_order_type = 'PO' THEN
 ROUND(recv_qty * recv_recvcost,2)
 ELSE
-ROUND(recv_qty * recv_recvcost *-1,2)END) 
-  FROM recv WHERE recv_invoiced = false AND recv_vohead_id IS NULL AND recv_posted AND recv_order_type = 'PO') AS subledger
+ROUND(recv_qty * recv_recvcost *-1,2)END), 0) 
+  FROM recv WHERE recv_invoiced = false AND recv_vohead_id IS NULL AND recv_posted AND recv_order_type = 'PO') -
+(SELECT 
+SUM( poreject_value) 
+  FROM poreject WHERE poreject_invoiced = false AND poreject_vohead_id IS NULL AND poreject_posted) 
+
+  AS subledger
+
   FROM trialbal 
  WHERE trialbal_period_id  = (SELECT period_id FROM period WHERE current_date BETWEEN period_start AND period_end)
  AND trialbal_accnt_id IN (SELECT costcat_liability_accnt_id FROM costcat 
@@ -58,7 +65,7 @@ SELECT 'Inventory' AS ledger,  SUM(trialbal_ending * -1) AS glamount,
 (SELECT 
 SUM( CASE itemsite_costmethod WHEN 'S' THEN
 ROUND(itemsite_qtyonhand * stdcost(itemsite_item_id),2)
-WHEN 'C' THEN 
+WHEN 'A' THEN 
 ROUND(itemsite_value) ELSE 0 END) 
   FROM itemsite) AS subledger
   FROM trialbal 

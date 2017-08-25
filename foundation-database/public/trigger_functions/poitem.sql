@@ -113,13 +113,6 @@ BEGIN
       RAISE EXCEPTION  'A due date is required';
     END IF;
 
-    -- PO Item Quick Entry does not populate Tax Type
-    -- TODO Need to handle non-inventory Expense items taxation
-    IF (NEW.poitem_taxtype_id IS NULL AND NEW.poitem_itemsite_id IS NOT NULL) THEN
-      NEW.poitem_taxtype_id := (SELECT getItemTaxType(itemsite_item_id, _taxzone)
-                                FROM itemsite WHERE (itemsite_id=NEW.poitem_itemsite_id) );
-    END IF;
-
     --Set defaults
     NEW.poitem_linenumber    		:= COALESCE(NEW.poitem_linenumber,(
 						SELECT COALESCE(MAX(poitem_linenumber),0) + 1

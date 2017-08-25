@@ -54,6 +54,9 @@ BEGIN
     IF (NEW.wo_status <> OLD.wo_status) THEN
       PERFORM postComment('ChangeLog', 'W', NEW.wo_id, 'Status',
                           OLD.wo_status, NEW.wo_status);
+      IF (OLD.wo_status <> 'C' AND NEW.wo_status = 'C') THEN
+        NEW.wo_closedate := current_timestamp;
+      END IF;
     END IF;
 
   END IF;

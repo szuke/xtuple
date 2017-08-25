@@ -3,7 +3,7 @@
 -- Notes: 
 -------BEGIN SUMMARY----------
 --        Notes:
---        Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+--        Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 --        See www.xtuple.com/CPAL for the full text of the software license.
 
 <? if exists("summary") ?>
@@ -51,7 +51,7 @@ SELECT
        round((1.0 / taxhist_curr_rate),6)
   ELSE round(taxhist_curr_rate,6) END AS rate,
   curr_abbr, 
-  cohist_invcnumber AS docnumber, 
+  COALESCE(NULLIF(TRIM(cohist_invcnumber),''),cohist_ordernumber) AS docnumber, 
   <? value("sales") ?> AS source,
   CASE cohist_doctype WHEN 'I' THEN <? value("invoice") ?>
                       WHEN 'C' THEN <? value("creditmemo") ?> 

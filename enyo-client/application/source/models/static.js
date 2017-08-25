@@ -396,38 +396,6 @@ white:true*/
     XM.bankAccountTypes.add(bankAccountType);
   }
 
-  // Workflow Status
-  K = XM.Workflow;
-  var workflowStatusJson = [
-    { id: K.PENDING, name: "_pending".loc() },
-    { id: K.IN_PROCESS, name: "_inProcess".loc() },
-    { id: K.COMPLETED, name: "_completed".loc() },
-    { id: K.DEFERRED, name: "_deferred".loc() },
-  ];
-  XM.WorkflowStatusModel = Backbone.Model.extend({});
-  XM.WorkflowStatusCollection = Backbone.Collection.extend({
-    model: XM.WorkflowStatusModel
-  });
-  XM.workflowStatuses = new XM.WorkflowStatusCollection();
-  for (i = 0; i < workflowStatusJson.length; i++) {
-    var workflowStatus = new XM.WorkflowStatusModel(workflowStatusJson[i]);
-    XM.workflowStatuses.add(workflowStatus);
-  }
-
-  // Workflow Type
-  var salesOrderWorkflowTypeJson = [
-    { id: XM.SalesOrderWorkflow.TYPE_OTHER, name: "_other".loc() },
-    { id: XM.SalesOrderWorkflow.TYPE_CREDIT_CHECK, name: "_creditCheck".loc() }//,
-  ];
-  XM.SalesOrderWorkflowTypeModel = Backbone.Model.extend({});
-  XM.SalesOrderWorkflowTypeCollection = Backbone.Collection.extend({
-    model: XM.SalesOrderWorkflowTypeModel
-  });
-  XM.salesOrderWorkflowTypes = new XM.SalesOrderWorkflowTypeCollection();
-  _.each(salesOrderWorkflowTypeJson, function (obj) {
-    XM.salesOrderWorkflowTypes.add(new XM.SalesOrderWorkflowTypeModel(obj));
-  });
-
   // Project Status
   K = XM.ProjectStatusMixin;
   var projectStatusJson = [

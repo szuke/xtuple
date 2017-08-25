@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION updateCharAssignment(TEXT, INTEGER, INTEGER, TEXT) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pTargetType ALIAS FOR $1;
@@ -18,7 +18,7 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION updateCharAssignment(TEXT, INTEGER, INTEGER, TEXT, NUMERIC) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pTargetType ALIAS FOR $1;
@@ -68,12 +68,18 @@ BEGIN
     IF ( (_explodedJob) AND (COALESCE(pValue, '')!='') ) THEN
       RAISE EXCEPTION  'Characteristics may not be updated for Configured Item with exploded Work Order.';
     ELSIF(COALESCE(pValue, '')!='') THEN
-      SELECT nextval('charass_charass_id_seq') INTO _charassid;
-      INSERT INTO charass
-            (charass_id, charass_target_type, charass_target_id,
-             charass_char_id, charass_value, charass_price)
-      VALUES(_charassid, pTargetType, pTargetId,
-             pCharId, pValue, pPrice);
+      IF (EXISTS(SELECT 1 FROM charuse 
+                 WHERE charuse_target_type=pTargetType
+                  AND  charuse_char_id=pCharId)) THEN
+        INSERT INTO charass
+              (charass_target_type, charass_target_id,
+               charass_char_id, charass_value, charass_price)
+        VALUES(pTargetType, pTargetId,
+               pCharId, pValue, pPrice)
+        RETURNING charass_id INTO _charassid;
+      ELSE
+        _charassid := 0;
+      END IF;
     ELSE
       _charassid := 0;
     END IF;

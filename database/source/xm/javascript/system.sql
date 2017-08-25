@@ -12,8 +12,7 @@ select xt.install_js('XM','System','xtuple', $$
     "DashboardLite",
     "DefaultPriority",
     "RequireProjectAssignment",
-    "UseProjects",
-    "TriggerWorkflow"
+    "UseProjects"
   ],
     i, option;
 

@@ -515,7 +515,7 @@ var _ = require('underscore'),
       var custNumber = utils.generateUUID(), // UUID as random Customer Number.
         data = _.clone(records.share.customerDefaults);
 
-      data.name = 'Share User';
+      data.name = 'Share User Customer';
       data.number = custNumber.toUpperCase();
       data.billingContact = records.share.contact.id;
       data.correspondenceContact = records.share.contact.id;
@@ -607,24 +607,8 @@ var _ = require('underscore'),
 
     // Add user.
     before(function (done) {
-      var username = utils.generateUUID(), // UUID as random username.
-        postUserAccountSQL =  'select xt.post($${ \n' +
-                              '  "nameSpace":"XM", \n' +
-                              '  "type":"UserAccount", \n' +
-                              '  "data":{ \n' +
-                              '    "username": "' + username + '", \n' +
-                              '    "properName": "Share User", \n' +
-                              '    "useEnhancedAuth": true, \n' +
-                              '    "disableExport": true, \n' +
-                              '    "isActive": true, \n' +
-                              '    "initials": "SU", \n' +
-                              '    "email": "shareuser@example.com", \n' +
-                              '    "organization": "' + creds.database + '", \n' +
-                              '    "locale": "Default", \n' +
-                              '    "isAgent": false ' +
-                              '  }, \n' +
-                              '  "username":"admin" \n' +
-                              '}$$);';
+      var username = records.share.customer.id.toLowerCase(), // The new customer number so they match.
+        postUserAccountSQL = "select (xt.createuser('" + username + "', false) = 1) AS created";
 
       creds.database = databaseName;
 
@@ -633,11 +617,11 @@ var _ = require('underscore'),
 
         assert.isNull(err);
         assert.equal(1, res.rowCount, JSON.stringify(res.rows));
-        results = JSON.parse(res.rows[0].post);
+        assert.isTrue(res.rows[0].created);
 
         records.share.username = username;
         records.share.user = {
-          "id": results.id
+          "id": username
         };
 
         done();
@@ -3837,7 +3821,6 @@ var _ = require('underscore'),
         "terms":"2-10N30",
         "salesRep":records.rep.salesRep.id,
         "taxZone":"VA TAX",
-        "number":"60118",
         "billtoName":"Tremendous Toys Incorporated",
         "billtoPhone":"703-931-4269",
         "billtoAddress1":"Tremendous Toys Inc.",
