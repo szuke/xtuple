@@ -1,0 +1,10 @@
+-- Group: customer
+-- Name:  ytdSales
+-- Notes: Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+--        See www.xtuple.com/CPAL for the full text of the software license.
+
+SELECT COALESCE(SUM(round(extprice,2)), 0) AS ytdsales 
+FROM saleshistorymisc 
+WHERE cohist_invcdate>=DATE_TRUNC('year', CURRENT_TIMESTAMP)
+  AND cohist_cohead_ccpay_id IS NULL
+  AND cohist_cust_id = <? value('cust_id') ?>;

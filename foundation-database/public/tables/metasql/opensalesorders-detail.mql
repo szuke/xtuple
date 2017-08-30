@@ -1,7 +1,7 @@
 -- Group: opensalesorders
 -- Name:  detail
 -- Notes: 
---        Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+--        Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 --        See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT DISTINCT
@@ -81,7 +81,7 @@ WHERE(
   AND (cohead_status='O')
 <? endif ?>
 <? if  exists("warehous_id") ?>
-  AND (warehous_id=<? value("warehous_id") ?>)
+  AND (cohead_warehous_id=<? value("warehous_id") ?>)
 <? endif ?>
 <? if  exists("salesrep_id") ?>
   AND (cohead_salesrep_id=<? value("salesrep_id") ?>)
@@ -101,6 +101,11 @@ WHERE(
             WHEN <? value("holdtype") ?> = 2 THEN cohead_holdtype = 'S'
             WHEN <? value("holdtype") ?> = 3 THEN cohead_holdtype = 'P'
             WHEN <? value("holdtype") ?> = 4 THEN cohead_holdtype = 'R' END)
+<? endif ?>
+<? if exists("search_pattern") ?>
+  AND (cohead_number ~ <? value("search_pattern") ?>
+  OR  cust_number ~* <? value("search_pattern") ?>
+  OR  cohead_billtoname ~* <? value("search_pattern") ?>)
 <? endif ?>
   AND NOT EXISTS(SELECT 1
                 FROM coitem

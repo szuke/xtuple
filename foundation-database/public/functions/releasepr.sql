@@ -224,6 +224,7 @@ BEGIN
     SELECT 'PI', _poitemid, charass_char_id,
            charass_value, charass_default, charass_price
     FROM charass
+    JOIN charuse ON (charuse_char_id=charass_char_id AND charuse_target_type='PI')
     WHERE ( (charass_target_type='SI')
       AND   (charass_target_id=_pr.parentso) );
   END IF;

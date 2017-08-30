@@ -913,12 +913,6 @@ white:true*/
         options = {},
         that = this;
 
-      // In addition to updates to line items, update workflow
-      // items if applicable
-      if (this.updateWorkflowItemShipDate) {
-        this.updateWorkflowItemShipDate();
-      }
-
       if (!lineItems.length) { return; }
 
       options.type = XM.Model.QUESTION;

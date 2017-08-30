@@ -3,6 +3,12 @@
  <title>Credit Card Receipt</title>
  <name>CCReceipt</name>
  <description></description>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
  <size>Letter</size>
  <portrait/>
  <topmargin>100</topmargin>
@@ -297,6 +303,7 @@ WHERE (ccpay_id=&lt;? value("ccpay_id") ?>);</sql>
      <query>detail</query>
      <column>ccpay_amount</column>
     </data>
+    <format builtin="true">money</format>
    </field>
    <label>
     <rect>

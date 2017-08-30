@@ -60,11 +60,11 @@
       if (_.isFunction(done)) { done(); }
     });
   };
-        
+
   /** create an application user from a { user: name, password: val, ...} */
   exports.createUser = function (creds, done) {
     var context = _.extend({}, adminCred, { parameters: [ creds.user ] }),
-        cu = function (done) {
+        cu = function () {
           var createSql = 'select createUser($1, false) as result;';
           datasource.query(createSql, context, function (err, res) {
             if (err) {
@@ -74,19 +74,19 @@
             } else {
               assert.equal(res.rowCount, 1);
             }
-            if (_.isFunction(done)) { done(); }
+            sp();
           });
         },
-        sp = function (done) {
+        sp = function () {
           var passwdSql = "alter user \"" + creds.user +
                           "\" with password '" + creds.password + "';";
           datasource.query(passwdSql, adminCred, function (err, res) {
 //          assert.isNull(err, 'expect no error changing the user password');
 //          assert.isNull(res);
-            if (_.isFunction(done)) { done(); }
+            sr();
           });
         },
-        sr = function (done) {
+        sr = function () {
           var xtroleSql = 'alter group xtrole add user "' + creds.user + '";';
           datasource.query(xtroleSql, adminCred, function (err, res) {
 //          assert.isNull(err, 'expect no error adding user to xtrole');
@@ -95,48 +95,43 @@
           });
         };
     cu();
-    sp();
-    sr(done);
   };
 
   /** @param userdesc {Object,String} either a credentials object or a string */
   exports.deleteUser = function (userdesc, done) {
     var username = userdesc.user || userdesc,
         context  = _.extend({}, adminCred, { parameters: [ username ] }),
-        rgp = function (done) {
+        rgp = function () {
           var sql = 'delete from usrgrp where usrgrp_username = $1;';
           datasource.query(sql, context, function (err, res) {
             assert.isNull(err, 'revoking ' + username + ' usrgrp should work');
-            if (_.isFunction(done)) { done(); }
+            rup();
           });
         },
-        rup = function (done) {
+        rup = function () {
           var sql = 'delete from usrpriv where usrpriv_username = $1;';
           datasource.query(sql, context, function (err, res) {
             assert.isNull(err, 'revoking ' + username + ' usrpriv should work');
-            if (_.isFunction(done)) { done(); }
+            dxtu();
           });
         },
-        dxtu = function (done) {
+        dxtu = function () {
           var sql = 'delete from xt.usrlite where usr_username = $1;';
           datasource.query(sql, context, function (err, res) {
             assert.isNull(err, 'delete ' + username + ' xt.userlite should work');
-            if (_.isFunction(done)) { done(); }
+            du();
           });
         },
-        du = function (done) {
+        du = function () {
           var sql = 'drop user "' + username + '";';
           datasource.query(sql, adminCred, function (err, res) {
-            assert.isNull(err, 'should drop ' + username);
+            if (err) {
+              assert.match(err, new RegExp("role.*does not exist"), 'should drop ' + username);
+            }
             if (_.isFunction(done)) { done(); }
           });
         };
     rgp();
-    rup();
-    dxtu();
-    du();
-
-    if (_.isFunction(done)) { done(); }
   };
 
   /**

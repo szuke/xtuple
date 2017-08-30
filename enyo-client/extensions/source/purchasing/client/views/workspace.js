@@ -191,11 +191,9 @@ trailing:true, white:true, strict: false*/
               {kind: "XV.InputWidget", attr: "code"},
               {kind: "XV.CheckboxWidget", attr: "isActive"},
               {kind: "XV.InputWidget", attr: "description"},
-              {kind: "XV.PurchaseEmailProfilePicker", attr: "emailProfile"},
-              {kind: "XV.PurchaseTypeCharacteristicsWidget", attr: "characteristics"}
+              {kind: "XV.PurchaseEmailProfilePicker", attr: "emailProfile"}
             ]}
-          ]},
-          {kind: "XV.PurchaseTypeWorkflowBox", attr: "workflow"}
+          ]}
         ]}
       ]
     });
@@ -302,18 +300,10 @@ trailing:true, white:true, strict: false*/
             {kind: "XV.PurchaseOrderLineBox", name: "purchaseOrderLineItemBox",
               attr: "lineItems", addBefore: this.$.settingsPanel}
           ], {owner: this});
-          this.$.panels.createComponents([
-            {kind: "XV.PurchaseOrderWorkflowBox", attr: "workflow",
-              addBefore: this.$.commentsPanel}
-          ], {owner: this});
         } else {
           this.$.panels.createComponents([
             {kind: "XV.PurchaseOrderLineGridBox", name: "purchaseOrderLineItemBox",
               attr: "lineItems", addBefore: this.$.settingsPanel}
-          ], {owner: this});
-          this.$.panels.createComponents([
-            {kind: "XV.PurchaseOrderWorkflowGridBox", attr: "workflow",
-              addBefore: this.$.commentsPanel}
           ], {owner: this});
         }
         this.processExtensions(true);
@@ -339,69 +329,9 @@ trailing:true, white:true, strict: false*/
     });
 
     XV.registerModelWorkspace("XM.PurchaseOrder", "XV.PurchaseOrderWorkspace");
-    XV.registerModelWorkspace("XM.PurchaseOrderWorkflow", "XV.PurchaseOrderWorkspace");
     XV.registerModelWorkspace("XM.PurchaseOrderRelation", "XV.PurchaseOrderWorkspace");
     XV.registerModelWorkspace("XM.PurchaseOrderListItem", "XV.PurchaseOrderWorkspace");
 
-    // ..........................................................
-    // PURCHASE ORDER WORKFLOW
-    //
-
-    enyo.kind({
-      name: "XV.PurchaseOrderWorkflowWorkspace",
-      kind: "XV.ChildWorkspace",
-      title: "_purchaseOrderWorkflow".loc(),
-      model: "XM.PurchaseOrderWorkflow",
-      components: [
-        {kind: "Panels", arrangerKind: "CarouselArranger",
-          classes: "xv-top-panel", fit: true, components: [
-          {kind: "XV.Groupbox", name: "mainPanel", components: [
-            {kind: "onyx.GroupboxHeader", content: "_overview".loc()},
-            {kind: "XV.ScrollableGroupbox", name: "mainGroup", fit: true,
-              classes: "in-panel", components: [
-              {kind: "XV.InputWidget", attr: "name"},
-              {kind: "XV.InputWidget", attr: "description"},
-              {kind: "XV.PurchaseOrderWorkflowTypePicker", attr: "workflowType"},
-              {kind: "XV.WorkflowStatusPicker", attr: "status"},
-              {kind: "XV.PriorityPicker", attr: "priority", showNone: false},
-              {kind: "XV.NumberSpinnerWidget", attr: "sequence"},
-              {kind: "onyx.GroupboxHeader", content: "_schedule".loc()},
-              {kind: "XV.DateWidget", attr: "dueDate"},
-              {kind: "XV.DateWidget", attr: "startDate"},
-              {kind: "XV.DateWidget", attr: "assignDate"},
-              {kind: "XV.DateWidget", attr: "completeDate"},
-              {kind: "onyx.GroupboxHeader", content: "_userAccounts".loc()},
-              {kind: "XV.UserAccountWidget", attr: "owner"},
-              {kind: "XV.UserAccountWidget", attr: "assignedTo"},
-              {kind: "onyx.GroupboxHeader", content: "_notes".loc()},
-              {kind: "XV.TextArea", attr: "notes", fit: true}
-            ]}
-          ]},
-          {kind: "XV.Groupbox", name: "onCompletedPanel", title: "_completionActions".loc(),
-            components: [
-            {kind: "onyx.GroupboxHeader", content: "_onCompletion".loc()},
-            {kind: "XV.ScrollableGroupbox", name: "completionGroup", fit: true,
-              classes: "in-panel", components: [
-              {kind: "XV.PurchaseOrderStatusPicker", attr: "completedParentStatus",
-                noneText: "_noChange".loc(), label: "_nextStatus".loc()},
-              {kind: "XV.DependenciesWidget",
-                attr: {workflow: "parent.workflow", successors: "completedSuccessors"}}
-            ]}
-          ]},
-          {kind: "XV.Groupbox", name: "onDeferredPanel", title: "_deferredActions".loc(),
-            components: [
-            {kind: "onyx.GroupboxHeader", content: "_onDeferred".loc()},
-            {kind: "XV.ScrollableGroupbox", name: "deferredGroup", fit: true,
-              classes: "in-panel", components: [
-              {kind: "XV.PurchaseOrderStatusPicker", attr: "completedParentStatus",
-                noneText: "_noChange".loc(), label: "_nextStatus".loc()},
-              {kind: "XV.DependenciesWidget",
-                attr: {workflow: "parent.workflow", successors: "deferredSuccessors"}}
-            ]}
-          ]}
-        ]}
-      ]
-    });
 
     // ..........................................................
     // PURCHASE ORDER LINE

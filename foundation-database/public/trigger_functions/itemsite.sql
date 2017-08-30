@@ -138,6 +138,7 @@ DECLARE
   _application TEXT;
   _oldaccntid INTEGER;
   _newaccntid INTEGER;
+  _invhistId INTEGER;
 
 BEGIN
 -- Cache Application
@@ -377,8 +378,28 @@ BEGIN
         SELECT stdcost(NEW.itemsite_item_id) * NEW.itemsite_qtyonhand
           INTO _cost;
         _variance := _cost - NEW.itemsite_value;
-        NEW.itemsite_value := _cost;
         IF(_variance <> 0.0) THEN
+          INSERT INTO invhist
+          (invhist_itemsite_id, invhist_transdate, invhist_transtype, invhist_invqty,
+           invhist_invuom, invhist_qoh_before, invhist_qoh_after, invhist_unitcost,
+           invhist_comments, invhist_costmethod,
+           invhist_value_before, invhist_value_after, invhist_series)
+          SELECT NEW.itemsite_id, CURRENT_TIMESTAMP, 'SC', 0.0,
+                 uom_name, NEW.itemsite_qtyonhand, NEW.itemsite_qtyonhand, _variance,
+                 'Itemsite converted from Average to Standard cost.', 'S',
+                 NEW.itemsite_value, _cost, NEXTVAL('itemloc_series_seq')
+            FROM itemsite
+            JOIN item ON itemsite_item_id=item_id
+            JOIN uom ON item_inv_uom_id=uom_id
+           WHERE itemsite_id=NEW.itemsite_id
+           RETURNING invhist_id INTO _invhistId;
+
+          NEW.itemsite_value := _cost;
+
+          IF (fetchMetricBool('EnableAsOfQOH')) THEN
+            PERFORM postIntoInvBalance(_invhistId);
+          END IF;
+
           PERFORM insertGLTransaction( 'P/D', '', '', 'Itemsite converted from Average to Standard cost.',
                                        costcat_invcost_accnt_id, costcat_asset_accnt_id, NEW.itemsite_id,
                                       _variance, CURRENT_DATE )

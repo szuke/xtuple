@@ -15,6 +15,10 @@ var _     = require("underscore"),
         whsinfo
         ;
 
+    it('should delete test user if it exists', function (done) {
+      dblib.deleteUser(casualCred, done);
+    });
+
     it('should create a test user', function (done) {
       dblib.createUser(casualCred, done);
     });

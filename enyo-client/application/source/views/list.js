@@ -2794,7 +2794,9 @@ trailing:true, white:true, strict: false*/
     },
 
     determineLabel: function (kindName) {
-      return ("_" + _.pluralize(_.titleize(kindName))).loc();
+      var title = _.titleize(kindName);
+      title = title.charAt(0).toLowerCase() + title.slice(1);
+      return ("_" + _.pluralize(title)).loc();
     }
   });
 

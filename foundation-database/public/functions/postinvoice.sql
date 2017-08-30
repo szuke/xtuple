@@ -21,9 +21,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP FUNCTION IF EXISTS postInvoice(INTEGER, INTEGER, INTEGER);
 CREATE OR REPLACE FUNCTION postInvoice(pInvcheadid INTEGER,
                                        pJournalNumber INTEGER,
-                                       pItemlocSeries INTEGER) RETURNS INTEGER AS $$
+                                       pItemlocSeries INTEGER,
+                                       pPreDistributed BOOLEAN DEFAULT FALSE) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
@@ -47,6 +49,7 @@ DECLARE
   _firstExchDate        DATE;
   _glDate               DATE;
   _exchGain             NUMERIC := 0;
+  _hasControlledItems   BOOLEAN := FALSE;
 
 BEGIN
 
@@ -148,7 +151,7 @@ BEGIN
 --  Cache the amount due for this line
     _amount := _r.extprice;
 
-    IF (_amount > 0) THEN
+    IF (_amount != 0) THEN
 --  Credit the Sales Account for the invcitem item
       IF (_r.invcitem_rev_accnt_id IS NOT NULL) THEN
         SELECT getPrjAccntId(_p.invchead_prj_id, _r.invcitem_rev_accnt_id)
@@ -592,14 +595,15 @@ BEGIN
                    (invcitem_billed * invcitem_qty_invuomratio) AS qty,
                    invchead_invcnumber, invchead_cust_id AS cust_id, item_number,
                    invchead_saletype_id AS saletype_id, invchead_shipzone_id AS shipzone_id,
-                   invchead_prj_id, itemsite_costmethod
+                   invchead_prj_id, itemsite_costmethod, isControlledItemsite(itemsite_id) AS controlled
             FROM invchead JOIN invcitem ON ( (invcitem_invchead_id=invchead_id) AND
                                              (invcitem_billed <> 0) AND
                                              (invcitem_updateinv) )
                           JOIN itemsite ON ( (itemsite_item_id=invcitem_item_id) AND
                                              (itemsite_warehous_id=invcitem_warehous_id) )
                           JOIN item ON (item_id=invcitem_item_id)
-            WHERE (invchead_id=pInvcheadid) LOOP
+            WHERE (invchead_id=pInvcheadid) 
+            ORDER BY invcitem_id LOOP
 
 --  Issue billed stock from inventory
     IF (_itemlocSeries = 0) THEN
@@ -610,10 +614,19 @@ BEGIN
                          'S/O', 'IN', _r.invchead_invcnumber, '',
                          ('Invoice Billed ' || _r.item_number),
                          getPrjAccntId(_r.invchead_prj_id, resolveCOSAccount(itemsite_id, _r.cust_id, _r.saletype_id, _r.shipzone_id)),
-                         costcat_asset_accnt_id, _itemlocSeries, _glDate) INTO _invhistid
+                         costcat_asset_accnt_id, _itemlocSeries, _glDate, NULL, NULL, NULL, pPreDistributed) INTO _invhistid
       FROM itemsite, costcat
       WHERE ( (itemsite_costcat_id=costcat_id)
        AND (itemsite_id=_r.itemsite_id) );
+
+      IF (NOT FOUND) THEN
+        RAISE EXCEPTION 'Could not post inventory transaction: missing cost category or itemsite for 
+          itemsite_id % [xtuple: postInvoice, -2, %]', _r.itemsite_id, _r.itemsite_id;
+      END IF;
+
+      IF _r.controlled THEN
+        _hasControlledItems := TRUE;
+      END IF;
     ELSE
       RAISE DEBUG 'postInvoice(%, %, %) tried to postInvTrans a %-costed item',
                   pInvcheadid, pJournalNumber, pItemlocSeries,
@@ -687,6 +700,14 @@ BEGIN
         END IF;
       END IF;
     END LOOP;
+  END IF;
+
+  -- Post distribution detail regardless of loc/control methods because postItemlocSeries is required.
+  -- If it is a controlled item and the results were 0 something is wrong.
+  IF (pPreDistributed) THEN
+    IF (postDistDetail(_itemlocSeries) <= 0 AND _hasControlledItems) THEN
+      RAISE EXCEPTION 'Posting Distribution Detail Returned 0 Results, [xtuple: postInvoice, -18]';
+    END IF;
   END IF;
 
   RETURN _itemlocSeries;

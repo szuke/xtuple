@@ -1,10 +1,13 @@
-CREATE OR REPLACE FUNCTION distributeVoucherLine(INTEGER, INTEGER, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+DROP FUNCTION IF EXISTS distributevoucherline(integer, integer, integer);
+
+CREATE OR REPLACE FUNCTION public.distributevoucherline(pVoucherId integer,
+                                                        pPoitemId  integer,
+                                                        pCurrId    integer,
+                                                        pDistMaterial boolean DEFAULT false)
+  RETURNS integer AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pVoucherId ALIAS FOR $1;
-  pPoitemId ALIAS FOR $2;
-  pCurrId ALIAS FOR $3;
   _count INTEGER;
   _costelemId INTEGER;
   _close BOOLEAN;
@@ -34,7 +37,7 @@ BEGIN
                 AND (itemsite_id=poitem_itemsite_id)
                 AND (poitem_id=pPoitemId));
 
-        IF (_count > 1) THEN
+        IF (_count > 1 AND NOT pDistMaterial) THEN
                 RETURN -5;
         ELSEIF (_count = 1) THEN
                 SELECT itemcost_costelem_id INTO _costelemId
@@ -167,4 +170,5 @@ BEGIN
   RETURN 1;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
+

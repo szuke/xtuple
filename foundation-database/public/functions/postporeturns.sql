@@ -1,39 +1,52 @@
-CREATE OR REPLACE FUNCTION postPoReturns(INTEGER, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+DROP FUNCTION IF EXISTS postPoReturns(INTEGER, BOOLEAN);
+DROP FUNCTION IF EXISTS postPoReturns(INTEGER, BOOLEAN, INTEGER, BOOLEAN);
+
+CREATE OR REPLACE FUNCTION postPoReturns(pPoheadid INTEGER,
+                                         pCreateMemo BOOLEAN,
+                                         pItemlocSeries INTEGER DEFAULT NULL,
+                                         pPreDistributed BOOLEAN DEFAULT FALSE) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pPoheadid ALIAS FOR $1;
-  pCreateMemo ALIAS FOR $2;
-  _itemlocSeries INTEGER;
+  _itemlocSeries INTEGER := COALESCE(pItemlocSeries, NEXTVAL('itemloc_series_seq'));
   _p RECORD;
   _returnval	INTEGER;
   _tmp        INTEGER;
   _pricevar   NUMERIC := 0.00;
   _invhistid		INTEGER;
   _journalNumber INTEGER := fetchJournalNumber('GL-MISC');
+  _hasControlledItem BOOLEAN := FALSE;
 
 BEGIN
+  IF (pPreDistributed AND COALESCE(pItemlocSeries, 0) = 0) THEN 
+    RAISE EXCEPTION 'pItemlocSeries is Required when pPreDistributed [xtuple: postPoReturns, -5]';
+  -- TODO - find why/how passing 0 instead of null for pItemlocSeries
+  ELSIF (_itemlocSeries = 0) THEN
+    _itemlocSeries := NEXTVAL('itemloc_series_seq');
+  END IF;
 
-  _itemlocSeries := 0;
-
-  FOR _p IN SELECT pohead_number, pohead_curr_id, poreject_id, poitem_prj_id,
-		   poreject_poitem_id, poitem_id, poitem_expcat_id, poitem_linenumber,
-		   currToBase(COALESCE(recv_purchcost_curr_id, pohead_curr_id),
-                              COALESCE(recv_purchcost, poitem_unitprice),
-			      pohead_orderdate) AS poitem_unitprice_base,
-                   COALESCE(itemsite_id, -1) AS itemsiteid, poitem_invvenduomratio,
-                   SUM(poreject_qty) AS totalqty,
-                   itemsite_item_id, itemsite_costmethod, itemsite_controlmethod, recv_date
-            FROM pohead JOIN poitem ON (poitem_pohead_id=pohead_id)
-                        JOIN poreject ON (poreject_poitem_id=poitem_id AND NOT poreject_posted) 
-                        LEFT OUTER JOIN itemsite ON (poitem_itemsite_id=itemsite_id)
-                        LEFT OUTER JOIN recv ON (recv_id=poreject_recv_id)
+  FOR _p IN SELECT pohead_number,
+              pohead_curr_id, poreject_id, poitem_prj_id,
+		          poreject_poitem_id, poitem_id, poitem_expcat_id, poitem_linenumber,
+		          currToBase(COALESCE(recv_purchcost_curr_id, pohead_curr_id), 
+                COALESCE(recv_purchcost, poitem_unitprice),
+		            pohead_orderdate) AS poitem_unitprice_base,
+              COALESCE(itemsite_id, -1) AS itemsiteid, poitem_invvenduomratio,
+              SUM(poreject_qty) AS totalqty, 
+              isControlledItemsite(itemsite_id) AS controlled, 
+              itemsite_controlmethod, recv_date
+            FROM pohead 
+              JOIN poitem ON (poitem_pohead_id=pohead_id)
+              JOIN poreject ON (poreject_poitem_id=poitem_id AND NOT poreject_posted) 
+              LEFT OUTER JOIN itemsite ON (poitem_itemsite_id=itemsite_id)
+              LEFT OUTER JOIN recv ON (recv_id=poreject_recv_id)
             WHERE (pohead_id=pPoheadid)
             GROUP BY poreject_id, pohead_number, poreject_poitem_id, poitem_id, poitem_prj_id,
-		     poitem_expcat_id, poitem_linenumber, poitem_unitprice, pohead_curr_id,
-		     pohead_orderdate, itemsite_id, poitem_invvenduomratio,
-                     itemsite_item_id, itemsite_costmethod, itemsite_controlmethod, recv_date,
-                     recv_purchcost_curr_id, recv_purchcost LOOP
+		          poitem_expcat_id, poitem_linenumber, poitem_unitprice, pohead_curr_id,
+		          pohead_orderdate, itemsite_id, poitem_invvenduomratio, itemsite_controlmethod, recv_date,
+              recv_purchcost_curr_id, recv_purchcost 
+            ORDER BY poreject_id LOOP
+
 
     IF (_p.itemsiteid = -1) THEN
         SELECT insertGLTransaction( 'S/R', 'PO', _p.pohead_number, 'Return Non-Inventory to P/O',
@@ -64,16 +77,22 @@ BEGIN
       SET poreject_posted=TRUE, poreject_value= round(_p.poitem_unitprice_base * _p.totalqty, 2)
       WHERE (poreject_id=_p.poreject_id);
     ELSE
-      IF (_itemlocSeries = 0) THEN
-        SELECT NEXTVAL('itemloc_series_seq') INTO _itemlocSeries;
-      END IF;
-
       SELECT postInvTrans( itemsite_id, 'RP', (_p.totalqty * _p.poitem_invvenduomratio * -1),
                            'S/R', 'PO', (_p.pohead_number || '-' || _p.poitem_linenumber::TEXT), '', 'Return Inventory to P/O',
-                           costcat_asset_accnt_id, costcat_liability_accnt_id, _itemlocSeries, CURRENT_TIMESTAMP) INTO _returnval
+                           costcat_asset_accnt_id, costcat_liability_accnt_id, _itemlocSeries, CURRENT_TIMESTAMP,
+                           NULL, NULL, NULL, pPreDistributed) INTO _returnval
       FROM itemsite, costcat
       WHERE ( (itemsite_costcat_id=costcat_id)
        AND (itemsite_id=_p.itemsiteid) );
+
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'Could not post inventory transaction: no cost category found for 
+          itemsite_id % [xtuple: postPoReturns, -6, %]', _p.itemsite_id, _p.itemsite_id;
+      END IF;
+
+      IF _p.controlled THEN
+        _hasControlledItem = true;
+      END IF;
 
       UPDATE poreject
       SET poreject_posted=TRUE, poreject_value= round(_p.poitem_unitprice_base * _p.totalqty, 2)
@@ -89,8 +108,7 @@ BEGIN
 
 
     UPDATE poitem
-    SET poitem_qty_returned=(poitem_qty_returned + _p.totalqty),
-	poitem_status='O'
+    SET poitem_qty_returned=(poitem_qty_returned + _p.totalqty), poitem_status='O'
     WHERE (poitem_id=_p.poitem_id);
 
       IF (fetchMetricBool('RecordPPVonReceipt')) THEN -- If the 'Purchase Price Variance on Receipt' option is true
@@ -127,7 +145,7 @@ BEGIN
        END IF;
 
     IF (pCreateMemo) THEN
-	SELECT postPoReturnCreditMemo(_p.poreject_id) INTO _returnval;
+      SELECT postPoReturnCreditMemo(_p.poreject_id) INTO _returnval;
     END IF;
 
     IF (_returnval < 0) THEN
@@ -136,10 +154,18 @@ BEGIN
 
   END LOOP;
 
+  -- Post distribution detail regardless of loc/control methods because postItemlocSeries is required.
+  -- If it is a controlled item and the results were 0 something is wrong.
+  IF (pPreDistributed) THEN
+    IF (postDistDetail(_itemlocSeries) <= 0 AND _hasControlledItem) THEN
+      RAISE EXCEPTION 'Posting Distribution Detail Returned 0 Results, [xtuple: postPoReturns, -7]';
+    END IF;
+  END IF;
+
   RETURN _itemlocSeries;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION postPoReturns(INTEGER) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.

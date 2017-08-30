@@ -1,6 +1,6 @@
 
-CREATE OR REPLACE FUNCTION findSpecialFinancial(TEXT, TEXT, INTEGER) RETURNS NUMERIC AS '
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION findSpecialFinancial(TEXT, TEXT, INTEGER) RETURNS NUMERIC AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pUnit ALIAS FOR $1;
@@ -12,24 +12,24 @@ BEGIN
 
   _value := 0.00;
 
-  IF (''OpenAR'' = pType) THEN
-    IF ( pUnit IN (''D'',''E'') ) THEN
-      SELECT SUM( CASE WHEN (aropen_doctype IN (''C'', ''R'')) THEN ((aropen_amount - aropen_paid) * -1)
+  IF ('OpenAR' = pType) THEN
+    IF ( pUnit IN ('D','E') ) THEN
+      SELECT SUM( CASE WHEN (aropen_doctype IN ('C', 'R')) THEN ((aropen_amount - aropen_paid) * -1)
                        ELSE (aropen_amount - aropen_paid) END ) INTO _value
         FROM aropen, period
        WHERE ((aropen_open)
          AND  (aropen_duedate BETWEEN period_start AND period_end)
          AND  (period_id=pPeriodid));
 
-      IF (''E'' = pUnit) THEN
+      IF ('E' = pUnit) THEN
         _value := 0.00 - _value;
       END IF;
     END IF;
   END IF;
 
-  IF (''OpenAP'' = pType) THEN
-    IF ( pUnit IN (''C'',''E'') ) THEN
-      SELECT SUM( CASE WHEN (apopen_doctype=''C'') THEN ((apopen_amount - apopen_paid) * -1)
+  IF ('OpenAP' = pType) THEN
+    IF ( pUnit IN ('C','E') ) THEN
+      SELECT SUM( CASE WHEN (apopen_doctype='C') THEN ((apopen_amount - apopen_paid) * -1)
                        ELSE (apopen_amount - apopen_paid) END ) INTO _value
         FROM apopen, period
        WHERE ((apopen_open)
@@ -41,10 +41,10 @@ BEGIN
   RETURN _value;
 
 END;
-' LANGUAGE 'plpgsql';
+$$ LANGUAGE 'plpgsql';
 
-CREATE OR REPLACE FUNCTION copyFinancialLayout(INTEGER, TEXT) RETURNS INTEGER AS '
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION copyFinancialLayout(INTEGER, TEXT) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSourceFlheadid ALIAS FOR $1;
@@ -52,9 +52,12 @@ DECLARE
 
   _flheadid INTEGER;
   _tblName TEXT;
+  _tmpUserName TEXT;
 
 BEGIN
 
+  _tmpUserName = replace(getEffectiveXtUser(), '.', '');
+  
 -- Check for the flhead to be copy that it exists
   PERFORM flhead_id
      FROM flhead
@@ -64,7 +67,7 @@ BEGIN
   END IF;
 
 -- Check that the name is valid
-  IF (pDestName IS NULL OR pDestName = '''') THEN
+  IF (pDestName IS NULL OR pDestName = '') THEN
     RETURN -2;
   END IF;
 
@@ -77,7 +80,7 @@ BEGIN
   END IF;
 
 -- Copy the flhead record
-  SELECT nextval(''flhead_flhead_id_seq'') INTO _flheadid;
+  SELECT nextval('flhead_flhead_id_seq') INTO _flheadid;
   INSERT INTO flhead
          (flhead_id, flhead_name, flhead_descrip,
           flhead_showtotal, flhead_showstart,
@@ -111,13 +114,12 @@ BEGIN
 
 -- Create temporary table so old and new group ids can be stored
  SELECT relname FROM pg_class INTO _tblName
- WHERE relname = ''tmp_flgrpxref'';
+ WHERE relname = 'tmp_flgrpxref';
  IF (_tblName IS NULL) THEN
-  EXECUTE ''CREATE TEMPORARY TABLE tmp_flgrpxref'' || getEffectiveXtUser() || '' 
-  (
+  EXECUTE format('CREATE TEMPORARY TABLE tmp_flgrpxref%s (
 	flgrpxref_oldid int4,
 	flgrpxref_newid int4
-  ) ON COMMIT DROP;'';
+  ) ON COMMIT DROP;', _tmpUserName);
   END IF;
 
 -- Copy the top level groups
@@ -127,23 +129,23 @@ BEGIN
       AND  (flgrp_flgrp_id=-1));
 
 -- Update Group Percent settings
-  EXECUTE ''UPDATE flgrp
+  EXECUTE format('UPDATE flgrp
   SET flgrp_prcnt_flgrp_id=flgrpxref_newid
-  FROM tmp_flgrpxref'' || getEffectiveXtUser() || '' 
-  WHERE ((flgrp_flhead_id='' || _flheadid || '')
-  AND (flgrp_prcnt_flgrp_id=flgrpxref_oldid));'';
+  FROM tmp_flgrpxref%s
+  WHERE ((flgrp_flhead_id=%s)
+  AND (flgrp_prcnt_flgrp_id=flgrpxref_oldid));', _tmpUserName, _flheadid);
 
-  EXECUTE ''UPDATE flitem
+  EXECUTE format('UPDATE flitem
   SET flitem_prcnt_flgrp_id=flgrpxref_newid
-  FROM tmp_flgrpxref'' || getEffectiveXtUser() || '' 
-  WHERE ((flitem_flhead_id='' || _flheadid || '')
-  AND (flitem_prcnt_flgrp_id=flgrpxref_oldid));'';
+  FROM tmp_flgrpxref%s
+  WHERE ((flitem_flhead_id=%s)
+  AND (flitem_prcnt_flgrp_id=flgrpxref_oldid));', _tmpUserName, _flheadid);
 
-  EXECUTE ''UPDATE flspec
+  EXECUTE format('UPDATE flspec
   SET flspec_prcnt_flgrp_id=flgrpxref_newid
-  FROM tmp_flgrpxref'' || getEffectiveXtUser() || '' 
-  WHERE ((flspec_flhead_id='' || _flheadid || '')
-  AND (flspec_prcnt_flgrp_id=flgrpxref_oldid));'';
+  FROM tmp_flgrpxref%s
+  WHERE ((flspec_flhead_id=%s)
+  AND (flspec_prcnt_flgrp_id=flgrpxref_oldid));', _tmpUserName, _flheadid);
 
 -- Copy Column Layounts
   INSERT INTO flcol
@@ -181,4 +183,4 @@ WHERE (flcol_flhead_id=pSourceFlheadid);
 
   RETURN _flheadid;
 END;
-' LANGUAGE 'plpgsql';
+$$ LANGUAGE 'plpgsql';

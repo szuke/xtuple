@@ -59,7 +59,7 @@ CREATE TRIGGER empBeforeTrigger
   EXECUTE PROCEDURE _empBeforeTrigger();
 
 CREATE OR REPLACE FUNCTION _empAfterTrigger () RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _newcrmacctname TEXT;
@@ -86,6 +86,9 @@ BEGIN
       END;
     END LOOP;
 
+    UPDATE salesrep SET salesrep_emp_id = NEW.emp_id
+    WHERE salesrep_number = NEW.emp_code;
+
     /* TODO: default characteristic assignments based on empgrp? */
 
   ELSIF (TG_OP = 'UPDATE') THEN
@@ -96,6 +99,7 @@ BEGIN
     UPDATE crmacct SET crmacct_name = NEW.emp_name
     WHERE ((crmacct_emp_id=NEW.emp_id)
       AND  (crmacct_name!=NEW.emp_name));
+
   END IF;
 
   IF (fetchMetricBool('EmployeeChangeLog')) THEN

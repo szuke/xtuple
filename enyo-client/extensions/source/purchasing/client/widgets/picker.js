@@ -42,18 +42,6 @@ white:true, strict:false*/
     });
 
     // ..........................................................
-    // PURCHASE ORDER WORKFLOW TYPE
-    //
-
-    enyo.kind({
-      name: "XV.PurchaseOrderWorkflowTypePicker",
-      kind: "XV.PickerWidget",
-      collection: "XM.purchaseOrderWorkflowTypes",
-      valueAttribute: "id",
-      showNone: false
-    });
-
-    // ..........................................................
     // PURCHASE TYPE
     //
 

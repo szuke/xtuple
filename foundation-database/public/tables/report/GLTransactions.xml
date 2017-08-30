@@ -43,7 +43,7 @@
  <querysource>
   <name>detail</name>
   <sql>&lt;? if exists("beginningBalance") ?>
-SELECT -1 AS gltrans_id,
+SELECT -1 AS gltrans_id, 0 AS srt1, &lt;? value("startDate") ?> AS gltrans_date,
        &lt;? value("startDate") ?> AS gltrans_created, formatDate(&lt;? value("startDate") ?>) AS transdate,
        '' AS gltrans_source, '' AS gltrans_doctype, '' AS gltrans_docnumber, '' AS invhist_docnumber,
        'Beginning Balance' AS transnotes,
@@ -64,7 +64,7 @@ SELECT -1 AS gltrans_id,
 UNION
 &lt;? endif ?>
 
-SELECT gltrans_id,
+SELECT gltrans_id, 1 AS srt1, gltrans_date,
        gltrans_created, formatDate(gltrans_date) AS transdate,
        gltrans_source, gltrans_doctype, gltrans_docnumber, invhist_docnumber,
        firstLine(gltrans_notes) AS transnotes,
@@ -184,7 +184,7 @@ OR gltrans_doctype = &lt;? value("doctype") ?>
 &lt;? endif ?>
 
 )
-ORDER BY gltrans_created &lt;? if not exists("beginningBalance") ?> DESC &lt;? endif ?>,
+ORDER BY srt1, gltrans_date &lt;? if not exists("beginningBalance") ?> DESC &lt;? endif ?>,
         gltrans_sequence, gltrans_amount
 
 ;</sql>

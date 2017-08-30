@@ -23,18 +23,66 @@
        itemsrc_vend_item_number as f_venditem,
        itemsrc_vend_uom as f_venduom,
        formatQty(itemsrc_invvendoruomratio) as f_uomratio
-FROM itemsrc, vendinfo, item, uom
-WHERE ((itemsrc_vend_id=vend_id)
-  AND (itemsrc_item_id=item_id)
-  AND (item_inv_uom_id=uom_id)
+FROM itemsrc
+JOIN vendinfo ON itemsrc_vend_id=vend_id
+JOIN item ON itemsrc_item_id=item_id
+JOIN uom ON item_inv_uom_id=uom_id
+LEFT OUTER JOIN itemsrcp ON itemsrc_id=itemsrcp_itemsrc_id
+LEFT OUTER JOIN contrct ON itemsrc_contrct_id=contrct_id
+WHERE (TRUE
+&lt;? if not exists("showInactive") ?>
+  AND (itemsrc_active)
+&lt;? endif ?>
 &lt;? if exists("item_id") ?>
   AND (itemsrc_item_id=&lt;? value("item_id") ?>)
 &lt;? endif ?>
 &lt;? if exists("vend_id") ?>
   AND (itemsrc_vend_id=&lt;? value("vend_id") ?>)
 &lt;? endif ?>
+&lt;? if exists("warehous_id") ?>
+  AND (itemsrcp_warehous_id=&lt;? value("warehous_id") ?>)
+&lt;? endif ?>
+&lt;? if exists("showDropShip") ?>
+   AND (itemsrcp_dropship)
+&lt;? endif ?>
+&lt;? if exists("item_number_pattern") ?>
+  AND (item_number ~* &lt;? value("item_number_pattern") ?>)
+&lt;? endif ?>
+&lt;? if exists("item_descrip_pattern") ?>
+  AND (COALESCE(item_descrip1,'') || COALESCE(item_descrip2,'') ~* &lt;? value("item_descrip_pattern") ?>)
+&lt;? endif ?>
+&lt;? if exists("contrct_id") ?>
+  AND (itemsrc_contrct_id=&lt;? value("contrct_id") ?>)
+&lt;? endif ?>
+&lt;? if exists("contract_number_pattern") ?>
+  AND (contrct_number ~* &lt;? value("contract_number_pattern") ?>)
+&lt;? endif ?>
+&lt;? if exists("vend_name_pattern") ?>
+  AND (vend_name ~* &lt;? value("vend_name_pattern") ?>)
+&lt;? endif ?>
+&lt;? if exists("vend_item_number_pattern") ?>
+  AND (itemsrc_vend_item_number ~* &lt;? value("vend_item_number_pattern") ?>)
+&lt;? endif ?>
+&lt;? if exists("manuf_pattern") ?>
+  AND (itemsrc_manuf_name ~* &lt;? value("manuf_pattern") ?>)
+&lt;? endif ?>
+&lt;? if exists("manuf_item_number_pattern") ?>
+  AND (itemsrc_manuf_item_number ~* &lt;? value("manuf_item_number_pattern") ?>)
+&lt;? endif ?>
+&lt;? if exists("effectiveStartDate") ?>
+  AND (COALESCE(contrct_effective, itemsrc_effective) >= &lt;? value("effectiveStartDate") ?>)
+&lt;? endif ?>
+&lt;? if exists("effectiveEndDate") ?>
+  AND (COALESCE(contrct_effective, itemsrc_effective) = &lt;? value("effectiveEndDate") ?>)
+&lt;? endif ?>
+&lt;? if exists("expireStartDate") ?>
+  AND (COALESCE(contrct_expires, itemsrc_expires) >= &lt;? value("expireStartDate") ?>)
+&lt;? endif ?>
+&lt;? if exists("expireEndDate") ?>
+  AND (COALESCE(contrct_expires, itemsrc_expires) &lt;= &lt;? value("expireEndDate") ?>)
+&lt;? endif ?>
 )
-ORDER By item_number, vend_name;</sql>
+ORDER BY item_number, vend_name;</sql>
  </querysource>
  <rpthead>
   <height>221</height>

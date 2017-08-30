@@ -6,25 +6,12 @@ AS
 SELECT DISTINCT quhead_number AS quote_number, 
   quitem_linenumber AS line_number,
   char_name AS characteristic,
-  COALESCE((
-    SELECT b.charass_value 
-    FROM charass b 
-    WHERE ((b.charass_target_type='QI') 
-    AND (b.charass_target_id=quitem_id) 
-    AND (b.charass_char_id=char_id))), (
-    SELECT c.charass_value 
-    FROM charass c 
-    WHERE ((c.charass_target_type='I') 
-    AND (c.charass_target_id=item_id) 
-    AND (c.charass_default) 
-    AND (c.charass_char_id=char_id)) LIMIT 1)) AS value
-FROM quhead, quitem, itemsite, item, charass a, char
+  charass_value AS value
+FROM quhead, quitem, charass, char
 WHERE ( (quhead_id=quitem_quhead_id)
-AND (quitem_itemsite_id=itemsite_id)
-AND (itemsite_item_id=item_id)
-AND (a.charass_char_id=char_id)
-AND (a.charass_target_type='I')
-AND (a.charass_target_id=item_id) ) 
+AND (charass_char_id=char_id)
+AND (charass_target_type='QI')
+AND (charass_target_id=quitem_id) ) 
 ORDER BY quhead_number,quitem_linenumber, char_name;
 
 GRANT ALL ON TABLE api.quotelinechar TO xtrole;

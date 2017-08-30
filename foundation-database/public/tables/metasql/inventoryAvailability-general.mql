@@ -1,7 +1,7 @@
 -- Group: inventoryAvailability
 -- Name:  general
 -- Notes: 
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT itemsite_id, altId,
@@ -79,6 +79,7 @@ FROM (SELECT
       WHERE ( (itemsite_active)
           AND (itemsite_item_id=item_id)
           AND (itemsite_warehous_id=warehous_id)
+          AND itemSiteStockable(itemsite_id)
           <? if exists("warehous_id") ?>
             AND (warehous_id=<? value("warehous_id") ?>)
           <? endif ?>

@@ -4,7 +4,7 @@ do $$
 begin
 if (compareVersion(fetchMetricText('ServerVersion'), '4.9.0') = -1) then
 
-update accnt set accnt_name='';
+  update accnt set accnt_id=accnt_id;
 
 end if;
 end$$;

@@ -1,3 +1,13 @@
+SELECT xt.create_table('source', 'public');
+
+ALTER TABLE public.source DISABLE TRIGGER ALL;
+
+SELECT
+  xt.add_column('source', 'source_id',    'SERIAL', 'NOT NULL', 'public'),
+  xt.add_column('source', 'source_module',  'TEXT', NULL,       'public'),
+  xt.add_column('source', 'source_name',    'TEXT', 'NOT NULL', 'public'),
+  xt.add_column('source', 'source_descrip', 'TEXT', NULL,       'public');
+
 select xt.add_column('source', 'source_docass_num','INTEGER', 'NOT NULL DEFAULT 0',    'public');
 select xt.add_column('source', 'source_docass',       'TEXT', $$NOT NULL DEFAULT ''$$, 'public');
 select xt.add_column('source', 'source_charass',      'TEXT', $$NOT NULL DEFAULT ''$$, 'public');
@@ -15,7 +25,19 @@ select xt.add_column('source', 'source_create_priv',  'TEXT', $$NOT NULL DEFAULT
 select xt.add_column('source', 'source_created',      'TIMESTAMP WITH TIME ZONE', 'NOT NULL DEFAULT CURRENT_TIMESTAMP', 'public');
 select xt.add_column('source', 'source_last_modified','TIMESTAMP WITH TIME ZONE', 'NOT NULL DEFAULT CURRENT_TIMESTAMP', 'public');
 
+SELECT
+  xt.add_constraint('source', 'source_pkey', 'PRIMARY KEY (source_id)', 'public'),
+  xt.add_constraint('source', 'source_source_name_check',
+                    $$CHECK (source_name <> '')$$, 'public'),
+  xt.add_constraint('source', 'source_source_name_key',
+                   'UNIQUE (source_name)', 'public');
+
+ALTER TABLE public.source ENABLE TRIGGER ALL;
+
 COMMENT ON TABLE  public.source IS 'Used to describe different types of document for tax classes, document associations, comment associations, and characteristic associations';
+
+COMMENT ON COLUMN source.source_id IS 'Primary key';
+COMMENT ON COLUMN source.source_module IS 'Application module';
 COMMENT ON COLUMN public.source.source_name IS 'Abbreviation for this document type used on comment associations.';
 COMMENT ON COLUMN public.source.source_docass IS 'Abbreviation for this document type used on document associations (docass). Empty indicates cannot used for document associations (see source_widget).';
 COMMENT ON COLUMN public.source.source_charass IS 'Abbreviation for this document type used on characteristic associations (charass). Empty indicates not used for characteristics.';
@@ -27,7 +49,6 @@ COMMENT ON COLUMN public.source.source_key_field IS 'The primary key field in th
 COMMENT ON COLUMN public.source.source_number_field IS 'The column holding the main human-readable identifier for this document (e.g. Bill of Materials document number).';
 COMMENT ON COLUMN public.source.source_name_field IS 'The column holding the secondary description of this document (e.g. the Item built by a Bill of Materials).';
 COMMENT ON COLUMN public.source.source_desc_field IS 'The column holding the longer description of this document (e.g. the first line of the Item''s Description for a Bill of Materials).';
-COMMENT ON COLUMN public.source.source_desc_field IS 'The column holding a boolean flag describing whether this document is "active" or not.';
 COMMENT ON COLUMN public.source.source_widget IS 'A hint to the client application of how to let the user select a document to attach. "core" means that the C++ application handles this document type natively. A value starting with "SELECT" is interpreted as a query to populate a combobox, while values containing "Cluster" are treated as the name of a C++ VirtualCluster subclass to instantiate. Empty string means this cannot be used by the desktop client to create document associations (see source_docass).';
 COMMENT ON COLUMN public.source.source_joins IS 'An optional string to add to the FROM clause to get auxiliary information (e.g. "join item_id on bomhead_item_id=item_id").';
 COMMENT ON COLUMN public.source.source_key_param IS 'The name of the parameter interpreted by the desktop client''s "set" method as containing the primary key to retrieve the main document record for editing or viewing (e.g. most desktop windows take the sales order id in a "sohead_id" parameter even though the database field is "cohead_id").';

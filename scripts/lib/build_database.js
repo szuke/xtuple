@@ -74,6 +74,7 @@ var async = require('async'),
           extensionCallback(null, "");
           return;
         }
+
         // deal with directory structure quirks. There is a lot of business logic
         // baked in here to deal with a lot of legacy baggage. This allows
         // process_manifest to just deal with a bunch of instructions as far as what
@@ -82,14 +83,13 @@ var async = require('async'),
         var baseName = path.basename(extension),
           foundationExtensionRegexp = /commercialcore|inventory|manufacturing|distribution/,
           isFoundation = extension.indexOf("foundation-database") >= 0,
-          isFoundationExtension = isFoundation && foundationExtensionRegexp.test(extension),
           isLibOrm = extension.indexOf("lib/orm") >= 0,
           isApplicationCore = /xtuple$/.test(extension),
           isCoreExtension = extension.indexOf("enyo-client") >= 0,
           isPublicExtension = extension.indexOf("xtuple-extensions") >= 0,
           isPrivateExtension = extension.indexOf("private-extensions") >= 0,
           isExtension = !isFoundation && !isLibOrm && !isApplicationCore,
-          dbSourceRoot = (isFoundation || isFoundationExtension) ? extension :
+          dbSourceRoot = (isFoundation) ? extension :
             isLibOrm ? path.join(extension, "source") :
             path.join(extension, "database/source"),
           rootPath = path.resolve(__dirname, "../../.."),
@@ -98,7 +98,7 @@ var async = require('async'),
             manifestFilename: path.resolve(dbSourceRoot, "manifest.js"),
             extensionPath: extensionPath,
             useFrozenScripts: spec.frozen,
-            useFoundationScripts: foundationExtensionRegexp.test(baseName),
+            useFoundationScripts: fs.existsSync(path.resolve(extension, "foundation-database")),
             registerExtension: isExtension,
             wipeViews: isFoundation && spec.wipeViews,
             wipeOrms: isApplicationCore && spec.wipeViews,

@@ -1,5 +1,5 @@
-﻿CREATE OR REPLACE FUNCTION _soitemTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+CREATE OR REPLACE FUNCTION _soitemTrigger() RETURNS TRIGGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _changelog BOOLEAN := FALSE;
@@ -240,15 +240,14 @@ CREATE TRIGGER soitemTrigger
   EXECUTE PROCEDURE _soitemTrigger();
 
 CREATE OR REPLACE FUNCTION _soitemBeforeTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
--- 20160229:rks removed coitem_imported test around charass insert
 DECLARE
   _check NUMERIC;
   _itemNumber TEXT;
   _r RECORD;
   _kit BOOLEAN;
-
+  _imported BOOLEAN;
 BEGIN
 
   --Determine if this is a kit for later processing
@@ -259,7 +258,11 @@ BEGIN
   AND (itemsite_id=NEW.coitem_itemsite_id));
   _kit := COALESCE(_kit, false);
 
-  IF (TG_OP = 'INSERT') THEN
+  SELECT cohead_imported INTO _imported
+  FROM cohead
+  WHERE (cohead_id = NEW.coitem_cohead_id);
+
+  IF (TG_OP = 'INSERT' AND (_imported OR NEW.coitem_imported)) THEN
 
     -- If this is imported, go ahead and insert default characteristics
     INSERT INTO charass (charass_target_type, charass_target_id, charass_char_id, charass_value, charass_price)
@@ -267,11 +270,12 @@ BEGIN
            itemcharprice(item_id,char_id,charass_value,cohead_cust_id,cohead_shipto_id,NEW.coitem_qtyord,cohead_curr_id,cohead_orderdate)
       FROM (
          SELECT DISTINCT char_id, char_name, charass_value, item_id, cohead_cust_id, cohead_shipto_id, cohead_curr_id, cohead_orderdate
-           FROM cohead, charass, char, itemsite, item
+           FROM cohead, charass, char, charuse, itemsite, item
           WHERE((itemsite_id=NEW.coitem_itemsite_id)
             AND (itemsite_item_id=item_id)
             AND (charass_target_type='I')
             AND (charass_target_id=item_id)
+            AND (charuse_char_id=char_id AND charuse_target_type='SI')
             AND (charass_default)
             AND (char_id=charass_char_id)
             AND (cohead_id=NEW.coitem_cohead_id))
@@ -283,7 +287,7 @@ BEGIN
     SELECT createwo(CAST(cohead_number AS INTEGER),
                     NEW.coitem_itemsite_id,
                     1, -- priority
-		    validateOrderQty(NEW.coitem_itemsite_id, NEW.coitem_qtyord, TRUE),
+		    validateOrderQty(NEW.coitem_itemsite_id, NEW.coitem_qtyord * NEW.coitem_qty_invuomratio, TRUE),
                     itemsite_leadtime,
                     NEW.coitem_scheddate,
 		    NEW.coitem_memo,
@@ -378,7 +382,7 @@ CREATE TRIGGER soitemBeforeTrigger
 
 
 CREATE OR REPLACE FUNCTION _soitemAfterTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 -- 20160211:rks added new.coitem_memo to explodekit call when UPDATE
 
@@ -536,41 +540,46 @@ BEGIN
   IF (TG_OP = 'INSERT') THEN
     -- Create Purchase Request if flagged to do so
     IF ((NEW.coitem_order_type='R') AND (NEW.coitem_order_id=-1)) THEN
-      SELECT cohead_number INTO _coheadnumber
-      FROM cohead, itemsite
-      WHERE (cohead_id=NEW.coitem_cohead_id)
-        AND (itemsite_id=NEW.coitem_itemsite_id)
-        AND (NOT itemsite_stocked);
-      IF (FOUND) THEN
-        SELECT createPR(CAST(_coheadnumber AS INTEGER), 'S', NEW.coitem_id) INTO _orderid;
-        IF (_orderid > 0) THEN
-          UPDATE coitem SET coitem_order_id=_orderid
-          WHERE (coitem_id=NEW.coitem_id);
-        ELSE
-          RAISE EXCEPTION 'CreatePR failed, result=%', _orderid;
-        END IF;
+      SELECT createPR(CAST(_r.cohead_number AS INTEGER), 'S', NEW.coitem_id) INTO _orderid;
+      IF (_orderid > 0) THEN
+        UPDATE coitem SET coitem_order_id=_orderid
+        WHERE (coitem_id=NEW.coitem_id);
+
+        INSERT INTO charass
+        (charass_target_type, charass_target_id,
+         charass_char_id, charass_value)
+         SELECT 'R', NEW.coitem_order_id, charass_char_id, charass_value
+         FROM charass
+         WHERE ((charass_target_type='SI')
+         AND  (charass_target_id=NEW.coitem_id));
+      ELSE
+        RAISE EXCEPTION 'CreatePR failed, result=%', _orderid;
       END IF;
     END IF;
 
     -- Create Purchase Order if flagged to do so
     IF ((NEW.coitem_order_type='P') AND (NEW.coitem_order_id=-1)) THEN
       SELECT itemsrc_id INTO _itemsrcid
-      FROM itemsite JOIN itemsrc ON (itemsrc_item_id=itemsite_item_id AND itemsrc_default)
+      FROM itemsite JOIN itemsrc ON (itemsrc_item_id=itemsite_item_id AND itemsrc_default AND itemsrc_active)
       WHERE (itemsite_id=NEW.coitem_itemsite_id)
-        AND (NOT itemsite_stocked);
+      AND NOT EXISTS(SELECT 1
+                     FROM pohead
+                     WHERE pohead_vend_id=itemsrc_vend_id
+                     AND pohead_status='U'
+                     AND pohead_dropship=NEW.coitem_dropship
+                     AND (NOT pohead_dropship OR pohead_cohead_id=NEW.coitem_cohead_id));
       IF (FOUND) THEN
         SELECT createPurchaseToSale(NEW.coitem_id,
                                     _itemsrcid,
-                                    itemsite_dropship,
+                                    NEW.coitem_dropship,
+                                    validateOrderQty(NEW.coitem_itemsite_id, NEW.coitem_qtyord * NEW.coitem_qty_invuomratio, TRUE),
+                                    NEW.coitem_scheddate,
                                     CASE WHEN (NEW.coitem_prcost=0.0) THEN NULL
                                          ELSE NEW.coitem_prcost
                                     END) INTO _orderid
         FROM itemsite
         WHERE (itemsite_id=NEW.coitem_itemsite_id);
-        IF (_orderid > 0) THEN
-          UPDATE coitem SET coitem_order_id=_orderid
-          WHERE (coitem_id=NEW.coitem_id);
-        ELSE
+        IF (_orderid <= 0) THEN
           RAISE EXCEPTION 'CreatePurchaseToSale failed, result=%', _orderid;
         END IF;
       END IF;
@@ -699,7 +708,7 @@ CREATE TRIGGER soitemAfterTrigger
   EXECUTE PROCEDURE _soitemAfterTrigger();
 
 CREATE OR REPLACE FUNCTION _soitemBeforeDeleteTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
 
@@ -788,7 +797,7 @@ CREATE TRIGGER soitemBeforeDeleteTrigger
   EXECUTE PROCEDURE _soitemBeforeDeleteTrigger();
 
 CREATE OR REPLACE FUNCTION _soitemAfterDeleteTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
 
@@ -823,7 +832,7 @@ CREATE TRIGGER soitemAfterDeleteTrigger
   EXECUTE PROCEDURE _soitemAfterDeleteTrigger();
 
 CREATE OR REPLACE FUNCTION _coitemBeforeImpTaxTypeDefTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _itemid INTEGER := 0;
@@ -863,7 +872,7 @@ CREATE TRIGGER coitemBeforeImpTaxTypeDef
 CREATE OR REPLACE FUNCTION _coitemImportedPOPRbeforetrigger()
   RETURNS trigger AS
 $BODY$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _isImported BOOLEAN;

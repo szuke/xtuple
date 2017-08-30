@@ -35,37 +35,43 @@ BEGIN
   IF (_type IN ('M', 'F', 'B', 'T')) THEN
 
     IF (pActual) THEN
-      SELECT SUM( CASE WHEN (bomitemcost_id IS NOT NULL AND bc.costelem_id IS NOT NULL) THEN
-                  round(currToBase(bomitemcost_curr_id, bomitemcost_actcost, CURRENT_DATE),6) *
-                    itemuomtouom(bomitem_item_id, bomitem_uom_id, NULL, (bomitem_qtyfxd/_batchsize + bomitem_qtyper) * (1 + bomitem_scrap), 'qtyper')
+      SELECT SUM(subsum) INTO _cost
+      FROM
+      (SELECT CASE WHEN (EXISTS(SELECT 1 FROM bomitemcost WHERE bomitemcost_bomitem_id=bomitem_id)) THEN
+                  SUM(round(currToBase(bomitemcost_curr_id, bomitemcost_actcost, CURRENT_DATE),6) *
+                    itemuomtouom(bomitem_item_id, bomitem_uom_id, NULL, (bomitem_qtyfxd/_batchsize + bomitem_qtyper) * (1 + bomitem_scrap), 'qtyper'))
                   ELSE
-                  round(currToBase(itemcost_curr_id, itemcost_actcost, CURRENT_DATE),6) *
-                    itemuomtouom(bomitem_item_id, bomitem_uom_id, NULL, (bomitem_qtyfxd/_batchsize + bomitem_qtyper) * (1 + bomitem_scrap), 'qtyper')
-                  END )
-	  INTO _cost
+                  SUM(round(currToBase(itemcost_curr_id, itemcost_actcost, CURRENT_DATE),6) *
+                    itemuomtouom(bomitem_item_id, bomitem_uom_id, NULL, (bomitem_qtyfxd/_batchsize + bomitem_qtyper) * (1 + bomitem_scrap), 'qtyper'))
+                  END AS subsum
       FROM bomitem(pItemid)
         JOIN item ON (item_id=bomitem_item_id AND item_type <> 'T')
-        JOIN itemcost ON (itemcost_item_id=bomitem_item_id)
-        JOIN costelem ic ON (ic.costelem_id=itemcost_costelem_id AND ic.costelem_type=pCosttype)
+        LEFT OUTER JOIN itemcost ON (itemcost_item_id=bomitem_item_id)
+        LEFT OUTER JOIN costelem ic ON (ic.costelem_id=itemcost_costelem_id)
         LEFT OUTER JOIN bomitemcost ON (bomitemcost_bomitem_id=bomitem_id)
-        LEFT OUTER JOIN costelem bc ON (bc.costelem_id=bomitemcost_costelem_id AND bc.costelem_type=pCosttype)
-      WHERE ( CURRENT_DATE BETWEEN bomitem_effective AND (bomitem_expires - 1) );
+        LEFT OUTER JOIN costelem bc ON (bc.costelem_id=bomitemcost_costelem_id)
+      WHERE ( CURRENT_DATE BETWEEN bomitem_effective AND (bomitem_expires - 1) )
+      AND COALESCE(bc.costelem_type, ic.costelem_type)=pCosttype
+      GROUP BY bomitem_id) sub;
     ELSE
-      SELECT SUM( CASE WHEN (bomitemcost_id IS NOT NULL AND bc.costelem_id IS NOT NULL) THEN
-                  bomitemcost_stdcost *
-                    itemuomtouom(bomitem_item_id, bomitem_uom_id, NULL, (bomitem_qtyfxd/_batchsize + bomitem_qtyper) * (1 + bomitem_scrap), 'qtyper')
+      SELECT SUM(subsum) INTO _cost
+      FROM
+      (SELECT CASE WHEN (EXISTS(SELECT 1 FROM bomitemcost WHERE bomitemcost_bomitem_id=bomitem_id)) THEN
+                  SUM(bomitemcost_stdcost *
+                    itemuomtouom(bomitem_item_id, bomitem_uom_id, NULL, (bomitem_qtyfxd/_batchsize + bomitem_qtyper) * (1 + bomitem_scrap), 'qtyper'))
                   ELSE
-                  itemcost_stdcost *
-                    itemuomtouom(bomitem_item_id, bomitem_uom_id, NULL, (bomitem_qtyfxd/_batchsize + bomitem_qtyper) * (1 + bomitem_scrap), 'qtyper')
-                  END )
-	  INTO _cost
+                  SUM(itemcost_stdcost *
+                    itemuomtouom(bomitem_item_id, bomitem_uom_id, NULL, (bomitem_qtyfxd/_batchsize + bomitem_qtyper) * (1 + bomitem_scrap), 'qtyper'))
+                  END AS subsum
       FROM bomitem(pItemid)
         JOIN item ON (item_id=bomitem_item_id AND item_type <> 'T')
-        JOIN itemcost ON (itemcost_item_id=bomitem_item_id)
-        JOIN costelem ON (costelem_id=itemcost_costelem_id AND costelem_type=pCosttype)
+        LEFT OUTER JOIN itemcost ON (itemcost_item_id=bomitem_item_id)
+        LEFT OUTER JOIN costelem ic ON (ic.costelem_id=itemcost_costelem_id)
         LEFT OUTER JOIN bomitemcost ON (bomitemcost_bomitem_id=bomitem_id)
-        LEFT OUTER JOIN costelem bc ON (bc.costelem_id=bomitemcost_costelem_id AND bc.costelem_type=pCosttype)
-      WHERE ( CURRENT_DATE BETWEEN bomitem_effective AND (bomitem_expires - 1) ); 
+        LEFT OUTER JOIN costelem bc ON (bc.costelem_id=bomitemcost_costelem_id)
+      WHERE ( CURRENT_DATE BETWEEN bomitem_effective AND (bomitem_expires - 1) )
+      AND COALESCE(bc.costelem_type, ic.costelem_type)=pCosttype
+      GROUP BY bomitem_id) sub; 
     END IF;
     
     IF (NOT FOUND) THEN

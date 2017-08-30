@@ -9,7 +9,6 @@
     "public/tables/cohead.sql",
     "public/tables/custinfo.sql",
     "public/tables/shiptoinfo.sql",
-    "xt/tables/acttype.sql",
     "xt/tables/rptdef.sql",
     "xt/views/share_users_cohead.sql",
     "xt/views/share_users_cust.sql",
@@ -18,7 +17,6 @@
     "xt/views/share_users_shipto_cntct.sql",
     "xt/views/share_users_shipto_addr.sql",
     "xt/views/share_users_shipto_cust.sql",
-    "xt/tables/sharetype.sql",
-    "xt/tables/wftype.sql"
+    "xt/tables/sharetype.sql"
   ]
 }

@@ -8,6 +8,7 @@ SELECT invchead_id, cust_id,
        invchead.*,
        cust_number, cust_name,
        (TEXT(cust_number) || ' - ' || cust_name) AS customer,
+       curr_abbr AS curr,
        COALESCE(invchead_gldistdate, invchead_invcdate) AS gldistdate,
        invoicetotal(invchead_id) AS extprice,
        CASE WHEN (aropen_open) THEN (aropen_amount - aropen_paid)
@@ -42,9 +43,11 @@ SELECT invchead_id, cust_id,
        'curr' AS extprice_xtnumericrole,
        'curr' AS balance_xtnumericrole,
        CASE WHEN (aropen_id IS NULL) THEN 'Unposted' END AS balance_qtdisplayrole
-FROM invchead JOIN custinfo ON (cust_id=invchead_cust_id)
-              LEFT OUTER JOIN aropen ON ( (aropen_doctype='I') AND (aropen_docnumber=invchead_invcnumber) )
-              LEFT OUTER JOIN recur ON (invchead_recurring_invchead_id=recur_parent_id AND recur_parent_type='I')
+FROM invchead 
+JOIN custinfo ON (cust_id=invchead_cust_id)
+LEFT OUTER JOIN aropen ON ( (aropen_doctype='I') AND (aropen_docnumber=invchead_invcnumber) )
+LEFT OUTER JOIN recur ON (invchead_recurring_invchead_id=recur_parent_id AND recur_parent_type='I')
+LEFT OUTER JOIN curr_symbol ON (invchead_curr_id=curr_id)
 WHERE ( (true)
 <? if exists("unpostedOnly") ?>
   AND   (NOT invchead_posted)

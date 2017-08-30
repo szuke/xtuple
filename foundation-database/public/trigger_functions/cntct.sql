@@ -122,7 +122,7 @@ BEGIN
     END IF;
     PERFORM postComment('ChangeLog', 'T', NEW.cntct_id, 'Created');
   ELSIF (TG_OP = 'UPDATE') THEN
-    IF (OLD.cntct_email != NEW.cntct_email) THEN
+    IF (OLD.cntct_email != NEW.cntct_email AND length(coalesce(NEW.cntct_email,'')) > 0) THEN
       SELECT cntcteml_id INTO _cntctemlid
       FROM cntcteml
       WHERE ((cntcteml_cntct_id=NEW.cntct_id)

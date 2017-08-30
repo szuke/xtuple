@@ -1,11 +1,13 @@
-CREATE OR REPLACE FUNCTION voidInvoice(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+DROP FUNCTION IF EXISTS voidInvoice(INTEGER);
+CREATE OR REPLACE FUNCTION voidInvoice(pInvcheadid INTEGER,
+                                       pItemlocSeries INTEGER DEFAULT NULL,
+                                       pPreDistributed BOOLEAN DEFAULT FALSE) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pInvcheadid ALIAS FOR $1;
   _glSequence INTEGER := 0;
   _glJournal INTEGER := 0;
-  _itemlocSeries INTEGER := 0;
+  _itemlocSeries INTEGER := COALESCE(pItemlocSeries, NEXTVAL('itemloc_series_seq'));
   _aropenid INTEGER := 0;
   _invhistid INTEGER := 0;
   _amount NUMERIC;
@@ -21,8 +23,14 @@ DECLARE
   _firstExchDate        DATE;
   _glDate		DATE;
   _exchGain             NUMERIC := 0;
+  _hasControlledItems BOOLEAN := FALSE;
 
 BEGIN
+  IF (pPreDistributed AND COALESCE(pItemlocSeries, 0) = 0) THEN 
+    RAISE EXCEPTION 'pItemlocSeries is Required when pPreDistributed [xtuple: voidInvoice, -3]';
+  ELSIF (_itemlocSeries <= 0) THEN
+    _itemlocSeries := NEXTVAL('itemloc_series_seq');
+  END IF;
 
 --  Cache Invoice information
   SELECT invchead.*,
@@ -153,7 +161,7 @@ BEGIN
   END LOOP;
 
 --  March through the Misc. Invcitems
-  FOR _r IN SELECT salescat_sales_accnt_id, extprice
+  FOR _r IN SELECT salescat_sales_accnt_id, invcitem_rev_accnt_id, extprice
             FROM invoiceitem JOIN salescat ON (salescat_id = invcitem_salescat_id)
             WHERE ( (invcitem_item_id = -1)
               AND   (invcitem_invchead_id=_p.invchead_id) ) LOOP
@@ -251,7 +259,11 @@ BEGIN
                                  _glDate, ('Void-' || _p.invchead_billto_name) ) INTO _test;
     ELSE
       PERFORM deleteGLSeries(_glSequence);
-      RETURN _test;
+      IF (_test < 0) THEN
+        RETURN _test;
+      ELSE 
+        RETURN _itemlocSeries;
+      END IF;
     END IF;
   END IF;
 
@@ -320,27 +332,34 @@ BEGIN
                    (invcitem_billed * invcitem_qty_invuomratio) AS qty,
                    invchead_invcnumber, invchead_cust_id AS cust_id, item_number,
                    invchead_prj_id AS prj_id, invchead_saletype_id AS saletype_id,
-                   invchead_shipzone_id AS shipzone_id
+                   invchead_shipzone_id AS shipzone_id, isControlledItemsite(itemsite_id) AS controlled
             FROM invchead JOIN invcitem ON ( (invcitem_invchead_id=invchead_id) AND
                                              (invcitem_billed <> 0) AND
                                              (invcitem_updateinv) )
                           JOIN itemsite ON ( (itemsite_item_id=invcitem_item_id) AND
                                              (itemsite_warehous_id=invcitem_warehous_id) )
                           JOIN item ON (item_id=invcitem_item_id)
-            WHERE (invchead_id=_p.invchead_id) LOOP
+            WHERE (invchead_id=_p.invchead_id) 
+            ORDER BY invcitem_id LOOP
 
 --  Return billed stock to inventory
-    IF (_itemlocSeries = 0) THEN
-      SELECT NEXTVAL('itemloc_series_seq') INTO _itemlocSeries;
-    END IF;
     SELECT postInvTrans( itemsite_id, 'SH', (_r.qty * -1.0),
                          'S/O', 'IN', _r.invchead_invcnumber, '',
                          ('Invoice Voided ' || _r.item_number),
                          getPrjAccntId(_r.prj_id, resolveCOSAccount(itemsite_id, _r.cust_id, _r.saletype_id, _r.shipzone_id)),
                          costcat_asset_accnt_id, _itemlocSeries, _glDate,
-                         (_p.cohist_unitcost * _r.qty)) INTO _invhistid
+                         (_p.cohist_unitcost * _r.qty), NULL, NULL, pPreDistributed) INTO _invhistid
     FROM itemsite JOIN costcat ON (itemsite_costcat_id=costcat_id)
     WHERE (itemsite_id=_r.itemsite_id);
+
+    IF (NOT FOUND) THEN 
+      RAISE EXCEPTION 'Could not post inventory transaction: no cost category found for 
+        itemsite_id % [xtuple: voidInvoice, -2, %]', _r.itemsite_id, _r.itemsite_id;
+    END IF;
+
+    IF (_r.controlled) THEN
+      _hasControlledItems := TRUE;
+    END IF;
 
   END LOOP;
 
@@ -375,7 +394,13 @@ BEGIN
   SET invchead_void=TRUE,
       invchead_notes=(COALESCE(invchead_notes,'') || 'Voided on ' || current_date || ' by ' || getEffectiveXtUser())
   WHERE (invchead_id=_p.invchead_id);
- 
+
+  IF (pPreDistributed) THEN
+    IF (postDistDetail(_itemlocSeries) <= 0 AND _hasControlledItems) THEN
+      RAISE EXCEPTION 'Posting Distribution Detail Returned 0 Results [xtuple: voidInvoice, -6]';
+    END IF;
+  END IF;
+
   RETURN _itemlocSeries;
 
 END;

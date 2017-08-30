@@ -106,8 +106,6 @@ BEGIN
       SET itemloc_qty = (itemloc_qty + _itemlocdist.qty)
       WHERE (itemloc_id=_itemlocid);
 
-      PERFORM postInvHist(_itemlocdist.invhistid);
-
 --  Handle reservation data
       IF ( (SELECT fetchMetricBool('EnableSOReservationsByLocation')) AND
            (_itemlocdist.qty < 0) ) THEN
@@ -149,9 +147,6 @@ BEGIN
 --  Cache the running qty.
     _runningQty := _runningQty + _itemlocdist.qty;
 
---  Dene with the child itemlocdist, so delete it
-    DELETE FROM itemlocdist
-    WHERE (itemlocdist_id=_itemlocdist.itemlocdistid);
 
 --  If the target itemloc is now at qty=0, delete it if its parent
 --  itemsite is not frozen
@@ -163,22 +158,13 @@ BEGIN
 
   END LOOP;
 
---  If the running qty for the detailed distributions is the same as the
---  total qty to distribute indicated by the parent itemlocdist, then the
---  parent itemlocdist has been fully distributed and should be deleted.
-  IF ( ( SELECT itemlocdist_qty
-         FROM itemlocdist
-         WHERE (itemlocdist_id=pItemlocdistid) ) = _runningQty) THEN
-    DELETE FROM itemlocdist
-    WHERE (itemlocdist_id=pItemlocdistid);
-  ELSE
---  There is still some more qty to distribute in the parent itemlocdist.
---  Update the qty to distribute with the qty that has been distributed.
-    UPDATE itemlocdist
-    SET itemlocdist_qty = (itemlocdist_qty - _runningQty)
-    WHERE (itemlocdist_id=pItemlocdistid);
-  END IF;
 
+  --  If There is still some more qty to distribute in the parent itemlocdist.
+  --  Update the qty to distribute with the qty that has been distributed.
+  UPDATE itemlocdist
+  SET itemlocdist_qty = (itemlocdist_qty - _runningQty)
+  WHERE (itemlocdist_id = pItemlocdistid) AND (itemlocdist_qty != _runningQty);
+  
   RETURN _distCounter;
 
 END;

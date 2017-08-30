@@ -3,13 +3,14 @@ CREATE OR REPLACE FUNCTION updateStdCost(pItemcostid INTEGER,
                                          pOldcost NUMERIC,
                                          pDocNumber TEXT,
                                          pNotes TEXT) RETURNS BOOLEAN AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
     _itemcostid	INTEGER;
     _r		RECORD;
     _newcost	NUMERIC;
     _oldcost	NUMERIC;
+    _invhistId  INTEGER;
 
 BEGIN
   IF (pNewcost IS NULL) THEN
@@ -23,12 +24,10 @@ BEGIN
     _oldcost := pOldcost;
   END IF;
 
-  IF (_newcost > 0) THEN
-    UPDATE itemcost
-    SET itemcost_stdcost=_newcost,
-        itemcost_posted=CURRENT_DATE
-    WHERE (itemcost_id=pItemcostid);
-  END IF;
+  UPDATE itemcost
+  SET itemcost_stdcost=_newcost,
+      itemcost_posted=CURRENT_DATE
+  WHERE (itemcost_id=pItemcostid);
 
 --  Distribute to G/L, debit Inventory Asset, credit Inventory Cost Variance
   FOR _r IN SELECT itemsite_id, itemsite_item_id, itemsite_qtyonhand AS totalQty,
@@ -39,7 +38,7 @@ BEGIN
              AND (itemsite_costcat_id=costcat_id)
              AND (itemsite_item_id=item_id)
              AND (item_inv_uom_id=uom_id)
-             AND (itemsite_costmethod != 'A')
+             AND (itemsite_costmethod = 'S')
              AND (itemsite_qtyonhand <> 0.0)
              AND (itemcost_id=pItemcostid) ) LOOP
 --    IF (_newcost <> _oldcost) THEN
@@ -50,62 +49,30 @@ BEGIN
                                  ((_newcost - _oldcost) * _r.totalQty),
                                  CURRENT_DATE );
 --  Update Itemsite Value if not Average Cost
-    IF (_r.itemsite_costmethod <> 'A') THEN
 --      RAISE NOTICE 'itemsite_id = %, Qty = %, New Cost = %', _r.itemsite_id, _r.totalQty, _newcost;
-      UPDATE itemsite SET itemsite_value=(_r.totalQty * stdCost(itemsite_item_id))
-      WHERE (itemsite_id=_r.itemsite_id);
+    UPDATE itemsite SET itemsite_value=(_r.totalQty * stdCost(itemsite_item_id))
+    WHERE (itemsite_id=_r.itemsite_id);
 
 --  Add an InvHist record for reconciliation purposes (zero qty. movement)
-      INSERT INTO invhist
-      ( invhist_id, invhist_itemsite_id, invhist_transtype, invhist_transdate,
-        invhist_invqty, invhist_qoh_before,
-        invhist_qoh_after,
-        invhist_costmethod, invhist_value_before, invhist_value_after,
-        invhist_comments, invhist_invuom, invhist_unitcost, invhist_posted,
-        invhist_series )
-      SELECT
-        NEXTVAL('invhist_invhist_id_seq'), _r.itemsite_id, 'SC', current_timestamp,
-        _r.totalQty, _r.totalQty,
-        _r.totalQty,
-        _r.itemsite_costmethod, _r.itemsite_value, (_r.totalQty * stdCost(_r.itemsite_item_id)),
-        'Item Standard cost updated',
-        _r.uom_name, _newcost, TRUE, NEXTVAL('itemloc_series_seq');
+    INSERT INTO invhist
+    ( invhist_itemsite_id, invhist_transdate, invhist_transtype, invhist_invqty, invhist_invuom,
+      invhist_qoh_before, invhist_qoh_after, invhist_unitcost,
+      invhist_comments, invhist_costmethod, invhist_value_before,
+      invhist_value_after, invhist_series)
+    SELECT _r.itemsite_id, CURRENT_TIMESTAMP, 'SC', 0.0, _r.uom_name,
+           _r.totalQty, _r.totalQty, _r.totalQty * stdCost(_r.itemsite_item_id) - _r.itemsite_value,
+           'Item Standard cost updated', 'S', _r.itemsite_value,
+           _r.totalQty * stdCost(_r.itemsite_item_id), NEXTVAL('itemloc_series_seq')
+    RETURNING invhist_id INTO _invhistId;
 
+    IF (fetchMetricBool('EnableAsOfQOH')) THEN
+      PERFORM postIntoInvBalance(_invhistId);
     END IF;
   END LOOP;
 
   IF (_newcost = 0) THEN
     DELETE FROM itemcost
     WHERE (itemcost_id=pItemcostid);
-
-    RETURN FALSE;
-  END IF;
-
-  IF ( SELECT metric_value
-        FROM metric
-        WHERE ((metric_name = 'EnableAsOfQOH')
-        AND (metric_value = 't'))) THEN
-    IF (pNewcost IS NOT NULL) THEN
-      _newcost := pNewcost;
-    END IF;
-    IF (pOldcost IS NULL) THEN
-      _oldcost := 0;
-    ELSE
-      _oldcost := pOldcost;
-    END IF;
-  --  Distribute to G/L, debit Inventory Asset, credit Inventory Cost Variance
-    PERFORM postValueIntoInvBalance(
-                  itemsite_id,
-                  current_date,
-                  asofinvqty(itemsite_id,current_date),
-                  asofinvnn(itemsite_id,current_date),
-                  _oldcost,
-                  _newcost)
-       FROM itemsite
-       JOIN item ON (itemsite_item_id=item_id)
-       JOIN itemcost ON (itemcost_item_id=item_id)
-      WHERE((itemsite_costmethod = 'S')
-        AND (itemcost_id=pItemcostid));
   END IF;
 
   RETURN TRUE;

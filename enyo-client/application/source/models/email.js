@@ -24,8 +24,7 @@ white:true*/
     /**
       Builds a list of email addresses to send messages to.
       Looks for a contact primary email address, owner
-      and assigned to user email addresses. Loops through dirty
-      records workflow, if it exists, and adds the same. Also removes
+      and assigned to user email addresses. Also removes
       the current user's address.
 
       @param {String} hard coded "to" addresses
@@ -35,7 +34,6 @@ white:true*/
       var attrs = this.getClass().getAttributeNames(),
         to = toAddresses ? toAddresses.split(",") : [],
         that = this,
-        workflow,
         email;
 
       // Add contact email
@@ -54,16 +52,6 @@ white:true*/
       if (_.contains(attrs, "assignedTo")) {
         email = this.getValue("assignedTo.email");
         if (email) { to.push(email); }
-      }
-
-      // Add workflow users to email
-      if (_.contains(attrs, "workflow")) {
-        workflow = this.get("workflow");
-        _.each(workflow.models, function (item) {
-          if (item.isDirty()) {
-            to = that.buildToString.call(item, to.join()).split(",");
-          }
-        });
       }
 
       // Remove duplicates

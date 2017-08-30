@@ -1,93 +1,89 @@
+DROP TRIGGER  IF EXISTS crmacctAfterTrigger  ON crmacct;
+DROP TRIGGER  IF EXISTS crmacctBeforeTrigger ON crmacct;
+DROP FUNCTION IF EXISTS _crmacctAfterTrigger();
+DROP FUNCTION IF EXISTS _crmacctBeforeTrigger();
+
+CREATE OR REPLACE FUNCTION _crmacctBeforeUpsertTrigger() RETURNS TRIGGER AS $$
 -- TODO: add special handling for converting prospects <-> customers?
-CREATE OR REPLACE FUNCTION _crmacctBeforeTrigger () RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  _count        INTEGER;
+  _matchingUsrNew BOOLEAN := false;
+  _matchingUsrOld BOOLEAN := false;
 BEGIN
-  -- disallow reusing crmacct_numbers
-  IF (TG_OP IN ('INSERT', 'UPDATE')) THEN
-    IF (TG_OP = 'INSERT' AND fetchMetricText('CRMAccountNumberGeneration') IN ('A','O')) THEN
+
+  NEW.crmacct_number         := UPPER(NEW.crmacct_number);
+  NEW.crmacct_lastupdated    := now();
+  NEW.crmacct_owner_username := LOWER(TRIM(NEW.crmacct_owner_username));
+
+  IF COALESCE(NEW.crmacct_owner_username, '') = '' THEN
+    NEW.crmacct_owner_username := getEffectiveXtUser();
+  END IF;
+  IF NEW.crmacct_competitor_id < 0 THEN
+    NEW.crmacct_competitor_id := NULL;
+  END IF;
+  IF NEW.crmacct_partner_id < 0 THEN
+    NEW.crmacct_partner_id := NULL;
+  END IF;
+
+  _matchingUsrNew := EXISTS(SELECT 1 FROM usr
+                             WHERE usr_username = lower(NEW.crmacct_number));
+
+  IF (TG_OP = 'INSERT') THEN
+    -- disallow reusing crmacct_numbers
+    IF fetchMetricText('CRMAccountNumberGeneration') IN ('A','O') THEN
       PERFORM clearNumberIssue('CRMAccountNumber', NEW.crmacct_number);
     END IF;
 
-    NEW.crmacct_usr_username := LOWER(TRIM(NEW.crmacct_usr_username));
-    IF (NEW.crmacct_usr_username = '') THEN
-      NEW.crmacct_usr_username = NULL;
+    IF _matchingUsrNew THEN
+      NEW.crmacct_usr_username := lower(NEW.crmacct_number);
+    ELSE
+      NEW.crmacct_usr_username := NULL;
     END IF;
 
-    NEW.crmacct_owner_username := LOWER(TRIM(NEW.crmacct_owner_username));
-    IF (COALESCE(NEW.crmacct_owner_username, '') = '') THEN
-      NEW.crmacct_owner_username = getEffectiveXtUser();
-    END IF;
-
-    IF (NEW.crmacct_competitor_id < 0) THEN
-      NEW.crmacct_competitor_id := NULL;
-    END IF;
-    IF (NEW.crmacct_partner_id < 0) THEN
-      NEW.crmacct_partner_id := NULL;
-    END IF;
-
-    NEW.crmacct_number = UPPER(NEW.crmacct_number);
-
-    IF (TG_OP = 'UPDATE') THEN
-      -- TODO: why not ALTER USER OLD.crmacct_number RENAME TO LOWER(NEW.crmacct_number)?
-      IF (NEW.crmacct_number != UPPER(OLD.crmacct_number) AND
-          NEW.crmacct_usr_username IS NOT NULL            AND
-          UPPER(NEW.crmacct_usr_username) != NEW.crmacct_number) THEN
-        RAISE EXCEPTION 'The CRM Account % is associated with a system User so the number cannot be changed.',
-                        NEW.crmacct_number;
-      END IF;
-
-      -- It appears possible to remove a user account without cleaning up the CRM account (#25291)
-      -- Tidy up CRM Account in this scenario to prevent errors
-      IF (NEW.crmacct_usr_username IS NOT NULL) THEN
-        IF (NOT EXISTS(SELECT usr_username
-                       FROM usr
-                      WHERE usr_username=NEW.crmacct_usr_username)) THEN
-          NEW.crmacct_usr_username = NULL;
-        END IF;
-      END IF;
-    END IF;
-
-  ELSIF (TG_OP = 'DELETE') THEN
-    UPDATE cntct SET cntct_crmacct_id = NULL
-     WHERE cntct_crmacct_id = OLD.crmacct_id;
-
-    DELETE FROM docass WHERE docass_source_id = OLD.crmacct_id AND docass_source_type = 'CRMA';
-    DELETE FROM docass WHERE docass_target_id = OLD.crmacct_id AND docass_target_type = 'CRMA';
-
-    GET DIAGNOSTICS _count = ROW_COUNT;
-    RAISE DEBUG 'updated % contacts', _count;
-
-    RETURN OLD;
-
-  END IF;
-
-  -- Timestamps
-  IF (TG_OP = 'INSERT') THEN
     NEW.crmacct_created := now();
+
   ELSIF (TG_OP = 'UPDATE') THEN
-    NEW.crmacct_lastupdated := now();
+    _matchingUsrOld := EXISTS(SELECT 1 FROM usr
+                               WHERE usr_username = lower(OLD.crmacct_number));
+    NEW.crmacct_usr_username := lower(NEW.crmacct_number);
+    IF _matchingUsrOld AND NOT _matchingUsrNew THEN
+      EXECUTE format('ALTER ROLE %I RENAME TO %I;',
+                     OLD.crmacct_usr_username, NEW.crmacct_usr_username);
+    ELSIF NOT _matchingUsrOld AND NOT _matchingUsrNew THEN
+      NEW.crmacct_usr_username := NULL;  -- see bug 25291
+    END IF;
   END IF;
 
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS crmacctBeforeTrigger ON crmacct;
-CREATE TRIGGER crmacctBeforeTrigger
-  BEFORE INSERT OR UPDATE OR DELETE
-  ON crmacct
-  FOR EACH ROW
-  EXECUTE PROCEDURE _crmacctBeforeTrigger();
+DROP TRIGGER IF EXISTS crmacctBeforeUpsertTrigger ON crmacct;
+CREATE TRIGGER crmacctBeforeUpsertTrigger BEFORE INSERT OR UPDATE ON crmacct
+  FOR EACH ROW EXECUTE PROCEDURE _crmacctBeforeUpsertTrigger();
 
-CREATE OR REPLACE FUNCTION _crmacctAfterTrigger () RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+CREATE OR REPLACE FUNCTION _crmacctBeforeDeleteTrigger() RETURNS TRIGGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  _gotpriv    BOOLEAN;
+BEGIN
+  UPDATE cntct SET cntct_crmacct_id = NULL
+   WHERE cntct_crmacct_id = OLD.crmacct_id;
 
+  DELETE FROM docass WHERE docass_source_id = OLD.crmacct_id AND docass_source_type = 'CRMA';
+  DELETE FROM docass WHERE docass_target_id = OLD.crmacct_id AND docass_target_type = 'CRMA';
+
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS crmacctBeforeDeleteTrigger ON crmacct;
+CREATE TRIGGER crmacctBeforeDeleteTrigger BEFORE DELETE ON crmacct
+  FOR EACH ROW EXECUTE PROCEDURE _crmacctBeforeDeleteTrigger();
+
+CREATE OR REPLACE FUNCTION _crmacctAfterUpsertTrigger () RETURNS TRIGGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+-- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   /* update _number and _name separately to propagate just what changed.
      the priv manipulation allows targeted updates of crmaccount-maintained data
@@ -166,107 +162,88 @@ BEGIN
 
     -- cannot have fkey references to system catalogs so enforce them here
     IF (NEW.crmacct_usr_username IS NOT NULL) THEN
-      IF (NOT EXISTS(SELECT usr_username
-                       FROM usr
-                      WHERE usr_username=NEW.crmacct_usr_username)) THEN
-        RAISE EXCEPTION 'User % does not exist so this CRM Account Number is invalid.',
-                        NEW.crmacct_usr_username;
-      END IF;
-      IF (TG_OP = 'UPDATE') THEN
-        -- reminder: this evaluates to false if either is NULL
-        IF (NEW.crmacct_usr_username != OLD.crmacct_usr_username) THEN
-          RAISE EXCEPTION 'Cannot change the user name for %',
-                          OLD.crmacct_usr_username;
-        END IF;
-      END IF;
       UPDATE usrpref SET usrpref_value = NEW.crmacct_name
       WHERE ((usrpref_username=NEW.crmacct_usr_username)
         AND  (usrpref_name='propername')
         AND  (usrpref_value!=NEW.crmacct_name));
     END IF;
 
-  ELSIF (TG_OP = 'DELETE') THEN
-    IF (OLD.crmacct_cust_id IS NOT NULL) THEN
-      RAISE EXCEPTION 'Cannot delete CRM Account because it is a Customer [xtuple: deleteCrmAccount, -1]';
-    END IF;
-
-    IF (OLD.crmacct_emp_id IS NOT NULL) THEN
-      RAISE EXCEPTION 'Cannot delete CRM Account because it is an Employee [xtuple: deleteCrmAccount, -7]';
-    END IF;
-
-    IF (OLD.crmacct_prospect_id IS NOT NULL) THEN
-      RAISE EXCEPTION 'Cannot delete CRM Account because it is a Prospect [xtuple: deleteCrmAccount, -3]';
-    END IF;
-
-    DELETE FROM salesrep WHERE salesrep_id  = OLD.crmacct_salesrep_id;
-    IF (OLD.crmacct_salesrep_id IS NOT NULL) THEN
-      RAISE EXCEPTION 'Cannot delete CRM Account because it is a Sales Rep [xtuple: deleteCrmAccount, -6]';
-    END IF;
-
-    IF (OLD.crmacct_taxauth_id IS NOT NULL) THEN
-      RAISE EXCEPTION 'Cannot delete CRM Account because it is a Tax Authority [xtuple: deleteCrmAccount, -5]';
-    END IF;
-
-    IF (EXISTS(SELECT usename
-                 FROM pg_user
-                WHERE usename=OLD.crmacct_usr_username)) THEN
-      RAISE EXCEPTION 'Cannot delete CRM Account because it is a User [xtuple: deleteCrmAccount, -8]';
-    END IF;
-
-    IF (OLD.crmacct_vend_id IS NOT NULL) THEN
-      RAISE EXCEPTION 'Cannot delete CRM Account because it is a Vendor [xtuple: deleteCrmAccount, -2]';
-    END IF;
-
-    DELETE FROM imageass
-     WHERE (imageass_source_id=OLD.crmacct_id) AND (imageass_source='CRMA');
-    DELETE FROM url
-     WHERE (url_source_id=OLD.crmacct_id)      AND (url_source='CRMA');
-
   END IF;
 
   IF (TG_OP = 'INSERT') THEN
     PERFORM postComment('ChangeLog', 'CRMA', NEW.crmacct_id,
                         ('Created by ' || getEffectiveXtUser()));
-
-  ELSIF (TG_OP = 'DELETE') THEN
-    PERFORM postComment('ChangeLog', 'CRMA', OLD.crmacct_id,
-                        'Deleted "' || OLD.crmacct_number || '"');
-  END IF;
-
-  IF (TG_OP = 'DELETE') THEN
-    RETURN OLD;
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF NEW.crmacct_usr_username != OLD.crmacct_usr_username THEN
+      PERFORM postComment('ChangeLog', 'CRMA', NEW.crmacct_id,
+                          format('Changed crmacct from db user %L to %L by %L',
+                                 OLD.crmacct_usr_username,
+                                 NEW.crmacct_usr_username,
+                                 getEffectiveXtUser()));
+      END IF;
   END IF;
 
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS crmacctAfterTrigger ON crmacct;
-CREATE TRIGGER crmacctAfterTrigger
-  AFTER INSERT OR UPDATE OR DELETE
-  ON crmacct
-  FOR EACH ROW
-  EXECUTE PROCEDURE _crmacctAfterTrigger();
+DROP TRIGGER IF EXISTS crmacctAfterUpsertTrigger ON crmacct;
+CREATE TRIGGER crmacctAfterUpsertTrigger AFTER INSERT OR UPDATE ON crmacct
+  FOR EACH ROW EXECUTE PROCEDURE _crmacctAfterUpsertTrigger();
 
 CREATE OR REPLACE FUNCTION _crmacctAfterDeleteTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-
 BEGIN
+
+  IF (OLD.crmacct_cust_id IS NOT NULL) THEN
+    RAISE EXCEPTION 'Cannot delete CRM Account because it is a Customer [xtuple: deleteCrmAccount, -1]';
+  END IF;
+
+  IF (OLD.crmacct_emp_id IS NOT NULL) THEN
+    RAISE EXCEPTION 'Cannot delete CRM Account because it is an Employee [xtuple: deleteCrmAccount, -7]';
+  END IF;
+
+  IF (OLD.crmacct_prospect_id IS NOT NULL) THEN
+    RAISE EXCEPTION 'Cannot delete CRM Account because it is a Prospect [xtuple: deleteCrmAccount, -3]';
+  END IF;
+
+  DELETE FROM salesrep WHERE salesrep_id  = OLD.crmacct_salesrep_id;
+  IF (OLD.crmacct_salesrep_id IS NOT NULL) THEN
+    RAISE EXCEPTION 'Cannot delete CRM Account because it is a Sales Rep [xtuple: deleteCrmAccount, -6]';
+  END IF;
+
+  IF (OLD.crmacct_taxauth_id IS NOT NULL) THEN
+    RAISE EXCEPTION 'Cannot delete CRM Account because it is a Tax Authority [xtuple: deleteCrmAccount, -5]';
+  END IF;
+
+  IF (EXISTS(SELECT usename
+               FROM pg_user
+              WHERE usename=OLD.crmacct_usr_username)) THEN
+    RAISE EXCEPTION 'Cannot delete CRM Account because it is a User [xtuple: deleteCrmAccount, -8]';
+  END IF;
+
+  IF (OLD.crmacct_vend_id IS NOT NULL) THEN
+    RAISE EXCEPTION 'Cannot delete CRM Account because it is a Vendor [xtuple: deleteCrmAccount, -2]';
+  END IF;
+
+  DELETE FROM imageass
+   WHERE (imageass_source_id=OLD.crmacct_id) AND (imageass_source='CRMA');
+  DELETE FROM url
+   WHERE (url_source_id=OLD.crmacct_id)      AND (url_source='CRMA');
 
   DELETE
   FROM charass
   WHERE charass_target_type = 'CRMACCT'
     AND charass_target_id = OLD.crmacct_id;
 
+  PERFORM postComment('ChangeLog', 'CRMA', OLD.crmacct_id,
+                      'Deleted "' || OLD.crmacct_number || '"');
+
   RETURN OLD;
 END;
 $$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'crmacctAfterDeleteTrigger');
-CREATE TRIGGER crmacctAfterDeleteTrigger
-  AFTER DELETE
-  ON crmacct
-  FOR EACH ROW
-  EXECUTE PROCEDURE _crmacctAfterDeleteTrigger();
+CREATE TRIGGER crmacctAfterDeleteTrigger AFTER DELETE ON crmacct
+  FOR EACH ROW EXECUTE PROCEDURE _crmacctAfterDeleteTrigger();

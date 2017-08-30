@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION _incdtBeforeTrigger() RETURNS "trigger" AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _rec          RECORD;
@@ -60,7 +60,7 @@ CREATE TRIGGER incdtbeforetrigger
   EXECUTE PROCEDURE _incdtBeforeTrigger();
 
 CREATE OR REPLACE FUNCTION _incdtBeforeDeleteTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _recurid     INTEGER;
@@ -75,7 +75,7 @@ BEGIN
      IF (_recurid IS NOT NULL) THEN
        SELECT MIN(incdt_id) INTO _newparentid
          FROM incdt
-        WHERE ((incdt_recurring_incdt_id=OLD.inctd_id)
+        WHERE ((incdt_recurring_incdt_id=OLD.incdt_id)
            AND (incdt_id!=OLD.incdt_id));
 
       -- client is responsible for warning about deleting a recurring incdt
@@ -102,7 +102,7 @@ CREATE TRIGGER incdtbeforedeletetrigger
   EXECUTE PROCEDURE _incdtBeforeDeleteTrigger();
 
 CREATE OR REPLACE FUNCTION _incdttrigger() RETURNS "trigger" AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _r		RECORD;
@@ -336,7 +336,7 @@ CREATE TRIGGER incdttrigger
   EXECUTE PROCEDURE _incdttrigger();
 
 CREATE OR REPLACE FUNCTION _incdtAfterDeleteTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
 

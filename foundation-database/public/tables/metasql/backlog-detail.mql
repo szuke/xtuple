@@ -1,7 +1,7 @@
 -- Group: backlog
 -- Name: detail
 -- Notes: 
---        Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+--        Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 --        See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT
@@ -40,6 +40,7 @@ FROM (
          NULL::TEXT    AS coitem_status,    NULL::DATE    AS coitem_scheddate,
          getSoSchedDate(cohead_id) AS sort_scheddate,
          NULL::DATE    AS coitem_promdate,  NULL::NUMERIC AS coitem_qtyord,
+         NULL::NUMERIC AS qtyonhand,
          NULL::NUMERIC AS coitem_unitcost,  NULL::NUMERIC AS coitem_price,
          NULL::NUMERIC AS coitem_custprice, NULL::NUMERIC AS coitem_qtyshipped,
          NULL::INTEGER AS coitem_order_id,  NULL::TEXT    AS coitem_memo,
@@ -192,6 +193,7 @@ FROM (
          coitem_status,    coitem_scheddate,
          getSoSchedDate(cohead_id) AS sort_scheddate,
          coitem_promdate,  coitem_qtyord,
+         itemsite_qtyonhand AS qtyonhand,
          coitem_unitcost,  coitem_price,
          coitem_custprice, coitem_qtyshipped,
          coitem_order_id,  coitem_memo,
@@ -338,4 +340,4 @@ FROM (
         )
 
 ) AS dummy
-ORDER BY cohead_number, xtindentrole, coitem_linenumber;
+ORDER BY sort_scheddate, cohead_number, xtindentrole, coitem_linenumber;

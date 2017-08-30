@@ -55,7 +55,6 @@ var _    = require("underscore"),
         assert.notEqual(samecust.cohead_number, oldso.cohead_number, 'number');
         assert.equal(samecust.cohead_cust_id, oldso.cohead_cust_id, 'cust_id');
         assert.equal(samecust.cohead_shiptoname, oldso.cohead_shiptoname, 'shiptoname');
-        assert.equal(samecust.cohead_type, oldso.cohead_type, 'type');
         assert.equal(samecust.cohead_shipvia, oldso.cohead_shipvia, 'shipvia');
         assert.equal(samecust.cohead_freight, oldso.cohead_freight, 'freight');
         assert.equal(samecust.cohead_misc, oldso.cohead_misc, 'misc');
@@ -98,7 +97,6 @@ var _    = require("underscore"),
         if (oldso.cohead_shiptoname) {
           assert.notEqual(diffcust.cohead_shiptoname, oldso.cohead_shiptoname, 'shiptoname');
         }
-        assert.equal(diffcust.cohead_type, oldso.cohead_type, 'type');
         assert.equal(diffcust.cohead_freight, oldso.cohead_freight, 'freight');
         assert.equal(diffcust.cohead_misc, oldso.cohead_misc, 'misc');
         assert.equal(diffcust.cohead_holdtype, oldso.cohead_holdtype, 'holdtype');
