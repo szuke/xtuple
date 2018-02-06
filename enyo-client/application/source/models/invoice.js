@@ -953,7 +953,8 @@ white:true*/
     defaults: function () {
       return {
         site: XT.defaultSite(),
-        isMiscellaneous: false
+        isMiscellaneous: false,
+        updateInventory: false
       };
     }
 

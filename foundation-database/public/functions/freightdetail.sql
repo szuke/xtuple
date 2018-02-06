@@ -123,7 +123,9 @@ BEGIN
 
   IF (pOrderType = 'RA') THEN
     _qry := _qry || 'JOIN raitem ON ((orderitem_id=raitem_id)
-    AND (raitem_disposition IN (''C'',''R'',''P''))) ';
+    AND (raitem_disposition IN (''C'',''R'',''P'')))
+    JOIN rahead ON orderitem_orderhead_id=rahead_id
+    AND rahead_creditmethod!=''N'' ';
   END IF;
 
   _qry := _qry || '

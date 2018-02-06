@@ -139,7 +139,7 @@ VALUES (
   COALESCE(NEW.sells_purchase_order_items, false),
   COALESCE(NEW.notes, ''),
   COALESCE(NEW.po_comments, ''),
-  COALESCE(NEW.vendor_number, ''),
+  COALESCE(NEW.vendor_number, fetchcrmaccountnumber()::text),
   COALESCE(NEW.receives_1099, false),
   false,
   CASE 

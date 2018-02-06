@@ -90,11 +90,6 @@ while getopts ":d:ipnhmx-:" opt; do
       NODE_VERSION=$OPTARG
       varlog NODE_VERSION
       ;;
-    openrpt)
-      #install openrpt
-      RUNALL=
-      OPENRPT=true
-      ;;
     h)
       cat <<EOUsage
 Usage: install_xtuple -h
@@ -108,7 +103,6 @@ To install everything, run bash /scripts/install_xtuple.sh
   -init         replace the xtuple directory with a fresh clone
   -i            install PostgreSQL, required build tools, curl, nvm, nodejs, and run npm install
   -p            configure PostgreSQL
-  -openrpt      install OpenRPT only
   -n            configure the node-datasource and build a test database
 
   -d    VER     install PostgreSQL version VER
@@ -127,7 +121,6 @@ then
 	INSTALL=true
 	POSTGRES=true
 	INIT=true
-  OPENRPT=true
 fi
 
 if [ $USERINIT ]
@@ -135,7 +128,6 @@ then
 	INSTALL=
 	POSTGRES=
 	INIT=
-  OPENRPT=
 fi
 
 if [ -z "$NODE_VERSION" ]
@@ -328,28 +320,6 @@ init_everythings() {
   fi
 }
 
-openrpt () {
-  #stolen from xtuple-server-core repository
-  log "Installing OPENRPT"
-  cd $BASEDIR
-  sudo chmod go+w .
-  git clone -q https://github.com/xtuple/openrpt.git |& \
-                                  tee -a $LOG_FILE
-  sudo chmod go-w .
-  sudo apt-get install -qq --force-yes qt4-qmake libqt4-dev libqt4-sql-psql |& \
-                                  tee -a $LOG_FILE
-  cd openrpt
-  OPENRPT_VER=master #TODO: OPENRPT_VER=`latest stable release`
-  git checkout -q $OPENRPT_VER |& tee -a $LOG_FILE
-  log "Starting OpenRPT build (this will take a few minutes)..."
-  qmake                        |& tee -a $LOG_FILE
-  make > /dev/null             |& tee -a $LOG_FILE
-  sudo mkdir -p /usr/local/bin
-  sudo mkdir -p /usr/local/lib
-  sudo tar cf - bin lib | sudo tar xf - -C /usr/local
-  ldconfig                     |& tee -a $LOG_FILE
-}
-
 if [ $USERINIT ]
 then
   user_init
@@ -374,15 +344,6 @@ then
   then
     exit 4
   fi
-fi
-if [ $OPENRPT ]
-then
-  log "openrpt()"
-	openrpt
-	if [ $? -ne 0 ]
-	then
-		log "openrpt install failed"
-	fi
 fi
 if [ $INIT ]
 then

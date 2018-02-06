@@ -145,6 +145,7 @@
     "xt/tables/incdtcatemlprofile.sql",
     "xt/tables/pkgcmd.sql",
     "xt/tables/pkgcmdarg.sql",
+    "xt/tables/pkgdict.sql",
     "xt/tables/pkgimage.sql",
     "xt/tables/pkgmetasql.sql",
     "xt/tables/pkgpriv.sql",

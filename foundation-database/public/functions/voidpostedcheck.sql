@@ -155,7 +155,7 @@ BEGIN
                                   _p.checkhead_checkdate) AS amount_check,
                      apopen_id, apopen_doctype, apopen_docnumber, apopen_curr_id, apopen_curr_rate,
                      apopen_docdate, aropen_id, aropen_doctype, aropen_docnumber,
-                     checkitem_curr_id, checkitem_curr_rate,
+                     checkitem_curr_id,
                      COALESCE(checkitem_docdate, _p.checkhead_checkdate) AS docdate
               FROM (checkitem LEFT OUTER JOIN
 		    apopen ON (checkitem_apopen_id=apopen_id)) LEFT OUTER JOIN
@@ -259,24 +259,10 @@ BEGIN
 
 --  calculate currency gain/loss
       IF (_r.apopen_id IS NOT NULL) THEN
-        IF (_p.checkhead_curr_id = _r.checkitem_curr_id) THEN
-          IF (_r.apopen_docdate > _p.checkhead_checkdate) THEN
-            _exchGainTmp := ((_r.checkitem_amount/_p.checkhead_curr_rate) - (_r.checkitem_amount / _r.apopen_curr_rate)) * -1;
-          ELSE
-            _exchGainTmp := ((_r.checkitem_amount / _r.apopen_curr_rate) - (_r.checkitem_amount/_p.checkhead_curr_rate));
-          END IF;
-        ELSE
-          IF (_r.apopen_docdate > _p.checkhead_checkdate) THEN
-            _exchGainTmp := ((_r.checkitem_amount/_r.checkitem_curr_rate) - (_r.checkitem_amount / _r.apopen_curr_rate)) * -1;
-          ELSE
-            IF (_p.checkhead_curr_id <> basecurrid() AND _r.apopen_curr_id <> basecurrid()) THEN 
-              _exchGainTmp := 0;
-            ELSE  
-              _exchGainTmp := ((_r.checkitem_amount / _r.apopen_curr_rate) - (_r.checkitem_amount/_r.checkitem_curr_rate));
-            END IF;
-          END IF;
-        END IF;
-      ELSE
+        SELECT apCurrGain(_r.apopen_id,_r.checkitem_curr_id, _r.checkitem_amount,
+                        _p.checkhead_checkdate)
+              INTO _exchGainTmp;
+      ELSIF (_r.aropen_id IS NOT NULL) THEN
         SELECT arCurrGain(_r.aropen_id,_r.checkitem_curr_id, _r.checkitem_amount,
                         _p.checkhead_checkdate)
               INTO _exchGainTmp;

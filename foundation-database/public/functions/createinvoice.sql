@@ -1,6 +1,6 @@
 
 CREATE OR REPLACE FUNCTION createInvoice(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pCobmiscid ALIAS FOR $1;
@@ -129,6 +129,15 @@ BEGIN
       _r.coitem_memo, _r.cobill_taxtype_id,
       _r.coitem_id, _r.coitem_rev_accnt_id,
       _lastsubnumber );
+
+--  Create the Invoice Item Characteristic Assignments
+    INSERT INTO charass
+          (charass_target_type, charass_target_id, charass_char_id, charass_value, charass_default, charass_price)
+    SELECT 'INVI', _invcitemid, charass_char_id, charass_value, charass_default, charass_price
+    FROM coitem
+      JOIN charass ON charass_target_type = 'SI' AND charass_target_id = coitem_id
+      JOIN charuse ON charass_char_id = charuse_char_id AND charuse_target_type = 'INVI'
+    WHERE coitem_id = _r.coitem_id;
 
 --  Find and mark any Lot/Serial invdetail records associated with this bill
     UPDATE invdetail SET invdetail_invcitem_id = _invcitemid

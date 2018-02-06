@@ -452,7 +452,7 @@ select createDoctype(26, --pDocAssNum
                      '', --pWidget
                      'join pohead on poitem_pohead_id=pohead_id join vendinfo on pohead_vend_id=vend_id ' ||
                         'join itemsite on poitem_itemsite_id=itemsite_id join item on itemsite_item_id=item_id', --pJoin
-                     '', --pParam
+                     'poitem_id', --pParam
                      '', --pUi
                      '', --pPriv
                      'Purchase' --pModule
@@ -460,14 +460,14 @@ select createDoctype(26, --pDocAssNum
 select createDoctype(27, --pDocAssNum
                      'RA', --pType
                      'RA', --pDocAss
-                     '', --pCharAss
+                     'RA', --pCharAss
                      'Return Authorization', --pFull
                      'rahead', --pTable
                      'rahead_id', --pKey
                      'rahead_number', --pNumber
                      'cust_name', --pName
                      'firstline(rahead_notes)', --pDesc
-                     '', --pWidget
+                     'core', --pWidget
                      'join custinfo on rahead_cust_id = cust_id', --pJoin
                      'rahead_id', --pParam
                      'returnAuthorization', --pUi
@@ -502,7 +502,7 @@ select createDoctype(29, --pDocAssNum
                      'quhead_number', --pNumber
                      'cust_name', --pName
                      'firstline(quhead_ordercomments)', --pDesc
-                     '', --pWidget
+                     'core', --pWidget
                      'join custinfo on quhead_cust_id = cust_id', --pJoin
                      'quhead_id', --pParam
                      'salesOrder', --pUi
@@ -522,7 +522,7 @@ select createDoctype(30, --pDocAssNum
                      '', --pWidget
                      'join quhead on quitem_quhead_id=quhead_id join custinfo on quhead_cust_id=cust_id ' ||
                         'join itemsite on quitem_itemsite_id=itemsite_id join item on itemsite_item_id=item_id', --pJoin
-                     '', --pParam
+                     'quitem_id', --pParam
                      '', --pUi
                      '', --pPriv
                      'Sales' --pModule
@@ -557,7 +557,7 @@ select createDoctype(32, --pDocAssNum
                      '', --pWidget
                      'join cohead on coitem_cohead_id=cohead_id join custinfo on cohead_cust_id=cust_id ' ||
                         'join itemsite on coitem_itemsite_id=itemsite_id join item on itemsite_item_id=item_id', --pJoin
-                     '', --pParam
+                     'coitem_id', --pParam
                      '', --pUi
                      '', --pPriv
                      'Sales' --pModule
@@ -714,7 +714,7 @@ select createDoctype(41, --pDocAssNum
                      'item_descrip2', --pDesc
                      'core', --pWidget
                      'join itemsite on wo_itemsite_id=itemsite_id join item on itemsite_item_id=item_id', --pJoin
-                     '', --pParam
+                     'wo_id', --pParam
                      '', --pUi
                      '', --pPriv
                      'Manufacture' --pModule
@@ -845,7 +845,7 @@ select createDoctype(NULL, --pDocAssNum
 SELECT createDoctype(NULL, --pDocAssNum
                      'PR', --pType
                      '', --pDocAss
-                     'PR', --pCharAss
+                     '', --pCharAss
                      'Purchase Request', --pFull
                      'pr', --pTable
                      'pr_id', --pKey
@@ -879,4 +879,16 @@ SELECT createDoctype(97, --pDocAssNum
                      'rentalItem', --pUi
                      '', --pPriv
                      'Sales' --pModule
+);
+
+SELECT createDocType(NULL,
+                     'JE',
+                     'JE',
+                     '',
+                     'G/L Journal',
+                     'gltrans',
+                     'gltrans_id',
+                     'gltrans_journalnumber',
+                     'gltrans_docnumber',
+                     'firstline(gltrans_notes)'
 );

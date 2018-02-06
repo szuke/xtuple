@@ -217,7 +217,7 @@ SELECT aropen_id AS id,
                            WHEN 'R' THEN <? value("cashdeposit") ?>
                            ELSE aropen_doctype
        END AS doctype,
-       CASE aropen_doctype WHEN 'C' THEN 'emphasis' 
+       CASE aropen_doctype WHEN 'C' THEN 'emphasis'
                            WHEN 'R' THEN 'altemphasis'
        END AS doctype_qtforegroundrole,
        aropen_amount AS amount,
@@ -235,11 +235,11 @@ SELECT aropen_id AS id,
        formatccnumber(decrypt(setbytea(ccard_number),
                               setbytea(<? value("key") ?>), 'bf')) AS ccard_number,
        0 AS xtindentrole,
-       CASE WHEN ((COALESCE(aropen_duedate,current_date) < current_date) AND COALESCE(aropen_open,FALSE)) THEN 'error' 
+       CASE WHEN ((COALESCE(aropen_duedate,current_date) < current_date) AND COALESCE(aropen_open,FALSE)) THEN 'error'
        END AS aropen_duedate_qtforegroundrole,
        ccpay_id AS ccard_number_xtidrole,
        firstLine(aropen_notes) AS notes
-  FROM aropen 
+  FROM aropen
 <? if exists("incidentsOnly") ?>
   JOIN incdt ON (incdt_aropen_id=aropen_id)
 <? endif ?>
@@ -261,7 +261,7 @@ SELECT aropen_id AS id,
 WHERE true
 <? if not exists("showClosed") ?>
   AND (aropen_docdate <= COALESCE(<? value("asofDate") ?>, current_date))
-  AND (COALESCE(aropen_closedate, DATE(<? value("asofDate") ?>) + 1, current_date + 1) > COALESCE(<? value("asofDate") ?>, current_date)) 
+  AND (COALESCE(aropen_closedate, DATE(<? value("asofDate") ?>) + 1, current_date + 1) > COALESCE(<? value("asofDate") ?>, current_date))
 <? endif ?>
 <? if exists("debitsOnly") ?>
   AND   (aropen_doctype IN ('D','I'))
@@ -295,7 +295,7 @@ SELECT -1,
        4 AS altId,
        aropen_docnumber AS docnumber,
        -1 AS docnumber_xtidrole,
-       NULL AS posted, 
+       NULL AS posted,
        aropen_docdate AS docdate,
        NULL AS aropen_duedate,
        CAST(incdt_number AS text) AS ordernumber,
@@ -314,22 +314,20 @@ SELECT -1,
        NULL AS recurring, NULL AS open,
        NULL AS ccard_number,
        1 AS xtindentrole,
-       CASE WHEN ((COALESCE(aropen_duedate,current_date) < current_date) AND COALESCE(aropen_open,FALSE)) THEN 'error' 
+       CASE WHEN ((COALESCE(aropen_duedate,current_date) < current_date) AND COALESCE(aropen_open,FALSE)) THEN 'error'
        END AS aropen_duedate_qtforegroundrole,
        NULL::integer AS ccard_xtidrole,
        firstLine(incdt_descrip) AS notes
   FROM incdt JOIN aropen ON  aropen_id = incdt_aropen_id
   JOIN custinfo ON aropen_cust_id = cust_id
-<? if exists("custtype_id") ?>
   JOIN custtype ON cust_custtype_id = custtype_id
-<? endif ?>
 <? if exists("custgrp_id") ?>
 	LEFT OUTER JOIN custgrpitem ON custgrpitem_cust_id = cust_id
 <? endif ?>
 WHERE ((true)
 <? if not exists("showClosed") ?>
   AND (aropen_docdate <= COALESCE(<? value("asofDate") ?>, current_date))
-  AND (COALESCE(aropen_closedate, DATE(<? value("asofDate") ?>) + 1, current_date + 1) > COALESCE(<? value("asofDate") ?>, current_date)) 
+  AND (COALESCE(aropen_closedate, DATE(<? value("asofDate") ?>) + 1, current_date + 1) > COALESCE(<? value("asofDate") ?>, current_date))
 <? endif ?>
 <? if exists("debitsOnly") ?>
   AND   (NOT aropen_doctype IN ('C', 'R'))

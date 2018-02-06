@@ -167,7 +167,7 @@ BEGIN
                                   _p.checkhead_checkdate) AS amount_check,
                      apopen_id, apopen_doctype, apopen_docnumber,
                      aropen_id, aropen_doctype, aropen_docnumber,
-                     checkitem_curr_id, checkitem_curr_rate, apopen_curr_rate,
+                     checkitem_curr_id, apopen_curr_rate,
                      COALESCE(checkitem_docdate, _p.checkhead_checkdate) AS docdate
               FROM (checkitem LEFT OUTER JOIN
 		    apopen ON (checkitem_apopen_id=apopen_id)) LEFT OUTER JOIN

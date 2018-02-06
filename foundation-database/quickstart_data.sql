@@ -4622,8 +4622,6 @@ INSERT INTO metric (metric_id, metric_name, metric_value, metric_module) VALUES 
 INSERT INTO metric (metric_id, metric_name, metric_value, metric_module) VALUES (312, 'Long30Markups', 'f', NULL);
 INSERT INTO metric (metric_id, metric_name, metric_value, metric_module) VALUES (313, 'SOManualReservations', 'f', NULL);
 INSERT INTO metric (metric_id, metric_name, metric_value, metric_module) VALUES (91, 'YearEndEquityAccount', '84', NULL);
-INSERT INTO metric (metric_id, metric_name, metric_value, metric_module) VALUES (314, 'RegistrationKey', '0EEKA-CTWEJ-ZGY8Z-MXJZK-ECVCB', NULL);
-
 
 ALTER TABLE metric ENABLE TRIGGER ALL;
 
@@ -5952,3 +5950,5 @@ BEGIN
 
 END;
 $$ language plpgsql;
+
+INSERT INTO metric (metric_name, metric_value, metric_module) VALUES ('RegistrationKey', 'KEEKT-CTWEJ-ZGY8Z-MXJZK-ECVCB', NULL);

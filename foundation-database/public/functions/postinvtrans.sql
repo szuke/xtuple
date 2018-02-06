@@ -1,5 +1,6 @@
 DROP FUNCTION IF EXISTS postInvTrans(INTEGER, TEXT, NUMERIC, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, INTEGER, TIMESTAMP WITH TIME ZONE, NUMERIC, INTEGER);
 DROP FUNCTION IF EXISTS postInvTrans(INTEGER, TEXT, NUMERIC, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, INTEGER, TIMESTAMP WITH TIME ZONE, NUMERIC, INTEGER, NUMERIC);
+DROP FUNCTION IF EXISTS postInvTrans(INTEGER, TEXT, NUMERIC, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, INTEGER, TIMESTAMP WITH TIME ZONE, NUMERIC, INTEGER, NUMERIC, BOOLEAN);
 
 CREATE OR REPLACE FUNCTION postInvTrans(pItemsiteId    INTEGER,
                                         pTransType     TEXT,
@@ -17,7 +18,9 @@ CREATE OR REPLACE FUNCTION postInvTrans(pItemsiteId    INTEGER,
                                         pCostOvrld     NUMERIC DEFAULT NULL,
                                         pInvhistid     INTEGER DEFAULT NULL,
                                         pPrevQty       NUMERIC DEFAULT NULL,
-                                        pPreDistributed BOOLEAN DEFAULT FALSE)
+                                        pPreDistributed BOOLEAN DEFAULT FALSE,
+                                        pOrdHeadId     INTEGER DEFAULT NULL,
+                                        pOrdItemId     INTEGER DEFAULT NULL)
 RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
@@ -131,7 +134,7 @@ BEGIN
       invhist_costmethod, invhist_value_before, invhist_value_after,
       invhist_ordtype, invhist_ordnumber, invhist_docnumber, invhist_comments,
       invhist_invuom, invhist_unitcost, invhist_xfer_warehous_id, invhist_posted,
-      invhist_series )
+      invhist_series, invhist_ordhead_id, invhist_orditem_id )
   SELECT
     _invhistid, itemsite_id, pTransType, _timestamp,
     pQty, (itemsite_qtyonhand + (_sense * COALESCE(pPrevQty, 0.0))),
@@ -142,7 +145,7 @@ BEGIN
          ELSE itemsite_value + (_r.cost * _sense * pQty)
     END,
     pOrderType, pOrderNumber, pDocNumber, pComments,
-    uom_name, _r.cost, _xferwhsid, FALSE, pItemlocSeries
+    uom_name, _r.cost, _xferwhsid, FALSE, pItemlocSeries, pOrdHeadId, pOrdItemId
   FROM itemsite, item, uom
   WHERE ( (itemsite_item_id=item_id)
    AND (item_inv_uom_id=uom_id)
@@ -185,13 +188,13 @@ BEGIN
 
       IF (_debug) THEN 
         RAISE NOTICE 'createItemlocdistParent(%, %, %, %, %, %, %, %)', pItemsiteId, (_sense * pQty), pOrderType,
-          CASE WHEN pOrderType='SO' THEN getSalesLineItemId(pOrderNumber) ELSE NULL END,
+          CASE WHEN pOrderType='SO' THEN getSalesLineItemId(pOrderNumber) ELSE pOrdItemId END,
           pItemlocSeries, _invhistid, NULL, pTransType;
       END IF;
 
       -- Create the parent with createItemlocdistParent.
       _itemlocdistid := createItemlocdistParent(pItemsiteId, (_sense * pQty), pOrderType,
-        CASE WHEN pOrderType='SO' THEN getSalesLineItemId(pOrderNumber) ELSE NULL END,
+        CASE WHEN pOrderType='SO' THEN getSalesLineItemId(pOrderNumber) ELSE pOrdItemId END,
         pItemlocSeries, _invhistid, NULL, pTransType);
 
     END IF;
@@ -201,10 +204,10 @@ BEGIN
       INSERT INTO itemlocdist
         ( itemlocdist_itemlocdist_id, itemlocdist_source_type, itemlocdist_source_id,
           itemlocdist_itemsite_id, itemlocdist_ls_id, itemlocdist_expiration,
-          itemlocdist_qty, itemlocdist_series, itemlocdist_invhist_id )
+          itemlocdist_qty, itemlocdist_series, itemlocdist_invhist_id, itemlocdist_order_id )
       SELECT _itemlocdistid, 'L', COALESCE(invdetail_location_id, -1),
              invhist_itemsite_id, invdetail_ls_id,  COALESCE(invdetail_expiration, endoftime()),
-             (invdetail_qty * -1.0), pItemlocSeries, _invhistid
+             (invdetail_qty * -1.0), pItemlocSeries, _invhistid, pOrdItemId
       FROM invhist JOIN invdetail ON (invdetail_invhist_id=invhist_id)
       WHERE (invhist_id=pInvhistid);
 
@@ -242,6 +245,7 @@ BEGIN
     END IF;
   END IF;
 
+  -- If either of the following: postItemlocSeries (calls postInvHist) is required for all transactiions
   IF (pInvhistid IS NOT NULL) THEN
     PERFORM postItemlocSeries(pItemlocSeries);
   END IF;

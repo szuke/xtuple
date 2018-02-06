@@ -112,7 +112,7 @@ BEGIN
          itemsite_id AS c_itemsite_id,
          wo_itemsite_id AS p_itemsite_id,
          isControlledItemsite(itemsite_id) AS controlled,
-         womatl_wo_id, womatl_qtyreq, itemsite_item_id, womatl_uom_id, wo_prj_id,
+         womatl_id, womatl_wo_id, womatl_qtyreq, itemsite_item_id, womatl_uom_id, wo_prj_id,
          roundQty(item_fractional, itemuomtouom(itemsite_item_id, womatl_uom_id, NULL, pQty)) AS qty,
          formatWoNumber(wo_id) AS woNumber,
          CASE WHEN(itemsite_costmethod='J' AND item_type='P' AND poitem_id IS NOT NULL) THEN poitem_unitprice
@@ -136,7 +136,7 @@ BEGIN
                       ('Material ' || item_number || ' Issue to Work Order'),
                       getPrjAccntId(_p.wo_prj_id, pc.costcat_wip_accnt_id),
                       cc.costcat_asset_accnt_id, _itemlocSeries, pGlDistTS,
-                      NULL, pInvhistid, pPrevQty, pPreDistributed ) INTO _invhistid
+                      NULL, pInvhistid, pPrevQty, pPreDistributed, _p.womatl_wo_id, _p.womatl_id ) INTO _invhistid
   FROM itemsite AS ci, itemsite AS pi,
        costcat AS cc, costcat AS pc,
        item

@@ -40,21 +40,23 @@ select dropIfExists('TRIGGER', 'charassTrigger');
 CREATE TRIGGER charassTrigger AFTER INSERT OR UPDATE ON charass FOR EACH ROW EXECUTE PROCEDURE _charassTrigger();
 
 CREATE OR REPLACE FUNCTION _charassHistoryTrigger () RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   IF(TG_OP = 'DELETE') THEN
     IF (OLD.charass_target_type = 'INCDT') THEN
-      INSERT INTO incdthist
-            (incdthist_incdt_id, incdthist_descrip)
-      VALUES(OLD.charass_target_id,
-             ('Characteristic ' || 
-               COALESCE((SELECT char_name 
-                           FROM char
+      IF (EXISTS(SELECT 1 fROM incdt WHERE incdt_id=OLD.charass_target_id)) THEN
+        INSERT INTO incdthist
+              (incdthist_incdt_id, incdthist_descrip)
+        VALUES(OLD.charass_target_id,
+              ('Characteristic ' ||
+               COALESCE((SELECT char_name
+                          FROM char
                           WHERE (char_id=OLD.charass_char_id)), '')
-              || ' Deleted: "' || 
-              COALESCE(OLD.charass_value,'')
-              || '"') );
+               || ' Deleted: "' ||
+               COALESCE(OLD.charass_value,'')
+               || '"') );
+      END IF;
     END IF;
     RETURN OLD;
   ELSIF (NEW.charass_target_type = 'INCDT') THEN
@@ -95,13 +97,9 @@ CREATE TRIGGER charassHistoryTrigger BEFORE INSERT OR UPDATE OR DELETE ON charas
 
 CREATE OR REPLACE FUNCTION _charassuniquetrigger()
   RETURNS trigger AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
-  IF (NEW.charass_target_type = 'LS') THEN
-  -- Exclusion for Lot/Serial characteristics as they are retained in the system (#27761)
-    RETURN NEW;
-  END IF;
 
   IF (TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND OLD.charass_char_id <> NEW.charass_char_id)) THEN
     IF EXISTS(SELECT true FROM charass

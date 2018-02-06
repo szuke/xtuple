@@ -54,12 +54,12 @@ BEGIN
         cashrcpt_cust_id,   cashrcpt_amount,     cashrcpt_curr_id,
         cashrcpt_fundstype, cashrcpt_docnumber,  cashrcpt_notes,
         cashrcpt_distdate,  cashrcpt_bankaccnt_id,
-        cashrcpt_usecustdeposit
+        cashrcpt_usecustdeposit, cashrcpt_ccpay_id
       ) VALUES (
         _c.ccpay_cust_id,   _c.ccpay_amount,     _c.ccpay_curr_id,
         _c.ccpay_card_type,      _c.ccpay_r_ordernum, _ccOrderDesc,
         CURRENT_DATE,       _bankaccnt_id,
-        fetchMetricBool('EnableCustomerDeposits'))
+        fetchMetricBool('EnableCustomerDeposits'), pCCpay)
       RETURNING cashrcpt_id INTO _return;
     ELSE
       UPDATE cashrcpt
@@ -70,7 +70,8 @@ BEGIN
           cashrcpt_docnumber=_c.ccpay_r_ordernum,
           cashrcpt_notes=_ccOrderDesc,
           cashrcpt_distdate=CURRENT_DATE,
-          cashrcpt_bankaccnt_id=_bankaccnt_id
+          cashrcpt_bankaccnt_id=_bankaccnt_id,
+          cashrcpt_ccpay_id=pCCpay
       WHERE (cashrcpt_id=pdocid);
       _return := pdocid;
     END IF;

@@ -32,7 +32,7 @@ DECLARE
   _womatlqty NUMERIC;
   _cost NUMERIC := 0;
   _rows INTEGER;
-
+  
 BEGIN
   IF (_itemlocSeries = 0) THEN
     _itemlocSeries := NEXTVAL('itemloc_series_seq');
@@ -81,7 +81,8 @@ BEGIN
                        ('Return ' || item_number || ' from Work Order'),
                        getPrjAccntId(wo_prj_id, pc.costcat_wip_accnt_id), cc.costcat_asset_accnt_id, _itemlocSeries, pGlDistTS,
                        -- Cost will be ignored by Standard Cost items sites
-                       _cost, pInvhistId) INTO _invhistid
+                       _cost, pInvhistId,
+                       NULL, FALSE, wo_id, womatl_id) INTO _invhistid
     FROM womatl, wo,
          itemsite AS ci, costcat AS cc,
          itemsite AS pi, costcat AS pc,
@@ -211,7 +212,8 @@ BEGIN
                        ('Return ' || item_number || ' from Work Order'),
                        getPrjAccntId(wo_prj_id, pc.costcat_wip_accnt_id), cc.costcat_asset_accnt_id, _itemlocSeries, pGlDistTS,
                        -- Cost will be ignored by Standard Cost items sites
-                       _cost, NULL, NULL, pPreDistributed),
+                       _cost, NULL, NULL, pPreDistributed,
+                       wo_id, womatl_id),
         isControlledItemsite(ci.itemsite_id) AS controlled INTO _invhistid, _hasControlledItem
     FROM womatl, wo,
          itemsite AS ci, costcat AS cc,

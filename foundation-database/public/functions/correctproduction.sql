@@ -106,7 +106,7 @@ BEGIN
                        ('Correct Receive Inventory ' || item_number || ' ' || _sense || ' Manufacturing'),
                        costcat_asset_accnt_id, getPrjAccntId(wo_prj_id, costcat_wip_accnt_id), _itemlocSeries, pGlDistTS,
                        (_wipPost * -1.0), -- only used when cost is average
-                       pInvhistId, NULL, pPreDistributed) INTO _invhistid
+                       pInvhistId, NULL, pPreDistributed, pWoid) INTO _invhistid
   FROM wo JOIN itemsite ON (itemsite_id=wo_itemsite_id)
           JOIN item ON (item_id=itemsite_item_id)
           JOIN costcat ON (costcat_id=itemsite_costcat_id)

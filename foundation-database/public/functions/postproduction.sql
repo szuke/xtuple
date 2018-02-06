@@ -162,7 +162,8 @@ BEGIN
                        'W/O', 'WO', _woNumber, '', ('Receive Inventory ' || item_number || ' ' || _sense || ' Manufacturing'),
                        costcat_asset_accnt_id, getPrjAccntId(wo_prj_id, costcat_wip_accnt_id), _itemlocSeries, pGlDistTS,
                        -- the following is only actually used when the item is average or job costed
-                       _wipPost, NULL, 0.0, pPreDistributed ), isControlledItemsite(itemsite_id) INTO _invhistid, _controlled
+                       _wipPost, NULL, 0.0, pPreDistributed,
+                       wo_id ), isControlledItemsite(itemsite_id) INTO _invhistid, _controlled
   FROM wo, itemsite, item, costcat
   WHERE ( (wo_itemsite_id=itemsite_id)
    AND (itemsite_item_id=item_id)
@@ -204,6 +205,7 @@ BEGIN
     (costelem_id = itemcost_costelem_id) AND
     (itemcost_item_id = itemsite_item_id) AND
     (itemsite_costcat_id = costcat_id) AND
+    (NOT itemcost_lowlevel) AND
     (costelem_exp_accnt_id) IS NOT NULL  AND
     (costelem_sys = false));
 

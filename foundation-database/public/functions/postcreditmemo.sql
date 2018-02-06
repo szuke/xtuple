@@ -519,7 +519,8 @@ BEGIN
                    item_number, stdCost(item_id) AS std_cost,
                    costcat_asset_accnt_id,
                    SUM(cmitem_qtyreturned * cmitem_qty_invuomratio) AS qty,
-                   isControlledItemsite(itemsite_id) AS controlled
+                   isControlledItemsite(itemsite_id) AS controlled,
+                   cmhead_id, cmitem_id
             FROM cmhead JOIN cmitem ON (cmitem_cmhead_id=cmhead_id)
                         JOIN itemsite ON (itemsite_id=cmitem_itemsite_id)
                         JOIN item ON (item_id=itemsite_item_id)
@@ -527,7 +528,7 @@ BEGIN
             WHERE ( (cmitem_qtyreturned <> 0)
              AND (cmitem_updateinv)
              AND (cmhead_id=pCmheadid) )
-            GROUP BY itemsite_id, itemsite_costmethod,
+            GROUP BY cmhead_id, cmitem_id, itemsite_id, itemsite_costmethod,
                      item_number, item_id,
                      costcat_asset_accnt_id 
             ORDER BY itemsite_id LOOP
@@ -544,7 +545,7 @@ BEGIN
                          ('Credit Return ' || _r.item_number),
                          _r.costcat_asset_accnt_id,
                          getPrjAccntId(_p.cmhead_prj_id, resolveCOSAccount(_r.itemsite_id, _p.cmhead_cust_id, _p.cmhead_saletype_id, _p.cmhead_shipzone_id)), 
-                         _itemlocSeries, _glDate, (_r.std_cost * _r.qty), NULL, NULL, pPreDistributed) INTO _invhistid;
+                         _itemlocSeries, _glDate, (_r.std_cost * _r.qty), NULL, NULL, pPreDistributed, _r.cmhead_id, _r.cmitem_id) INTO _invhistid;
     ELSE
       RAISE DEBUG 'postCreditMemo(%, %, %) tried to postInvTrans a %-costed item',
                   pCmheadid, pJournalNumber, pItemlocSeries,

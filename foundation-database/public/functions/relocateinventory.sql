@@ -52,7 +52,7 @@ BEGIN
   WHERE (itemloc_id=pSourceItemlocid);
 
 --  Check to make sure the qty being transfered exists
-  IF (_p.itemloc_qty < pQty) THEN
+  IF (_p.itemloc_qty < ROUND(pQty, 6)) THEN
     RETURN -1;
   END IF;
 

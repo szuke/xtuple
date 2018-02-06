@@ -69,7 +69,7 @@ CREATE TRIGGER voheadBeforeTrigger
   EXECUTE PROCEDURE _voheadBeforeTrigger();
 
 CREATE OR REPLACE FUNCTION _voheadAfterTrigger() RETURNS "trigger" AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   IF (TG_OP = 'DELETE') THEN
@@ -79,6 +79,7 @@ BEGIN
 
   IF (TG_OP = 'INSERT') THEN
     PERFORM clearNumberIssue('VcNumber', NEW.vohead_number);
+    PERFORM postComment('ChangeLog', 'VCH', NEW.vohead_id, 'Created');
     RETURN NEW;
   END IF;
 

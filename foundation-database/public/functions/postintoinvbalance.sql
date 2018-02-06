@@ -14,7 +14,7 @@ BEGIN
                             invhist_unitcost, 2)), 0.0) AS nnval,
          period_id, invbal_id INTO _r
     FROM invhist
-    JOIN period ON invhist_transdate BETWEEN period_start AND period_end
+    JOIN period ON invhist_transdate::DATE BETWEEN period_start AND period_end
     LEFT OUTER JOIN invbal ON invhist_itemsite_id=invbal_itemsite_id
                           AND period_id=invbal_period_id
     LEFT OUTER JOIN (invdetail JOIN location ON invdetail_location_id=location_id

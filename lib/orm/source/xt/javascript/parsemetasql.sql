@@ -121,7 +121,7 @@ XT.MetaSQL.parser = (function() {
                   }
 
                   if (typeof params[id][0] == 'string') {
-                    return ("'" + params[id][listidx] + "'");
+                    return ("'" + params[id][listidx].replace("'", "''").replace(/\\/g, '\\\\') + "'");
                   } else {
                     return params[id][listidx];
                   }
@@ -129,7 +129,7 @@ XT.MetaSQL.parser = (function() {
                 else {
                   // Not in a foreach loop
                   if (typeof params[id][0] == 'string') {
-                    return "'" + params[id][0] + "'";
+                    return "'" + params[id][0].replace("'", "''").replace(/\\/g, '\\\\') + "'";
                   } else {
                     return params[id][0];
                   }
@@ -137,7 +137,7 @@ XT.MetaSQL.parser = (function() {
               }
 
               if (typeof params[id] == 'string') {
-                return ("'" + (params[id] ? params[id] : 'NULL ') + "'");
+                return ("'" + (params[id] ? params[id].replace("'", "''").replace(/\\/g, '\\\\') : 'NULL ') + "'");
               } else {
                 return (params[id] ? params[id] : 'NULL ');
               }

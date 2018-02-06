@@ -1,15 +1,18 @@
 (function () {
   'use strict';
 
-  var _        = require('underscore'),
+  var DEBUG = false,
+    _        = require('underscore'),
+    async      = require('async'),
     assert     = require('chai').assert,
     loginData  = require('../lib/login_data').data,
     datasource = require('../../node-datasource/lib/ext/datasource').dataSource,
     config     = require('../../node-datasource/config');
 
-  exports.CHARTEXT = 0; // must match qt-client/guiclient/characteristic.h
+  exports.CHARTEXT = 0; // must match qt-client/widgets/characteristicAssignment.cpp
   exports.CHARLIST = 1;
   exports.CHARDATE = 2;
+  exports.CHARNUMB = 3;
 
   exports.datasource = datasource;
 
@@ -251,6 +254,221 @@
       assert.isNull(err, 'expect no exception from creating periods');
       assert.isNull(res.rowCount, 'expect no result rows');
       if (_.isFunction(done)) { done(); }
+    });
+  };
+
+  exports.createCreditMemo = function (callback) {
+    var sql = "INSERT INTO cmhead (cmhead_number, cmhead_cust_id, cmhead_posted, cmhead_docdate) " +
+              "SELECT fetchcmnumber(), cust_id, false, current_date " +
+              "FROM custinfo " +
+              "WHERE cust_number='TTOYS' " +
+              "RETURNING cmhead_id AS result;";
+
+    datasource.query(sql, adminCred, function (err, res) {
+      assert.isNull(err);
+      assert.isNotNull(res.rows[0].result);
+
+      if (DEBUG)
+        console.log("createCreditMemo result: ", res.rows[0].result);
+
+      callback(res.rows[0].result);
+    });
+  };
+
+  exports.createCreditMemoLineItem = function (params, callback) {
+    var sql = "INSERT INTO cmitem ( " +
+              " cmitem_cmhead_id, cmitem_linenumber, cmitem_itemsite_id, cmitem_qtyreturned, " +
+              " cmitem_qtycredit, cmitem_updateinv, cmitem_qty_uom_id, cmitem_qty_invuomratio, " +
+              " cmitem_price_uom_id, cmitem_price_invuomratio, cmitem_unitprice, cmitem_listprice, " +
+              " cmitem_taxtype_id, cmitem_comments, " +
+              " cmitem_rsncode_id, cmitem_number, cmitem_descrip, cmitem_salescat_id, cmitem_rev_accnt_id ) " + 
+              "SELECT $1, 1, $2, $3, " +
+              " $3, true, item_inv_uom_id, 1, " +
+              " item_price_uom_id, 1, 1.99, 1.99, " +
+              " (SELECT taxtype_id FROM taxtype LIMIT 1), 'TEST cmitem', " +
+              " (SELECT rsncode_id FROM rsncode LIMIT 1), '', '', NULL, NULL " +
+              "FROM item JOIN itemsite ON item_id=itemsite_item_id " +
+              "WHERE itemsite_id = $4 " +
+              "RETURNING cmitem_id AS result; ",
+      options = _.extend({}, adminCred,
+        { parameters: [ params.cmheadId, params.itemsiteId, params.qty, params.itemsiteId ] });
+      
+    datasource.query(sql, options, function (err, res) {
+      assert.isNull(err);
+      assert.isNotNull(res.rows[0].result);
+
+      if (DEBUG)
+        console.log("createCreditMemoLineItem result: ", res.rows[0].result);
+
+      callback(res.rows[0].result);
+    });
+  };
+
+  exports.createInvoice = function (callback) {
+    var sql = "INSERT INTO invchead (invchead_invcnumber, invchead_orderdate, invchead_invcdate, " +
+              " invchead_cust_id, invchead_posted, invchead_printed, invchead_commission, " +
+              " invchead_freight, invchead_misc_amount, invchead_shipchrg_id) " +
+              "VALUES (fetchinvcnumber(), current_date, current_date, " +
+              " (SELECT cust_id FROM custinfo WHERE cust_number = 'TTOYS'), false, false, 0, 0, 0, -1) " +
+              "RETURNING invchead_id AS result;";
+
+    datasource.query(sql, adminCred, function (err, res) {
+      assert.isNull(err);
+      assert.isNotNull(res.rows[0].result);
+      assert(res.rows[0].result > 0, "invchead_id is > 0");
+
+      if (DEBUG)
+        console.log("createInvoice result: ", res.rows[0].result);
+
+      callback(res.rows[0].result);
+    });
+  };
+
+  exports.createInvoiceLineItem = function (params, callback) {
+    var sql = "INSERT INTO invcitem ( " +
+              " invcitem_invchead_id, invcitem_item_id, invcitem_warehous_id, " +
+              " invcitem_number, invcitem_descrip, invcitem_salescat_id, invcitem_custpn, " +
+              " invcitem_ordered, invcitem_billed, invcitem_updateinv, invcitem_qty_uom_id, " +
+              " invcitem_qty_invuomratio, invcitem_custprice, invcitem_price, invcitem_listprice, " +
+              " invcitem_price_uom_id, invcitem_price_invuomratio, invcitem_notes, " +
+              " invcitem_taxtype_id, invcitem_rev_accnt_id) " +
+              "SELECT $1::integer, item_id, itemsite_warehous_id, " +
+              " '', '', (SELECT salescat_id FROM salescat LIMIT 1), '', " +
+              " $2::numeric, $2::numeric, true, item_inv_uom_id, " +
+              " 1, 1.99, 1.99, 1.99, " +
+              " item_price_uom_id, 1, 'TEST invoice', " +
+              " (SELECT taxtype_id FROM taxtype LIMIT 1), NULL " +
+              "FROM item " +
+              " JOIN itemsite ON itemsite_item_id = item_id " +
+              "WHERE itemsite_id = $3::integer " +
+              "RETURNING invcitem_id AS result;",
+      options = _.extend({}, adminCred,
+        { parameters: [ params.invcheadId, params.qty, params.itemsiteId ] });
+      
+    datasource.query(sql, options, function (err, res) {
+      assert.isNull(err);
+      assert.isNotNull(res.rows[0].result);
+      //assert(+res.rows[0].result > 0, "invcitem_id is > 0");
+
+      if (DEBUG)
+        console.log("createInvoiceLineItem result: ", res.rows[0].result);
+
+      callback(res.rows[0].result);
+    });
+  };
+
+  exports.createPurchaseOrder = function (callback) {
+    var sql = "INSERT INTO pohead (pohead_number, pohead_orderdate, pohead_vend_id, pohead_status) " +
+              "SELECT fetchponumber(), current_date, vend_id, 'O' " +
+              "FROM vendinfo " +
+              "WHERE vend_number='TPARTS' " +
+              "RETURNING pohead_id AS result;";
+
+    datasource.query(sql, adminCred, function (err, res) {
+      assert.isNull(err);
+      assert.isNotNull(res.rows[0].result);
+
+      if (DEBUG)
+        console.log("createPurchaseOrder result: ", res.rows[0].result);
+
+      callback(res.rows[0].result);
+    });
+  };
+
+  exports.createPurchaseOrderLineItem = function (params, callback) {
+    var sql = "INSERT INTO poitem (poitem_pohead_id, poitem_itemsite_id, poitem_unitprice, " +
+              " poitem_qty_ordered, poitem_duedate) " +    
+              "SELECT $1, $2, 1.99, $3, current_date " +
+              "RETURNING poitem_id AS result; ",
+      options = _.extend({}, adminCred,
+        { parameters: [ params.poheadId, params.itemsiteId, params.qty ] });
+      
+    datasource.query(sql, options, function (err, res) {
+      assert.isNull(err);
+      assert.isNotNull(res.rows[0].result);
+
+      if (DEBUG)
+        console.log("createPurchaseOrderLineItem result: ", res.rows[0].result);
+
+      callback(res.rows[0].result);
+    });
+  };
+
+  exports.createSalesOrder = function (callback) {
+    var sql = "INSERT INTO cohead (cohead_number, cohead_cust_id, cohead_status) " +
+              "SELECT fetchsonumber(), cust_id, 'O' " +
+              "FROM custinfo " +
+              "WHERE cust_number='TTOYS' " +
+              "RETURNING cohead_id AS result;";
+
+    datasource.query(sql, adminCred, function (err, res) {
+      assert.isNull(err);
+      assert.isNotNull(res.rows[0].result);
+
+      if (DEBUG)
+        console.log("createSalesOrder result: ", res.rows[0].result);
+
+      callback(res.rows[0].result);
+    });
+  };
+
+  exports.createSalesOrderLineItem = function (params, callback) {
+    var sql = "INSERT INTO coitem (coitem_cohead_id, coitem_itemsite_id, coitem_qtyord, " +
+              " coitem_unitcost, coitem_price, coitem_custprice, coitem_qtyshipped, " +
+              " coitem_qty_uom_id, coitem_qty_invuomratio, coitem_price_uom_id, " +
+              " coitem_price_invuomratio) " +  
+              "SELECT $1, $2, $3, " +
+              " itemcost($2), 1.99, 1.99, 0, " +
+              " item_inv_uom_id, 1, item_price_uom_id, " +
+              " itemuomratiobytype(item_id, 'Selling') " +
+              "FROM itemsite JOIN item ON itemsite_item_id=item_id " +
+              "WHERE itemsite_id=$2 " +
+              "RETURNING coitem_id AS result; ",
+      options = _.extend({}, adminCred,
+        { parameters: [ params.coheadId, params.itemsiteId, params.qty ] });
+      
+    datasource.query(sql, options, function (err, res) {
+      assert.isNull(err);
+      assert.isNotNull(res.rows[0].result);
+
+      if (DEBUG)
+        console.log("createSalesOrderLineItem result: ", res.rows[0].result);
+
+      callback(res.rows[0].result);
+    });
+  };
+
+  exports.createWorkOrder = function (params, callback) {
+    var sql = "SELECT createWo(fetchwonumber(), $1::integer, 1, $2::numeric, " +
+              " current_date, current_date, " +
+              " 'TEST WO', '', -1, -1, " +
+              " -1, -1, NULL) AS result;",
+      options = _.extend({}, adminCred,
+        { parameters: [ params.itemsiteId, params.qty ] });
+
+    datasource.query(sql, options, function (err, res) {
+      assert.isNull(err);
+      assert.isNotNull(res.rows[0].result);
+
+      if (DEBUG)
+        console.log("createWorkOrder result: ", res.rows[0].result);
+
+      callback(res.rows[0].result);
+    });
+  };
+
+  exports.parseMetasql = function (query, params, callback) {
+    var sql = "SELECT xt.parsemetasql($1::text, $2::text) AS result;",
+        options = _.extend({}, adminCred,
+                           { parameters: [ query,
+                                           typeof params == 'object' ? JSON.stringify(params) : params
+                           ] });
+    datasource.query(sql, options, function (err, res) {
+      assert.isNull(err);
+      assert.isNotNull(res.rows[0].result);
+      if (DEBUG)
+        console.log("parseMetasql result: ", res.rows[0].result);
+      callback(res.rows[0].result);
     });
   };
 

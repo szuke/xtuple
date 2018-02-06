@@ -81,7 +81,7 @@ BEGIN
 -- Determine new Document Number and check for duplicates
   _newDocNum := COALESCE(NULLIF(_r.arapply_refnumber, ''), _r.arapply_source_docnumber);
   WHILE (EXISTS(SELECT 1 FROM aropen WHERE aropen_docnumber = _newDocNum)) LOOP
-    _newDocNum := _newDocNum || ' [REV]';
+    _newDocNum := trim(regexp_replace(_newDocNum, '\[REV\]', '', 'g')) || ' [REV]';
   END LOOP;  
 
   IF (_r.arapply_source_doctype = 'K') THEN

@@ -951,6 +951,14 @@
         }
       },
       {
+        "name": "updateInventory",
+        "attr": {
+          "type": "Boolean",
+          "column": "invcitem_updateinv",
+          "required": true
+        }
+      },
+      {
         "name": "notes",
         "attr": {
           "type": "String",

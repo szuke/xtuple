@@ -32,9 +32,12 @@ FROM uom, item, (
          JOIN costelem ON (itemcost_costelem_id=costelem_id)
          JOIN bomhead ON (bomhead_item_id=bomitem_parent_item_id AND bomhead_rev_id=bomitem_rev_id)
   <? if exists("includeRevisionControl") ?>
-    LEFT OUTER JOIN rev ON ((bomitem_rev_id=rev_id) AND (COALESCE(rev_status, 'A')='A')) 
+    LEFT OUTER JOIN rev ON (bomitem_rev_id=rev_id)
   <? endif ?>
     WHERE ((CURRENT_DATE BETWEEN bomitem_effective AND (bomitem_expires-1))
+  <? if exists("includeRevisionControl") ?>
+     AND (COALESCE(rev_status, 'A')='A')
+  <? endif ?>
      AND (bomitem_parent_item_id=<? value("item_id") ?>)
      AND (costelem_id=<? value("costelem_id") ?>) ) 
 <? elseif exists("useBBOM") ?>
