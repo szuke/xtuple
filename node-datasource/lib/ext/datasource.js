@@ -202,7 +202,6 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
           if (err) {
             // Set activeQuery for error event handler above.
             that.activeQuery = client.activeQuery ? client.activeQuery.text : 'unknown. See PostgreSQL log.';
-            that.destroyClientFromPool(client);
           }
 
           if (client.status && client.status.length) {
