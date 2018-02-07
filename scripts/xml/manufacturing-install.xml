@@ -1,121 +1,11 @@
-<package id        = "manufacturing-install-4110"
-         version   = "4.11.0"
+<package id        = "manufacturing-install-4.11.2"
+         version   = "4.11.2"
          developer = "xTuple"
          descrip   = "load PostBooks resources"
          updater   = "2.2.4" >
 
-  <prerequisite type = "query"
-                name = "Checking xTuple Edition" >
-    <query>SELECT fetchMetricText('Application') = 'PostBooks';</query>
-    <message>This package must be applied to a PostBooks Edition database.</message>
-  </prerequisite>
-
-  <prerequisite type = "query"
-                name = "Checking for too-old xTuple ERP database version" >
-    <query>SELECT compareVersion(fetchMetricText('ServerVersion'), '4.4.0') >= 0;</query>
-    <message>This package must be applied to a 4.4+ database.
-    </message>
-  </prerequisite>
-
-  <prerequisite type = "query"
-                name = "Checking for too-new xTuple ERP database version" >
-    <query>SELECT compareVersion(fetchMetricText('ServerVersion'), '4.11.0') &lt;= 0;</query>
-    <message>This package may not be applied to a database newer than 4.11.0.
-    </message>
-  </prerequisite>
-
-  <prerequisite type = "query"
-               name = "Checking if plv8 extension is installed" >
-    <query>SELECT exists(SELECT 1 FROM pg_catalog.pg_extension WHERE extname = 'plv8');</query>
-    <message>The PostgreSQL extension, plv8, must be installed on your database. See: https://github.com/xtuple/xtuple/wiki/Installing-PLv8
-    </message>
-  </prerequisite>
-
-  <prerequisite type = "query"
-               name = "Checking for plv8 setup in postgresql.conf" >
-    <query>
-      DO $$
-      DECLARE msg text = $m$Please add the line "plv8.start_proc = 'xt.js_init'" to your postgresql.conf and restart the database server.$m$;
-      BEGIN
-        IF NOT (current_setting('plv8.start_proc') = 'xt.js_init') THEN
-          raise exception '%', msg;
-        END IF;
-        EXCEPTION WHEN sqlstate '42704' THEN
-          RAISE EXCEPTION '%', msg;
-      END;
-      $$ LANGUAGE plpgsql;
-      SELECT 1;
-    </query>
-    <message>Please add the line "plv8.start_proc = 'xt.js_init'" to your postgresql.conf and restart the database server.
-    </message>
-  </prerequisite>
-
-  <prerequisite type = "query"
-               name = "Checking for mobile-enabled schemas" >
-    <query>SELECT NOT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname = 'xm');</query>
-    <message>This package may not be applied to a mobile-enabled database. Please see your system administrator or contact xTuple.
-    </message>
-  </prerequisite>
-
-  <prerequisite type = "query"
-               name = "Checking for duplicate Credit Card payments on Sales Orders" >
-    <query>
-      WITH counter AS (SELECT COUNT(*) AS freq
-                        FROM payco
-                        GROUP BY payco_ccpay_id, payco_cohead_id
-                        ORDER BY 1)
-      SELECT (COALESCE(MAX(freq), 1) = 0 OR COALESCE(MAX(freq), 1) = 1)
-      FROM counter;
-    </query>
-    <message>There are duplicate payco_ccpay_id and payco_cohead_id on the payco table. Please see your system administrator or contact xTuple.
-    </message>
-  </prerequisite>
-
-  <prerequisite type = "query"
-                name = "Checking for Comment Type Source consistency - cmnttype" >
-     <query>SELECT BOOL_AND(cmnttype_id IS NOT NULL)
-              FROM cmnttypesource
-              LEFT OUTER JOIN cmnttype ON cmnttypesource_cmnttype_id = cmnttype_id;</query>
-    <message>There are records in the cmnttypesource table with no matching cmnttype entries. Please see your system administrator or contact xTuple.</message>
-  </prerequisite>
-
-  <prerequisite type = "query"
-                name = "Checking for Comment Type Source consistency - source" >
-     <query>SELECT BOOL_AND(source_id IS NOT NULL)
-              FROM cmnttypesource
-              LEFT OUTER JOIN source ON cmnttypesource_source_id = source_id;</query>
-    <message>There are records in the cmnttypesource table with no matching source entries. Please see your system administrator or contact xTuple.</message>
-  </prerequisite>
-
-  <prerequisite type = "query"
-                name = "Checking for duplicate Screens" >
-    <query>SELECT NOT EXISTS(SELECT COUNT(*), uiform_name, uiform_order
-                               FROM uiform
-                             GROUP BY uiform_name, uiform_order
-                             HAVING COUNT(*)>1);</query>
-    <message>There are multiple Screens (uiform table) with the same name and grade. Please see your system administrator or contact xTuple.</message>
-  </prerequisite>
-
-  <prerequisite type = "query"
-                name = "Checking for duplicate Purchase Order Types" >
-    <query>
-      DO $$
-      BEGIN /* must nest IFs to ensure success if potype_code isn't defined */
-        IF EXISTS(SELECT 1
-                    FROM information_schema.columns
-                    WHERE table_schema = 'public'
-                      AND table_name   = 'potype'
-                      AND column_name  = 'potype_code') THEN
-          IF EXISTS(SELECT COUNT(*), potype_code FROM potype
-                    GROUP BY potype_code HAVING COUNT(*)>1) THEN
-            RAISE EXCEPTION 'There are multiple Purchase Order Types (potype table) with the same code. Please see your system administrator or contact xTuple.';
-          END IF;
-        END IF;
-      END $$ LANGUAGE plpgsql;
-      SELECT true;
-    </query>
-    <message>There are multiple Purchase Order Types (potype table) with the same code. Please see your system administrator or contact xTuple.</message>
-  </prerequisite>
+  <postbooks-prerequisites/>
+  <all-prerequisites/>
 
   <script file="postbooks-upgrade.sql" />
   <script file="commercialcore-install.sql" />
@@ -124,5 +14,8 @@
   <script file="inventory-upgrade.sql" />
   <script file="manufacturing-install.sql" />
   <script file="manufacturing-upgrade.sql" />
+  <xTuple-translations/>
+  <xtcore-translations/>
+  <xtmfg-translations/>
 
 </package>

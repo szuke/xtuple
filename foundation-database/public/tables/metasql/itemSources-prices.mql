@@ -4,16 +4,23 @@
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
+WITH qry AS
+(
 SELECT itemsrcp_id, itemsrc_id,
        vend_number, vend_name,
        currConcat(vend_curr_id) AS vend_curr,
        item_number,
+       item_descrip1, item_descrip2,
        (item_descrip1 || ' ' || item_descrip2) AS item_descrip,
        warehous_code, uom_name,
        contrct_number,
-       itemsrc.*,
+       itemsrc_vend_item_number, itemsrc_vend_uom, itemsrc_invvendoruomratio, itemsrc_minordqty,
+       itemsrc_multordqty, itemsrc_leadtime, itemsrc_ranking, itemsrc_active, itemsrc_manuf_name,
+       itemsrc_manuf_item_number, itemsrc_default, itemsrc_effective, itemsrc_expires,
        (itemsrc_vend_item_number || '/' || itemsrc_manuf_item_number) AS itemsrc_descrip,
-       itemsrcp.*,
+       itemsrcp_qtybreak, itemsrcp_price, itemsrcp_dropship, itemsrcp_discntprcnt,
+       itemsrcp_fixedamtdiscount,
+       formatQty(itemsrc_invvendoruomratio) AS f_uomratio,
        currConcat(itemsrcp_curr_id) AS item_curr,
        noNeg(CASE WHEN (itemsrcp_type='N') THEN currToBase(itemsrcp_curr_id, itemsrcp_price, itemsrcp_updated)
                   WHEN (itemsrcp_type='D') THEN (item_listcost - (item_listcost * COALESCE(itemsrcp_discntprcnt, 0.0)) - COALESCE(itemsrcp_fixedamtdiscount, 0.0))
@@ -23,6 +30,10 @@ SELECT itemsrcp_id, itemsrc_id,
                   WHEN (itemsrcp_type='D') THEN (item_listcost - (item_listcost * COALESCE(itemsrcp_discntprcnt, 0.0)) - COALESCE(itemsrcp_fixedamtdiscount, 0.0))
                   ELSE 0.0
              END) AS price_local,
+       formatQty(noNeg(CASE WHEN (itemsrcp_type='N') THEN itemsrcp_price
+                            WHEN (itemsrcp_type='D') THEN (item_listcost - (item_listcost * COALESCE(itemsrcp_discntprcnt, 0.0)) - COALESCE(itemsrcp_fixedamtdiscount, 0.0))
+                            ELSE 0.0
+                       END)) AS f_price_local,
        CASE WHEN (itemsrcp_type='N') THEN <? value("nominal") ?>
             WHEN (itemsrcp_type='D') THEN <? value("discount") ?>
             ELSE 'N/A'
@@ -33,14 +44,14 @@ SELECT itemsrcp_id, itemsrc_id,
             WHEN (itemsrcp_type='D') THEN <? value("mixed") ?>
             ELSE 'N/A'
        END AS method,
-       'qty' AS itemsrc_invvendoruomratio_xtnumericrole,
-       'qty' AS itemsrc_minordqty_xtnumericrole,
-       'qty' AS itemsrc_ordqtymult_xtnumericrole,
-       'qty' AS itemsrcp_qtybreak_xtnumericrole,
-       'N/A' AS itemsrcp_qtybreak_xtnullrole,
-       'purchprice' AS price_local_xtnumericrole,
-       'purchprice' AS price_base_xtnumericrole,
-       'percent' AS itemsrcp_discntprcnt_xtnumericrole,
+       'qty'::TEXT AS itemsrc_invvendoruomratio_xtnumericrole,
+       'qty'::TEXT AS itemsrc_minordqty_xtnumericrole,
+       'qty'::TEXT AS itemsrc_multordqty_xtnumericrole,
+       'qty'::TEXT AS itemsrcp_qtybreak_xtnumericrole,
+       'N/A'::TEXT AS itemsrcp_qtybreak_xtnullrole,
+       'purchprice'::TEXT AS price_local_xtnumericrole,
+       'purchprice'::TEXT AS price_base_xtnumericrole,
+       'percent'::TEXT AS itemsrcp_discntprcnt_xtnumericrole,
        CASE WHEN (warehous_code IS NULL) THEN <? value("all") ?>
        END AS warehous_code_qtdisplayrole,
        CASE WHEN (itemsrcp_dropship) THEN <? value("dropship") ?>
@@ -86,8 +97,13 @@ WHERE ((true)
    AND (itemsrcp_dropship)
 <? endif ?>
 <? if exists("search_pattern") ?>
-  AND ( (item_number ~* <? value("search_pattern") ?>)
-    OR  (COALESCE(item_descrip1,'') || COALESCE(item_descrip2,'') ~* <? value("search_pattern") ?>) )
+   AND (item_number ~* <? value("search_pattern") ?>
+        OR  (COALESCE(item_descrip1,'') || COALESCE(item_descrip2,'') ~* <? value("search_pattern") ?>)
+        OR  (COALESCE(itemsrc_vend_item_number,'') ~* <? value("search_pattern") ?>)
+        OR  (COALESCE(itemsrc_manuf_name,'') ~* <? value("search_pattern") ?>)
+        OR  (COALESCE(itemsrc_manuf_item_descrip,'') ~* <? value("search_pattern") ?>)
+        OR  (vend_name ~* <? value("search_pattern") ?>)
+        OR  (EXISTS(SELECT itemalias_id FROM itemalias WHERE (itemalias_item_id=item_id) AND (COALESCE(itemalias_number,'') ~* <? value("search_pattern") ?>))) )
 <? endif ?>
 <? if exists("item_number_pattern") ?>
   AND (item_number ~* <? value("item_number_pattern") ?>)
@@ -126,5 +142,80 @@ WHERE ((true)
   AND (COALESCE(contrct_expires, itemsrc_expires) <= <? value("expireEndDate") ?>)
 <? endif ?>
 )
-ORDER By item_number, vend_name, itemsrcp_qtybreak
+)
+<? if not exists("isReport") ?>
+<? if exists("indented") ?>
+SELECT NULL AS itemsrcp_id, itemsrc_id, vend_number, vend_name, vend_curr, item_number,
+       item_descrip1, item_descrip2, item_descrip, NULL AS warehous_code, uom_name, contrct_number,
+       itemsrc_vend_item_number, itemsrc_vend_uom, itemsrc_invvendoruomratio, itemsrc_minordqty,
+       itemsrc_multordqty, itemsrc_leadtime, itemsrc_ranking, itemsrc_active, itemsrc_manuf_name,
+       itemsrc_manuf_item_number, itemsrc_default, itemsrc_effective, itemsrc_expires,
+       itemsrc_descrip, NULL AS itemsrcp_qtybreak, NULL AS itemsrcp_price,
+       NULL AS itemsrcp_dropship, NULL AS itemsrcp_discntprcnt, NULL AS itemsrcp_fixedamtdiscount,
+       f_uomratio, NULL AS item_curr, NULL AS price_base, NULL AS price_local,
+       NULL AS f_price_local, NULL AS type, NULL AS method, 
+       itemsrc_invvendoruomratio_xtnumericrole, itemsrc_minordqty_xtnumericrole,
+       itemsrc_multordqty_xtnumericrole, NULL AS itemsrcp_qtybreak_xtnumericrole,
+       NULL AS itemsrcp_qtybreak_xtnullrole, NULL AS price_local_xtnumericrole,
+       NULL AS price_base_xtnumericrole, NULL AS itemsrcp_discntprcnt_xtnumericrole,
+       NULL AS warehous_code_qtdisplayrole, NULL AS itemsrcp_dropship_qtdisplayrole,
+       itemsrc_effective_qtdisplayrole, itemsrc_expires_qtdisplayrole, qtforegroundrole,
+       0 AS xtindentrole, item_number AS itemsort, vend_name AS vendsort
+  FROM qry
+UNION
+SELECT itemsrcp_id, itemsrc_id, NULL, NULL, NULL, NULL,
+       NULL, NULL, NULL, warehous_code, NULL, NULL,
+       NULL, NULL, NULL, NULL,
+       NULL, NULL, NULL, NULL, NULL,
+       NULL, NULL, NULL, NULL,
+       NULL, itemsrcp_qtybreak, itemsrcp_price,
+       itemsrcp_dropship, itemsrcp_discntprcnt, itemsrcp_fixedamtdiscount,
+       NULL, item_curr, price_base, price_local,
+       f_price_local, type, method,
+       NULL, NULL,
+       NULL, itemsrcp_qtybreak_xtnumericrole,
+       itemsrcp_qtybreak_xtnullrole, price_local_xtnumericrole,
+       price_base_xtnumericrole, itemsrcp_discntprcnt_xtnumericrole,
+       warehous_code_qtdisplayrole, itemsrcp_dropship_qtdisplayrole,
+       NULL, NULL, qtforegroundrole,
+       1 AS xtindentrole, item_number AS itemsort, vend_name AS vendsort
+  FROM qry
+ WHERE itemsrcp_id IS NOT NULL
+ ORDER BY itemsort, vendsort, itemsrc_id, xtindentrole, itemsrcp_qtybreak
+<? else ?>
+SELECT itemsrcp_id, itemsrc_id, vend_number, vend_name, vend_curr, item_number,
+       item_descrip1, item_descrip2, item_descrip, warehous_code, uom_name, contrct_number,
+       itemsrc_vend_item_number, itemsrc_vend_uom, itemsrc_invvendoruomratio, itemsrc_minordqty,
+       itemsrc_multordqty, itemsrc_leadtime, itemsrc_ranking, itemsrc_active, itemsrc_manuf_name,
+       itemsrc_manuf_item_number, itemsrc_default, itemsrc_effective, itemsrc_expires,
+       itemsrc_descrip, itemsrcp_qtybreak, itemsrcp_price,
+       itemsrcp_dropship, itemsrcp_discntprcnt, itemsrcp_fixedamtdiscount,
+       f_uomratio, item_curr, price_base, price_local, f_price_local, type, method,
+       itemsrc_invvendoruomratio_xtnumericrole, itemsrc_minordqty_xtnumericrole,
+       itemsrc_multordqty_xtnumericrole, itemsrcp_qtybreak_xtnumericrole,
+       itemsrcp_qtybreak_xtnullrole, price_local_xtnumericrole,
+       price_base_xtnumericrole, itemsrcp_discntprcnt_xtnumericrole,
+       warehous_code_qtdisplayrole, itemsrcp_dropship_qtdisplayrole,
+       itemsrc_effective_qtdisplayrole, itemsrc_expires_qtdisplayrole, qtforegroundrole
+  FROM qry
+ ORDER BY item_number, vend_name, itemsrcp_qtybreak
+<? endif ?>
+<? else ?>
+SELECT itemsrcp_id, itemsrc_id, vend_number, vend_name, vend_curr, item_number,
+       item_descrip1, item_descrip2, item_descrip, warehous_code, uom_name, contrct_number, 
+       itemsrc_vend_item_number, itemsrc_vend_uom, itemsrc_invvendoruomratio, itemsrc_minordqty, 
+       itemsrc_multordqty, itemsrc_leadtime, itemsrc_ranking, itemsrc_active, itemsrc_manuf_name,
+       itemsrc_manuf_item_number, itemsrc_default, itemsrc_effective, itemsrc_expires,
+       itemsrc_descrip, itemsrcp_qtybreak, itemsrcp_price,
+       itemsrcp_dropship, itemsrcp_discntprcnt, itemsrcp_fixedamtdiscount,
+       f_uomratio, item_curr, price_base, price_local, f_price_local, type, method,
+       itemsrc_invvendoruomratio_xtnumericrole, itemsrc_minordqty_xtnumericrole,
+       itemsrc_multordqty_xtnumericrole, itemsrcp_qtybreak_xtnumericrole,
+       itemsrcp_qtybreak_xtnullrole, price_local_xtnumericrole,
+       price_base_xtnumericrole, itemsrcp_discntprcnt_xtnumericrole,
+       warehous_code_qtdisplayrole, itemsrcp_dropship_qtdisplayrole,
+       itemsrc_effective_qtdisplayrole, itemsrc_expires_qtdisplayrole, qtforegroundrole
+  FROM qry
+ ORDER BY item_number, vend_name, itemsrcp_qtybreak
+<? endif ?>
 ;

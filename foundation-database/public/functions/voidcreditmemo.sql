@@ -213,7 +213,7 @@ BEGIN
   WHERE (aropen_doctype='C' AND aropen_docnumber=_p.cmhead_number);
 
 -- Handle the Inventory and G/L Transactions for any returned Inventory where cmitem_updateinv is true (reverse sense)
-  FOR _r IN SELECT cmitem_itemsite_id AS itemsite_id, cmitem_id,
+  FOR _r IN SELECT cmhead_id, cmitem_itemsite_id AS itemsite_id, cmitem_id,
                    (cmitem_qtyreturned * cmitem_qty_invuomratio) AS qty,
                    cmhead_number, cmhead_cust_id AS cust_id, item_number,
                    cmhead_prj_id AS prj_id, cmhead_saletype_id AS saletype_id,
@@ -233,7 +233,8 @@ BEGIN
                          ('Credit Voided ' || _r.item_number),
                          costcat_asset_accnt_id,
                          getPrjAccntId(_r.prj_id, resolveCOSAccount(itemsite_id, _r.cust_id, _r.saletype_id, _r.shipzone_id)),  
-                         _itemlocSeries, _glDate, NULL, NULL, NULL, pPreDistributed) INTO _invhistid
+                         _itemlocSeries, _glDate, NULL, NULL, NULL, pPreDistributed,
+                         _r.cmhead_id, _r.cmitem_id) INTO _invhistid
     FROM itemsite, costcat
     WHERE ( (itemsite_costcat_id=costcat_id)
      AND (itemsite_id=_r.itemsite_id) );

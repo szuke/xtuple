@@ -176,28 +176,10 @@ BEGIN
 	     incdthist_descrip)
       VALUES(NEW.incdt_id,
 	     ('Notes Updated: "' ||
-	       substr(COALESCE(OLD.incdt_descrip, ''), 1, 20) ||
-	      '..." -> "' ||
-	       substr(COALESCE(NEW.incdt_descrip, ''), 1, 20) ||
-	      '..."') );
-
-      IF (_cmnttypeid <> -1) THEN
-        -- find an existing comment
-        SELECT comment_id
-          INTO _cmntid
-          FROM comment
-         WHERE comment_source = 'INCDT'
-           AND comment_source_id = NEW.incdt_id
-           -- back out change for 21068
-           -- AND comment_user = getEffectiveXtUser()
-           AND comment_cmnttype_id = _cmnttypeid;
-        IF FOUND THEN
-          UPDATE comment SET comment_text = NEW.incdt_descrip
-          WHERE comment_id = _cmntid;
-        ELSE
-          PERFORM postComment(_cmnttypeid, 'INCDT', NEW.incdt_id, NEW.incdt_descrip);
-        END IF;
-      END IF;
+	       COALESCE(OLD.incdt_descrip, '') ||
+	      '" -> "' ||
+	       COALESCE(NEW.incdt_descrip, '') ||
+	      '"') );
     END IF;
 
     IF (NEW.incdt_status <> OLD.incdt_status) THEN
@@ -346,6 +328,11 @@ BEGIN
   FROM charass
   WHERE charass_target_type = 'INCDT'
     AND charass_target_id = OLD.incdt_id;
+
+  DELETE
+  FROM docass
+  WHERE docass_source_type = 'INCDT'
+    AND docass_source_id = OLD.incdt_id;
 
   RETURN OLD;
 END;

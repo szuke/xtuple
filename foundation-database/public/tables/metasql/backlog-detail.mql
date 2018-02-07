@@ -30,6 +30,7 @@ SELECT
        0 AS coitem_qtyreturned_xttotalrole,
        0 AS qtybalance_xttotalrole,
        0 AS baseextprice_xttotalrole,
+       0 AS extpricebalance_xttotalrole,
        0 AS baseextpricebalance_xttotalrole
 FROM (
   SELECT

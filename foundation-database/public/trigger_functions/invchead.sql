@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION _invcheadBeforeTrigger() RETURNS "trigger" AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _recurid     INTEGER;
@@ -89,7 +89,7 @@ CREATE TRIGGER invcheadBeforeTrigger
   EXECUTE PROCEDURE _invcheadBeforeTrigger();
 
 CREATE OR REPLACE FUNCTION _invcheadTrigger() RETURNS "trigger" AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   IF (TG_OP = 'DELETE') THEN
@@ -113,6 +113,8 @@ BEGIN
 
     --- clear the number from the issue cache
     PERFORM clearNumberIssue('InvcNumber', NEW.invchead_invcnumber);
+
+    PERFORM postComment('ChangeLog', 'INV', NEW.invchead_id, 'Created');
   END IF;
 
 -- Update row
@@ -154,6 +156,31 @@ BEGIN
       END IF;
     END IF;
 
+    -- Record changes
+    PERFORM postComment('ChangeLog', 'INV', NEW.invchead_id, 'Last Updated');
+    IF (OLD.invchead_invcdate <> NEW.invchead_invcdate) THEN
+        PERFORM postComment( 'ChangeLog', 'INV', NEW.invchead_id, 'Invoice Date', formatDate(OLD.invchead_invcdate), formatDate(NEW.invchead_invcdate));
+    END IF;
+    IF (OLD.invchead_terms_id <> NEW.invchead_terms_id) THEN
+        PERFORM postComment( 'ChangeLog', 'INV', NEW.invchead_id, 'Terms',
+                             (SELECT terms_code FROM terms WHERE terms_id=OLD.invchead_terms_id),
+                             (SELECT terms_code FROM terms WHERE terms_id=NEW.invchead_terms_id));
+    END IF;
+    IF (OLD.invchead_saletype_id <> NEW.invchead_saletype_id) THEN
+        PERFORM postComment( 'ChangeLog', 'INV', NEW.invchead_id, 'Sale Type',
+                             (SELECT saletype_code FROM saletype WHERE saletype_id=OLD.invchead_saletype_id),
+                             (SELECT saletype_code FROM saletype WHERE saletype_id=NEW.invchead_saletype_id));
+    END IF;
+    IF (OLD.invchead_salesrep_id <> NEW.invchead_salesrep_id) THEN
+        PERFORM postComment( 'ChangeLog', 'INV', NEW.invchead_id, 'Sales Rep',
+                             (SELECT salesrep_name FROM salesrep WHERE salesrep_id=OLD.invchead_salesrep_id),
+                             (SELECT salesrep_name FROM salesrep WHERE salesrep_id=NEW.invchead_salesrep_id));
+    END IF;
+    IF (OLD.invchead_commission <> NEW.invchead_commission) THEN
+        PERFORM postComment( 'ChangeLog', 'INV', NEW.invchead_id, 'Commission',
+                             formatprcnt(OLD.invchead_commission),
+                             formatprcnt(NEW.invchead_commission));
+    END IF;
   END IF;
 
   RETURN NEW;
@@ -170,7 +197,7 @@ CREATE TRIGGER invcheadtrigger
 
 CREATE OR REPLACE FUNCTION _invcheadaftertrigger()
   RETURNS trigger AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
   DECLARE
     _cohead_id INTEGER;
@@ -201,7 +228,7 @@ CREATE TRIGGER invcheadaftertrigger
   EXECUTE PROCEDURE _invcheadaftertrigger();
 
 CREATE OR REPLACE FUNCTION _invcheadAfterDeleteTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
 

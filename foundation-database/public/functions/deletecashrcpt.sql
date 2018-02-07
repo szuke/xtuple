@@ -9,10 +9,7 @@ BEGIN
 
   IF EXISTS(SELECT cashrcpt_id
             FROM cashrcpt
-            JOIN ccpay ON (cashrcpt_cust_id=ccpay_cust_id)
-                       AND ((CASE WHEN TRIM(COALESCE(cashrcpt_docnumber, ''))='' THEN TEXT(cashrcpt_id)
-                                  ELSE cashrcpt_docnumber
-                             END)=ccpay_order_number)
+            JOIN ccpay ON (cashrcpt_ccpay_id=ccpay_id)
             WHERE ((isExternalFundsType(cashrcpt_fundstype))
                AND (ccpay_status NOT IN ('D', 'X'))
                AND (ccpay_id NOT IN (SELECT payco_ccpay_id FROM payco))

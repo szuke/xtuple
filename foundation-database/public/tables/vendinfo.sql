@@ -42,15 +42,22 @@ SELECT
   xt.add_column('vendinfo', 'vend_ach_accntnumber',    'BYTEA', $$NOT NULL$$, 'public'),
   xt.add_column('vendinfo', 'vend_taxzone_id',       'INTEGER', NULL,                            'public'),
   xt.add_column('vendinfo', 'vend_accnt_id',         'INTEGER', NULL,                            'public'),
-  xt.add_column('vendinfo', 'vend_expcat_id',        'INTEGER', 'DEFAULT (-1)',                  'public'),
-  xt.add_column('vendinfo', 'vend_tax_id',           'INTEGER', 'DEFAULT (-1)',                  'public'),
+  xt.add_column('vendinfo', 'vend_expcat_id',        'INTEGER', NULL,                            'public'),
+  xt.add_column('vendinfo', 'vend_tax_id',           'INTEGER', NULL,                            'public'),
+  xt.add_column('vendinfo', 'vend_taxtype_id',       'INTEGER', NULL,                            'public'),
   xt.add_column('vendinfo', 'vend_potype_id',        'INTEGER', NULL,                            'public'),
   xt.add_column('vendinfo', 'vend_created',      'TIMESTAMP WITH TIME ZONE', NULL, 'public'),
   xt.add_column('vendinfo', 'vend_lastupdated',  'TIMESTAMP WITH TIME ZONE', NULL, 'public');
 
 ALTER TABLE public.vendinfo
   ALTER COLUMN vend_ach_routingnumber SET DEFAULT '\x00'::bytea,
-  ALTER COLUMN vend_ach_accntnumber   SET DEFAULT '\x00'::bytea;
+  ALTER COLUMN vend_ach_accntnumber   SET DEFAULT '\x00'::bytea,
+  ALTER COLUMN vend_expcat_id DROP DEFAULT,
+  ALTER COLUMN vend_tax_id DROP DEFAULT;
+
+UPDATE vendinfo SET vend_accnt_id=NULL WHERE vend_accnt_id=-1;
+UPDATE vendinfo SET vend_expcat_id=NULL WHERE vend_expcat_id=-1;
+UPDATE vendinfo SET vend_tax_id=NULL WHERE vend_tax_id=-1;
 
 SELECT
   xt.add_constraint('vendinfo', 'vend_pkey', 'PRIMARY KEY (vend_id)', 'public'),
@@ -72,6 +79,14 @@ SELECT
                     'FOREIGN KEY (vend_addr_id) REFERENCES addr(addr_id)', 'public'),
   xt.add_constraint('vendinfo', 'vendinfo_vend_taxzone_id_fkey',
                     'FOREIGN KEY (vend_taxzone_id) REFERENCES taxzone(taxzone_id)', 'public'),
+  xt.add_constraint('vendinfo', 'vendinfo_vend_accnt_id_fkey',
+                    'FOREIGN KEY (vend_accnt_id) REFERENCES accnt(accnt_id)', 'public'),
+  xt.add_constraint('vendinfo', 'vendinfo_vend_expcat_id_fkey',
+                    'FOREIGN KEY (vend_expcat_id) REFERENCES expcat(expcat_id)', 'public'),
+  xt.add_constraint('vendinfo', 'vendinfo_vend_tax_id_fkey',
+                    'FOREIGN KEY (vend_tax_id) REFERENCES tax(tax_id)', 'public'),
+  xt.add_constraint('vendinfo', 'vendinfo_vend_taxtype_id_fkey',
+                    'FOREIGN KEY (vend_taxtype_id) REFERENCES taxtype(taxtype_id)', 'public'),
   xt.add_constraint('vendinfo', 'vendinfo_vend_vendtype_id_fkey',
                     'FOREIGN KEY (vend_vendtype_id) REFERENCES vendtype(vendtype_id)', 'public'),
   xt.add_constraint('vendinfo', 'vendinfo_potype_id_fkey',
@@ -99,3 +114,4 @@ COMMENT ON TABLE vendinfo IS 'Vendor information';
 
 COMMENT ON COLUMN vendinfo.vend_ach_accnttype IS 'Type of bank account: K = checKing, C = Cash = savings. These values were chosen to be consistent with bankaccnt_type.';
 COMMENT ON COLUMN vendinfo.vend_potype_id     IS 'Vendor default PO type';
+COMMENT ON COLUMN vendinfo.vend_taxtype_id    IS 'Vendor default tax type for miscellaneous distributions';

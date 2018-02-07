@@ -10,6 +10,7 @@ HOST=localhost
 MAJ=
 MIN=
 PAT=
+TRANSLATIONS=false
 
 XTUPLEDIR=$(pwd)
 
@@ -20,9 +21,11 @@ XTUPLEDIR=$(pwd)
 #                     |       |        |     path for build_app -e, relative to repo root
 #  module             tag     edition  build source
 declare -a CONFIG=(\
-  "xtuple             ARGS    skip     skip  not-needed"                                  \
-  "private-extensions ARGS    skip     skip  not-needed"                                  \
-  "xtdesktop          skip    [demp]   false not-yet-used"                                \
+  "xtuple             skip    skip     skip  not-needed"                                  \
+  "private-extensions skip    skip     skip  not-needed"                                  \
+  "qt-client          skip    skip     skip  not-needed"                                  \
+  "updater            default skip     skip  not-needed"                                  \
+  "xtdesktop          skip    [demp]   skip  resources"                                   \
   "xtte               skip    [demp]   true  extensions/time_expense/foundation-database" \
   "nodejsshim         skip    [dem]    true  foundation-database"                         \
   "xtdash             skip    [dem]    true  foundation-database"                         \
@@ -31,9 +34,11 @@ declare -a CONFIG=(\
 usage() {
   local CNT=0
   cat <<EOUSAGE
-$PROG [ -x ] [ -h hostname ] [ -p port ] [ -U username ] [ -W password ] [ --XXX=tag ... ] [ Major Minor Patch ]
+$PROG [ -x ] [ -h hostname ] [ -p port ] [ -U username ] [ -W password ] [ --XXX=tag ... ] [ -t | +t ] [ Major Minor Patch ]
 
 -h, -p, -U, and -W describe database server connection information
+-t              do not include translations in the updater packages
++t              include translations in the updater packages
 -x              turns on debugging
 --XXX=tag       "tag" is the commit-ish to check out the XXX repository
 EOUSAGE
@@ -132,6 +137,10 @@ while [[ $1 =~ ^- ]] ; do
     -p) PORT=$2
         shift
         ;;
+    -t) TRANSLATIONS=false
+        ;;
+    +t) TRANSLATIONS=true
+        ;;
     -U) ADMIN=$2
         shift
         ;;
@@ -183,6 +192,9 @@ fi
 if [ $(getConfig private-extensions tag) = ARGS ] ; then
   setConfig private-extensions tag ${MAJ}_${MIN}_x
 fi
+if [ $(getConfig qt-client tag) = ARGS ] ; then
+  setConfig qt-client tag ${MAJ}_${MIN}_x
+fi
 
 echo "BUILDING RELEASE ${MAJ}.${MIN}.${PAT}"
 
@@ -203,6 +215,61 @@ EDITIONS="postbooks manufacturing distribution"
 DATABASES="empty quickstart demo"
 PACKAGES="inventory commercialcore"
 
+if $TRANSLATIONS ; then
+  for PACKAGE in $EDITIONS $PACKAGES ; do
+    if [ "$PACKAGE" = postbooks -o -d ../private-extensions/source/$PACKAGE/foundation-database/*/tables/dict ] ; then
+      mkdir -p $XTUPLEDIR/scripts/output/dict/$PACKAGE
+    fi
+  done
+
+  cd ../xtuple
+  for TRANSLATION in $(find foundation-database/public/tables/dict/*.ts) ; do
+    for REPORT in $(find foundation-database/public/tables/report/*.xml) ; do
+      xsltproc --stringparam ts ../../$TRANSLATION scripts/xml/reports.xsl $REPORT |
+      sed -e '/<?xml version/d' -e 's/^/  /' >> reports.ts
+    done
+
+    echo '<?xml version="1.0" encoding="utf-8"?>' > $TRANSLATION
+    echo '<TS version="2.0">' >> $TRANSLATION
+    cat reports.ts >> $TRANSLATION
+    echo '</TS>' >> $TRANSLATION
+    rm reports.ts
+
+    lrelease $TRANSLATION
+  done
+  mv foundation-database/public/tables/dict/*.qm scripts/output/dict/postbooks
+
+  cd ../private-extensions
+  for PACKAGE in $EDITIONS $PACKAGES ; do
+    if [ "$PACKAGE" != postbooks -a -d ../xtuple/scripts/output/dict/$PACKAGE ] ; then
+      if [ -d source/$PACKAGE/foundation-database/*/tables/pkgreport ] ; then
+        for TRANSLATION in $(find source/$PACKAGE/foundation-database/*/tables/dict/*.ts) ; do
+          for REPORT in $(find source/$PACKAGE/foundation-database/*/tables/pkgreport/*.xml) ; do
+            xsltproc --stringparam ts ../../../private-extensions/$TRANSLATION ../xtuple/scripts/xml/reports.xsl $REPORT |
+            sed -e '/<?xml version/d' -e 's/^/  /' >> reports.ts
+          done
+        done
+      fi
+
+      lupdate -no-obsolete source/$PACKAGE/foundation-database/*/tables/dict/*_ts.pro
+
+      if [ -e reports.ts ] ; then
+        for TRANSLATION in $(find source/$PACKAGE/foundation-database/*/tables/dict/*.ts) ; do
+          sed -i -e '/<\/TS>/d' $TRANSLATION
+          cat reports.ts >> $TRANSLATION
+          echo '</TS>' >> $TRANSLATION
+        done
+        rm reports.ts
+      fi
+
+      lrelease source/$PACKAGE/foundation-database/*/tables/dict/*_ts.pro
+      mv source/$PACKAGE/foundation-database/*/tables/dict/*.qm ../xtuple/scripts/output/dict/$PACKAGE
+    fi
+  done
+fi
+
+cd $XTUPLEDIR
+
 for MODE in $MODES ; do
   for PACKAGE in $EDITIONS $PACKAGES ; do
     if [ "$MODE" = install ] ; then
@@ -221,18 +288,11 @@ for MODE in $MODES ; do
   done
 done
 
-for EDITION in $EDITIONS ; do
-  for DATABASE in $DATABASES ; do
-    if [ "$EDITION" != distribution -o "$DATABASE" != demo ] ; then
-      scripts/build_app.js -d $EDITION"_"$DATABASE --databaseonly -e foundation-database -i -s foundation-database/$DATABASE"_"data.sql
-      if [ "$EDITION" != postbooks ] ; then
-        for PACKAGE in $PACKAGES $EDITION ; do
-          scripts/build_app.js -d $EDITION"_"$DATABASE --databaseonly -e ../private-extensions/source/$PACKAGE/foundation-database -f
-        done
-      fi
-    fi
-  done
-done
+if $TRANSLATIONS ; then
+  NO_TRANSLATIONS="--param no-translations false()"
+else
+  NO_TRANSLATIONS="--param no-translations true()"
+fi
 
 for EDITION in $EDITIONS enterprise ; do
   if [ "$EDITION" = manufacturing ] ; then
@@ -246,9 +306,9 @@ for EDITION in $EDITIONS enterprise ; do
       else
         NAME=$EDITION-$MODE
       fi
-      FULLNAME=$NAME-$MAJ$MIN$PAT
+      FULLNAME=$NAME-$MAJ.$MIN.$PAT
       mkdir scripts/output/$FULLNAME
-      cp scripts/xml/$NAME.xml scripts/output/$FULLNAME/package.xml
+      xsltproc $NO_TRANSLATIONS -o scripts/output/$FULLNAME/package.xml scripts/xml/build.xsl scripts/xml/$NAME.xml
       SUBPACKAGES=postbooks
       if [ "$EDITION" != postbooks ] ; then
         SUBPACKAGES="$SUBPACKAGES $PACKAGES"
@@ -271,6 +331,10 @@ for EDITION in $EDITIONS enterprise ; do
             cp scripts/output/$SUBPACKAGE-$SUBMODE.sql scripts/output/$FULLNAME
           fi
         done
+
+        if [ -d scripts/output/dict/$SUBPACKAGE ] ; then
+          cp scripts/output/dict/$SUBPACKAGE/*.qm scripts/output/$FULLNAME
+        fi
       done
       cd scripts/output
       tar -zcvf $FULLNAME.gz $FULLNAME/
@@ -280,6 +344,38 @@ for EDITION in $EDITIONS enterprise ; do
 done
 
 cd ${XTUPLEDIR}
+
+# build updater so we can use it
+cd ../qt-client
+git submodule update --init --recursive
+cd openrpt
+qmake
+make
+cd ../common
+qmake
+make
+cd ../../updater
+qmake
+make
+cd ${XTUPLEDIR}
+
+export LD_LIBRARY_PATH=${XTUPLEDIR}/../qt-client/openrpt/lib:${XTUPLEDIR}/../qt-client/lib:$LD_LIBRARY_PATH
+
+for EDITION in $EDITIONS ; do
+  for DATABASE in $DATABASES ; do
+    if [ "$EDITION" != distribution -o "$DATABASE" != demo ] ; then
+      scripts/build_app.js -d $EDITION"_"$DATABASE --databaseonly -e foundation-database -i -s foundation-database/$DATABASE"_"data.sql
+      if [ "$EDITION" != postbooks ] ; then
+        for PACKAGE in $PACKAGES $EDITION ; do
+          scripts/build_app.js -d $EDITION"_"$DATABASE --databaseonly -e ../private-extensions/source/$PACKAGE/foundation-database -f
+        done
+      fi
+
+      ../updater/bin/updater -h $HOST -U $ADMIN -p $PORT -d $EDITION"_"$DATABASE \
+                             -f scripts/output/$EDITION-upgrade-$MAJ.$MIN.$PAT.gz -autorun
+    fi
+  done
+done
 
 awk '/databaseServer: {/,/}/ {
       if ($1 == "hostname:") { $2 = "\"'$HOST'\",";  }
@@ -322,9 +418,10 @@ done
 for EDITION in $EDITIONS enterprise ; do
   for MODE in $MODES ; do
     if [ $EDITION != postbooks -o $MODE != install ] ; then
-      rm -rf scripts/output/$EDITION-$MODE-$MAJ$MIN$PAT/
+      rm -rf scripts/output/$EDITION-$MODE-$MAJ.$MIN.$PAT/
     fi
   done
 done
-rm -rf scripts/output/add-manufacturing-to-distribution-$MAJ$MIN$PAT/
+rm -rf scripts/output/add-manufacturing-to-distribution-$MAJ.$MIN.$PAT/
 rm -rf scripts/output/config.js
+rm -rf scripts/output/dict

@@ -591,7 +591,7 @@ BEGIN
     _p.invchead_curr_id );
 
 -- Handle the Inventory and G/L Transactions for any billed Inventory where invcitem_updateinv is true
-  FOR _r IN SELECT itemsite_id AS itemsite_id, invcitem_id,
+  FOR _r IN SELECT itemsite_id AS itemsite_id, invcitem_id, invchead_id,
                    (invcitem_billed * invcitem_qty_invuomratio) AS qty,
                    invchead_invcnumber, invchead_cust_id AS cust_id, item_number,
                    invchead_saletype_id AS saletype_id, invchead_shipzone_id AS shipzone_id,
@@ -614,7 +614,8 @@ BEGIN
                          'S/O', 'IN', _r.invchead_invcnumber, '',
                          ('Invoice Billed ' || _r.item_number),
                          getPrjAccntId(_r.invchead_prj_id, resolveCOSAccount(itemsite_id, _r.cust_id, _r.saletype_id, _r.shipzone_id)),
-                         costcat_asset_accnt_id, _itemlocSeries, _glDate, NULL, NULL, NULL, pPreDistributed) INTO _invhistid
+                         costcat_asset_accnt_id, _itemlocSeries, _glDate, NULL, NULL, NULL, pPreDistributed,
+                         _r.invchead_id, _r.invcitem_id) INTO _invhistid
       FROM itemsite, costcat
       WHERE ( (itemsite_costcat_id=costcat_id)
        AND (itemsite_id=_r.itemsite_id) );

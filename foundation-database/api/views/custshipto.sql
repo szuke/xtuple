@@ -46,16 +46,15 @@ AS
      END AS edi_profile,
      shipto_comments AS general_notes,
      shipto_shipcomments AS shipping_notes
-     FROM custinfo, shiptoinfo
-  LEFT OUTER JOIN shipchrg ON (shipto_shipchrg_id=shipchrg_id)
-  LEFT OUTER JOIN cntct ON (shipto_cntct_id=cntct_id)
-  LEFT OUTER JOIN addr ON (shipto_addr_id=addr_id)
-  LEFT OUTER JOIN taxzone ON (shipto_taxzone_id=taxzone_id)
-  LEFT OUTER JOIN shipzone ON (shipto_shipzone_id=shipzone_id)
-  LEFT OUTER JOIN salesrep ON (shiptoinfo.shipto_salesrep_id = salesrep_id)
-  ,shipform
-     WHERE ((cust_id=shipto_cust_id)
-     AND (cust_shipform_id=shipform_id));
+   FROM custinfo
+     JOIN shiptoinfo ON custinfo.cust_id = shiptoinfo.shipto_cust_id
+     LEFT JOIN shipchrg ON shiptoinfo.shipto_shipchrg_id = shipchrg.shipchrg_id
+     LEFT JOIN cntct ON shiptoinfo.shipto_cntct_id = cntct.cntct_id
+     LEFT JOIN addr ON shiptoinfo.shipto_addr_id = addr.addr_id
+     LEFT JOIN taxzone ON shiptoinfo.shipto_taxzone_id = taxzone.taxzone_id
+     LEFT JOIN shipzone ON shiptoinfo.shipto_shipzone_id = shipzone.shipzone_id
+     LEFT JOIN salesrep ON shiptoinfo.shipto_salesrep_id = salesrep.salesrep_id
+     LEFT JOIN shipform ON custinfo.cust_shipform_id = shipform.shipform_id;
 
 GRANT ALL ON TABLE api.custshipto TO xtrole;
 COMMENT ON VIEW api.custshipto IS 'Customer Shipto Address';

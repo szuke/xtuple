@@ -19,4 +19,4 @@ SELECT
 
 ALTER TABLE public.docass ENABLE TRIGGER ALL;
 
-COMMENT ON TABLE docass IS 'Document Assignement References';
+COMMENT ON TABLE docass IS 'Document Assignment References';

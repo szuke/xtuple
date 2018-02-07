@@ -172,7 +172,7 @@ BEGIN
         _itemlocSeries,
         _glDate,
         round((_o.item_unitprice_base * _r.recv_qty),2), -- always passing this in since it is ignored if it is not average costed item
-        NULL, NULL, pPreDistributed) INTO _tmp
+        NULL, NULL, pPreDistributed, _r.orderitem_orderhead_id, _r.recv_orderitem_id) INTO _tmp
       FROM itemsite, costcat
       WHERE ( (itemsite_costcat_id=costcat_id)
        AND (itemsite_id=_r.itemsite_id) );
@@ -284,7 +284,7 @@ BEGIN
                 getPrjAccntId(_o.prj_id, resolveCORAccount(_r.itemsite_id, _ra.rahead_cust_id, _ra.rahead_saletype_id, _ra.rahead_shipzone_id))
             END,
             _itemlocSeries, _glDate, COALESCE(_o.raitem_unitcost, stdcost(itemsite_item_id)) * _recvinvqty,
-            NULL, NULL, pPreDistributed) INTO _tmp
+            NULL, NULL, pPreDistributed, _r.orderitem_orderhead_id, _r.recv_orderitem_id) INTO _tmp
         FROM itemsite, costcat
         WHERE ( (itemsite_costcat_id=costcat_id)
          AND (itemsite_id=_r.itemsite_id) );

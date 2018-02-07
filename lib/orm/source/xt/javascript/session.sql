@@ -38,9 +38,9 @@ select xt.install_js('XT','Session','xtuple', $$
             + 'where usr_username = $1 ',
       rec = plv8.execute(sql, [ XT.username ])[0],
       /* only serve the translations for pertinent extensions */
-      dictionarySql = "select dict_strings from xt.dict where dict_id in ( " +
+      dictionarySql = "select dict_strings from xt.dictobsolete where dict_id in ( " +
         "select dict_id " +
-        "from xt.dict " +
+        "from xt.dictobsolete " +
         "left join xt.ext on dict_ext_id = ext_id " +
         "left join xt.usrext on ext_id = usrext_ext_id " +
         "left join xt.grpext on ext_id = grpext_ext_id " +

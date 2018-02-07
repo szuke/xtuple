@@ -6,13 +6,19 @@
 <? if not exists("defaultOnly") ?>
   SELECT itemsrc_id, 
        vend_number, vend_name, 
-       item_number, uom_name,
+       currConcat(vend_curr_id) AS vend_curr,
+       item_number, item_id AS item_number_xtidrole, uom_name,
+       item_descrip1, item_descrip2,
        (item_descrip1 || ' ' || item_descrip2) AS item_descrip,
        contrct_number,
        COALESCE( (SELECT SUM(poitem_qty_ordered)
                   FROM poitem
                   WHERE (poitem_itemsrc_id=itemsrc_id)), 0.0) AS purchased_qty,
-       itemsrc.*,
+       itemsrc_vend_item_number, itemsrc_vend_uom, itemsrc_invvendoruomratio, itemsrc_minordqty,
+       itemsrc_multordqty, itemsrc_leadtime, itemsrc_ranking, itemsrc_active, itemsrc_manuf_name,
+       itemsrc_manuf_item_number, itemsrc_default, itemsrc_effective, itemsrc_expires,
+       itemsrc_contrct_min,
+       formatQty(itemsrc_invvendoruomratio) AS f_uomratio,
        'qty' AS itemsrc_invvendoruomratio_xtnumericrole,
        CASE WHEN COALESCE(itemsrc_effective, startOfTime()) <=
                  startOfTime() THEN <? value("always") ?>
@@ -34,14 +40,32 @@
 <? if exists("item_id") ?>
    AND (itemsrc_item_id=<? value("item_id") ?>)
 <? endif ?>
+<? if exists("item_number_pattern") ?>
+   AND (item_number ~* <? value("item_number_pattern") ?>)
+<? endif ?>
+<? if exists("item_descrip_pattern") ?>
+   AND (COALESCE(item_descrip1,'') || COALESCE(item_descrip2,'') ~* <? value("item_descrip_pattern") ?>)
+<? endif ?>
 <? if exists("vend_id") ?>
    AND (itemsrc_vend_id=<? value("vend_id") ?>)
+<? endif ?>
+<? if exists("vend_name_pattern") ?>
+   AND (vend_name ~* <? value("vend_name_pattern") ?>)
+<? endif ?>
+<? if exists("vend_item_number_pattern") ?>
+   AND (itemsrc_vend_item_number ~* <? value("vend_item_number_pattern") ?>)
 <? endif ?>
 <? if exists("contrct_id") ?>
    AND (itemsrc_contrct_id=<? value("contrct_id") ?>)
 <? endif ?>
 <? if exists("contract_number_pattern") ?>
    AND (contrct_number ~* <? value("contract_number_pattern") ?>)
+<? endif ?>
+<? if exists("manuf_pattern") ?>
+   AND (itemsrc_manuf_name ~* <? value("manuf_pattern") ?>)
+<? endif ?>
+<? if exists("manuf_item_number_pattern") ?>
+   AND (itemsrc_manuf_item_number ~* <? value("manuf_item_number_pattern") ?>)
 <? endif ?>
 <? if not exists("showExpired") ?>
    AND (itemsrc_expires > CURRENT_DATE)

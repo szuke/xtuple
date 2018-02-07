@@ -1,7 +1,7 @@
 SELECT dropIfExists('FUNCTION', 'voidApopenVoucher(integer, integer)', 'public');
 
 CREATE OR REPLACE FUNCTION voidApopenVoucher(pApopenid INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   RETURN voidApopenVoucher(pApopenid, fetchJournalNumber('AP-VO'), NULL::DATE);
@@ -10,7 +10,7 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION voidApopenVoucher(pApopenid INTEGER,
                                              pVoidDate DATE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   RETURN voidApopenVoucher(pApopenid, fetchJournalNumber('AP-VO'), pVoidDate);
@@ -20,7 +20,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION voidApopenVoucher(pApopenid INTEGER,
                                              pJournalNumber INTEGER,
                                              pVoidDate DATE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _apopenid INTEGER;
@@ -79,7 +79,7 @@ BEGIN
 --  Check for APApplications
   SELECT apopen_id INTO _test
   FROM apopen
-  WHERE (apopen_id=_n.apopen_id 
+  WHERE (apopen_id=_n.apopen_id
   AND apopen_paid != 0)
   LIMIT 1;
   IF (FOUND) THEN
@@ -96,22 +96,22 @@ BEGIN
   WHERE (recv_vohead_id = _p.vohead_id);
 
 --  Start by handling taxes
-  FOR _r IN SELECT tax_sales_accnt_id, 
+  FOR _r IN SELECT tax_sales_accnt_id,
               round(sum(taxdetail_tax),2) AS tax,
               currToBase(_p.vohead_curr_id, round(sum(taxdetail_tax),2), _p.vohead_docdate) AS taxbasevalue
-            FROM tax 
+            FROM tax
              JOIN calculateTaxDetailSummary('VO', _p.vohead_id, 'T') ON (taxdetail_tax_id=tax_id)
 	    GROUP BY tax_id, tax_sales_accnt_id LOOP
 
     PERFORM insertIntoGLSeries( _sequence, 'A/P', 'VO', _p.vohead_number,
-                                _r.tax_sales_accnt_id, 
+                                _r.tax_sales_accnt_id,
                                 (_r.taxbasevalue * -1),
                                 _glDate, _p.glnotes );
 
     _totalAmount_base := (_totalAmount_base - _r.taxbasevalue);
     _totalAmount := (_totalAmount - _r.tax);
     _totalTax := (_totalTax + _r.tax);
-     
+
   END LOOP;
 
 --  Loop through the vodist records for the passed vohead that
@@ -121,7 +121,7 @@ BEGIN
                             COALESCE(itemsite_id, -1) AS itemsiteid,
                             COALESCE(itemsite_costcat_id, -1) AS costcatid,
                             COALESCE(itemsite_item_id, -1) AS itemsite_item_id,
-                            (SELECT SUM(value) 
+                            (SELECT SUM(value)
                              FROM (
                                 SELECT SUM(recv_value) AS value
                                 FROM recv
@@ -330,7 +330,7 @@ BEGIN
 
 -- Create Credit Memo tax (if necessary)
   IF (_totalTax <> 0) THEN
-    PERFORM updatememotax('AP', 'C', _apopenid, _p.vohead_taxzone_id, _glDate, apopen_curr_id, apopen_amount, apopen_curr_rate)
+    PERFORM updatememotax('AP', 'C', _apopenid, _p.vohead_taxzone_id, _glDate, apopen_curr_id, apopen_amount, apopen_curr_rate, TRUE)
       FROM apopen
       WHERE (apopen_id=_n.apopen_id);
   END IF;

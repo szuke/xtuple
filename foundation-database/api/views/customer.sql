@@ -169,7 +169,7 @@ INSERT INTO custinfo
 	CASE 
 	  WHEN NEW.balance_method='Balance Forward' THEN
 	    'B'
-	  WHEN NEW.balance_method='Open Items' THEN
+	  WHEN NEW.balance_method='Open Item' THEN
 	    'O'
           ELSE
             COALESCE(FetchMetricText('DefaultBalanceMethod'),'B')
@@ -275,7 +275,7 @@ UPDATE custinfo SET
 	  CASE 
 	    WHEN NEW.balance_method='Balance Forward' THEN
 	      'B'
-	    WHEN NEW.balance_method='Open Items' THEN
+	    WHEN NEW.balance_method='Open Item' THEN
 	      'O'
             ELSE
               NULL

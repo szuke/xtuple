@@ -101,6 +101,45 @@ select xt.install_js('XM','SalesOrder','xtuple', $$
       paid: !!payment
     };
   };
+  XM.SalesOrder.addPayment.description = "Associate a Cash Receipt or Customer Deposit with a Sales Order.";
+  XM.SalesOrder.addPayment.request = {
+    "$ref": "addPaymentRequest"
+  };
+  XM.SalesOrder.addPayment.parameterOrder = [
+    "cashReceiptNumber",
+    "salesOrderNumber"
+  ];
+
+  // For JSON-Schema deff, see:
+  // https://github.com/fge/json-schema-validator/issues/46#issuecomment-14681103
+  XM.SalesOrder.addPayment.schema = {
+    addPaymentRequest: {
+      properties: {
+        attributes: {
+          title: "XM.SalesOrder.addPayment service request attributes",
+          description: "An array of attributes needed to perform a XM.SalesOrder.addPayment request.",
+          type: "array",
+          items: [
+            {
+              title: "cashReceiptNumber",
+              description: "The Cash Receipt or Customer Deposit Number",
+              type: "text",
+              required: true
+            },
+            {
+              title: "salesOrderNumber",
+              description: "The Sales Order Number",
+              type: "text",
+              required: true
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2,
+          required: true
+        }
+      }
+    }
+  };
 
   /**
     Return a sales order object from a quote. Does not

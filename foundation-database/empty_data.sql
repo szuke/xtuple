@@ -1530,7 +1530,6 @@ INSERT INTO metric (metric_id, metric_name, metric_value, metric_module) VALUES 
 INSERT INTO metric (metric_id, metric_name, metric_value, metric_module) VALUES (186, 'InterfaceARToGL', 't', NULL);
 INSERT INTO metric (metric_id, metric_name, metric_value, metric_module) VALUES (174, 'ACHSupported', 't', NULL);
 INSERT INTO metric (metric_id, metric_name, metric_value, metric_module) VALUES (187, 'AutoVersionUpdate', 't', NULL);
-INSERT INTO metric (metric_id, metric_name, metric_value, metric_module) VALUES (188, 'RegistrationKey', '0EEKA-CTWEJ-ZGY8Z-MXJZK-ECVCB', NULL);
 INSERT INTO metric (metric_id, metric_name, metric_value, metric_module) VALUES (178, 'desktop/welcome', 'http://welcome.xtuple.org/index.html', NULL);
 INSERT INTO metric (metric_id, metric_name, metric_value, metric_module) VALUES (179, 'desktop/timer', '900000', NULL);
 INSERT INTO metric (metric_id, metric_name, metric_value, metric_module) VALUES (173, 'ServerVersion', '4.4.0', NULL);
@@ -2702,3 +2701,5 @@ do $$
 $$ language plpgsql;
 
 ALTER TABLE usrpriv ENABLE TRIGGER ALL;
+
+INSERT INTO metric (metric_name, metric_value, metric_module) VALUES ('RegistrationKey', 'KEEKT-CTWEJ-ZGY8Z-MXJZK-ECVCB', NULL);

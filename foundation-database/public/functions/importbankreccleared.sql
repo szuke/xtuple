@@ -6,6 +6,7 @@ DECLARE
   _bankrecid INTEGER;
   _cleared BOOLEAN;
   _docid INTEGER := -1;
+  _currrate NUMERIC;
   _bankadjid INTEGER := -1;
   _debitbankadjtypeid INTEGER := -1;
   _creditbankadjtypeid INTEGER := -1;
@@ -65,7 +66,7 @@ BEGIN
 
       -- handle receipts
 
-      SELECT cashrcpt_id INTO _docid
+      SELECT cashrcpt_id, cashrcpt_curr_rate INTO _docid, _currrate
       FROM cashrcpt
       WHERE (cashrcpt_docnumber=_r.bankrecimport_reference)
         AND (cashrcpt_posted)
@@ -75,7 +76,7 @@ BEGIN
       LIMIT 1;
       IF (FOUND) THEN
         SELECT toggleBankrecCleared(_b.bankrec_id, 'GL', gltrans_id,
-                                    cashrcpt_curr_rate, _r.debit,
+                                    _currrate, _r.debit,
                                     _r.bankrecimport_effdate) INTO _cleared
         FROM gltrans LEFT OUTER JOIN bankrecitem ON (bankrecitem_source='GL' AND
                                                      bankrecitem_source_id=gltrans_id)
@@ -122,14 +123,14 @@ BEGIN
 
       -- handle checks
 
-      SELECT checkhead_id INTO _docid
+      SELECT checkhead_id, checkhead_curr_rate INTO _docid, _currrate
       FROM checkhead
       WHERE (checkhead_number::TEXT=_r.bankrecimport_reference)
         AND (checkhead_posted)
         AND (NOT checkhead_void);
       IF (FOUND) THEN
         SELECT toggleBankrecCleared(_b.bankrec_id, 'GL', gltrans_id,
-                                    checkhead_curr_rate, _r.credit,
+                                    _currrate, _r.credit,
                                     _r.bankrecimport_effdate) INTO _cleared
         FROM gltrans LEFT OUTER JOIN bankrecitem ON (bankrecitem_source='GL' AND
                                                      bankrecitem_source_id=gltrans_id)

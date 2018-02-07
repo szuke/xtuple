@@ -1,8 +1,9 @@
 DROP FUNCTION IF EXISTS createPkgSchema(text, text);
 DROP FUNCTION IF EXISTS createPkgSchema(TEXT, TEXT, TEXT, TEXT, TEXT, BOOLEAN);
 
+DROP FUNCTION IF EXISTS createPkgSchema(TEXT, TEXT, TEXT, TEXT, TEXT, BOOLEAN);
 CREATE OR REPLACE FUNCTION createPkgSchema(pname      TEXT,
-                                           pcomment   TEXT,
+                                           pcomment   TEXT    default '',
                                            pversion   TEXT    default '',
                                            pdescrip   TEXT    default '',
                                            pdeveloper TEXT    default '',
@@ -13,8 +14,9 @@ CREATE OR REPLACE FUNCTION createPkgSchema(pname      TEXT,
 DECLARE
   _namespaceoid BIGINT := -1;
   _tabs         TEXT[] := ARRAY['cmd',  'cmdarg', 'image',  'metasql',
-                                'priv', 'report', 'script', 'uiform'] ;
+                                'priv', 'report', 'script', 'uiform', 'dict'] ;
   _pkgtab       TEXT;
+  _enabled      BOOLEAN := TRUE;
 
 BEGIN
   pname := LOWER(pname);
@@ -35,6 +37,12 @@ BEGIN
      WHERE LOWER(nspname) = pname;
   END IF;
 
+  IF EXISTS(SELECT 1
+              FROM pkghead
+             WHERE pkghead_name=pname) THEN
+    _enabled := packageIsEnabled(pname);
+  END IF;
+
   FOR i IN ARRAY_LOWER(_tabs,1)..ARRAY_UPPER(_tabs,1) LOOP
     _pkgtab := 'pkg' || _tabs[i];
 
@@ -44,6 +52,11 @@ BEGIN
                      AND relnamespace = _namespaceoid) THEN
       EXECUTE format('CREATE TABLE %I.%I () INHERITS (%I);',
                      pname, _pkgtab, _tabs[i]);
+
+      IF NOT _enabled THEN
+        EXECUTE format('ALTER TABLE %I.%I NO INHERIT %I;',
+                       pname, _pkgtab, _tabs[i]);
+      END IF;
 
       EXECUTE format($f$ALTER TABLE %I.%I ALTER %s_id SET NOT NULL,
                          ADD PRIMARY KEY (%s_id),
@@ -80,10 +93,17 @@ BEGIN
                      ' FOR EACH ROW EXECUTE PROCEDURE _%saftertrigger();',
                      _pkgtab, pname, _pkgtab, _pkgtab);
 
+      IF NOT _enabled THEN
+        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL;',
+                       pname, _pkgtab);
+      END IF;
+
     END IF;
   END LOOP;
 
-  EXECUTE format('COMMENT ON SCHEMA %I IS %L;', pname, pcomment);
+  IF (pcomment != '') THEN
+    EXECUTE format('COMMENT ON SCHEMA %I IS %L;', pname, pcomment);
+  END IF;
 
   IF NOT EXISTS(SELECT 1 FROM pkghead where pkghead_name = pname) THEN
     INSERT INTO pkghead (pkghead_name,      pkghead_descrip, pkghead_version,

@@ -45,7 +45,7 @@ BEGIN
     itemlocdist_series,
     itemlocdist_invhist_id,
     itemlocdist_order_type,
-    itemlocdist_order_id,
+    itemlocdist_order_id, -- this column should be renamed itemlocdist_orderitem_id
     itemlocdist_child_series,
     itemlocdist_transtype )
   VALUES (pItemsiteid,

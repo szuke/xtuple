@@ -1,7 +1,9 @@
 DROP FUNCTION IF EXISTS voidInvoice(INTEGER);
-CREATE OR REPLACE FUNCTION voidInvoice(pInvcheadid INTEGER,
-                                       pItemlocSeries INTEGER DEFAULT NULL,
-                                       pPreDistributed BOOLEAN DEFAULT FALSE) RETURNS INTEGER AS $$
+DROP FUNCTION IF EXISTS voidInvoice(pInvcheadid INTEGER, pItemlocSeries INTEGER, pPreDistributed BOOLEAN);
+CREATE OR REPLACE FUNCTION voidInvoice(pInvcheadid     INTEGER,
+                                       pItemlocSeries  INTEGER DEFAULT NULL,
+                                       pPreDistributed BOOLEAN DEFAULT FALSE,
+                                       pDistDate       DATE    DEFAULT NULL) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
@@ -79,7 +81,7 @@ BEGIN
   SELECT fetchGLSequence() INTO _glSequence;
   SELECT fetchJournalNumber('AR-IN') INTO _glJournal;
 
-  _glDate := COALESCE(_p.invchead_gldistdate, _p.invchead_invcdate);
+  _glDate := COALESCE(pDistDate, _p.invchead_gldistdate, _p.invchead_invcdate);
 
 -- the 1st MC iteration used the cohead_orderdate so we could get curr exch
 -- gain/loss between the sales and invoice dates, but see issue 3892.  leave
@@ -328,7 +330,7 @@ BEGIN
       CURRENT_DATE, _p.invchead_invcdate, 0, _p.invchead_curr_id );
 
 -- Handle the Inventory and G/L Transactions for any billed Inventory where invcitem_updateinv is true (reverse sense)
-  FOR _r IN SELECT itemsite_id AS itemsite_id, invcitem_id,
+  FOR _r IN SELECT invchead_id, itemsite_id AS itemsite_id, invcitem_id,
                    (invcitem_billed * invcitem_qty_invuomratio) AS qty,
                    invchead_invcnumber, invchead_cust_id AS cust_id, item_number,
                    invchead_prj_id AS prj_id, invchead_saletype_id AS saletype_id,
@@ -348,7 +350,8 @@ BEGIN
                          ('Invoice Voided ' || _r.item_number),
                          getPrjAccntId(_r.prj_id, resolveCOSAccount(itemsite_id, _r.cust_id, _r.saletype_id, _r.shipzone_id)),
                          costcat_asset_accnt_id, _itemlocSeries, _glDate,
-                         (_p.cohist_unitcost * _r.qty), NULL, NULL, pPreDistributed) INTO _invhistid
+                         (_p.cohist_unitcost * _r.qty), NULL, NULL, pPreDistributed,
+                         _r.invchead_id, _r.invcitem_id) INTO _invhistid
     FROM itemsite JOIN costcat ON (itemsite_costcat_id=costcat_id)
     WHERE (itemsite_id=_r.itemsite_id);
 

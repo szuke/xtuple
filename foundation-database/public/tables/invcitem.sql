@@ -51,3 +51,10 @@ ALTER TABLE public.invcitem ENABLE TRIGGER ALL;
 COMMENT ON TABLE invcitem IS 'Invoice Line Item information';
 
 COMMENT ON COLUMN public.invcitem.invcitem_listprice IS 'List price of Item.';
+
+-- #28276 Update data if necessary and add NOT NULL constraint to column
+ALTER TABLE invcitem DISABLE TRIGGER USER;
+UPDATE invcitem SET invcitem_updateinv = DEFAULT WHERE invcitem_updateinv IS NULL;
+ALTER TABLE invcitem ENABLE TRIGGER USER;
+ALTER TABLE public.invcitem ALTER COLUMN invcitem_updateinv SET NOT NULL;
+   

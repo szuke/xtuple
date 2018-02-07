@@ -21,7 +21,7 @@ BEGIN
       AND itemlocdist_qty > 0 LOOP
 
     IF (_r.itemsite_loccntrl) THEN 
-      SELECT distributeToLocations(itemlocdist_id) INTO _distCount
+      SELECT SUM(distributeToLocations(itemlocdist_id)) INTO _distCount
       FROM itemlocdist
       WHERE itemlocdist_series = _r.itemlocdist_child_series;
 

@@ -1,12 +1,12 @@
 CREATE OR REPLACE FUNCTION shipShipment(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
   SELECT shipShipment($1, CURRENT_TIMESTAMP);
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION shipShipment(pshipheadid INTEGER,
                                         ptimestamp TIMESTAMP WITH TIME ZONE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _timestamp		TIMESTAMP WITH TIME ZONE;
@@ -15,7 +15,7 @@ DECLARE
   _coholdtype		TEXT;
   _gldate		DATE;
   _invhistid		INTEGER;
-  _itemlocSeries	INTEGER;
+  _itemlocSeries INTEGER := NEXTVAL('itemloc_series_seq');
   _lineitemsToClose     INTEGER[];
   _newQty		NUMERIC;
   _result		INTEGER;
@@ -235,12 +235,12 @@ BEGIN
       END LOOP;
     END IF;
 
-    FOR _ti IN SELECT toitem_id, toitem_item_id, SUM(shipitem_qty) AS qty, SUM(shipitem_value) AS value
+    FOR _ti IN SELECT toitem_tohead_id, toitem_id, toitem_item_id, SUM(shipitem_qty) AS qty, SUM(shipitem_value) AS value
 		FROM toitem, shipitem
 		WHERE ((toitem_tohead_id=_to.tohead_id)
 		  AND  (shipitem_orderitem_id=toitem_id)
 		  AND  (shipitem_shiphead_id=pshipheadid))
-		GROUP BY toitem_id, toitem_item_id LOOP
+		GROUP BY toitem_tohead_id, toitem_id, toitem_item_id LOOP
 
       IF (NOT EXISTS(SELECT itemsite_id
 		     FROM itemsite
@@ -250,15 +250,14 @@ BEGIN
 	RETURN -6;
       END IF;
 
-      _itemlocSeries := NEXTVAL('itemloc_series_seq');
-
       SELECT postInvTrans(si.itemsite_id, 'TS', _ti.qty,
                           'I/M', _shiphead.shiphead_order_type,
                           formatToNumber(_ti.toitem_id), _to.tohead_number,
 			  'Ship from Src to Transit Warehouse',
 			  tc.costcat_asset_accnt_id,
 			  sc.costcat_shipasset_accnt_id,
-			  _itemlocSeries, _timestamp, _ti.value) INTO _invhistid
+			  _itemlocSeries, _timestamp, _ti.value,
+        NULL, NULL, FALSE, _ti.toitem_tohead_id, _ti.toitem_id) INTO _invhistid
       FROM itemsite AS ti, costcat AS tc,
 	   itemsite AS si, costcat AS sc
       WHERE ( (ti.itemsite_costcat_id=tc.costcat_id)
@@ -289,7 +288,8 @@ BEGIN
 			  tc.costcat_asset_accnt_id,
 			  tc.costcat_asset_accnt_id,
 			  _itemlocSeries, _timestamp, 
-			  _ti.value) INTO _invhistid
+			  _ti.value,
+        NULL, NULL, FALSE, _ti.toitem_tohead_id, _ti.toitem_id) INTO _invhistid
       FROM itemsite AS ti, costcat AS tc
       WHERE ((ti.itemsite_costcat_id=tc.costcat_id)
         AND  (ti.itemsite_item_id=_ti.toitem_item_id)

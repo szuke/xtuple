@@ -290,13 +290,14 @@ BEGIN
 		    validateOrderQty(NEW.coitem_itemsite_id, NEW.coitem_qtyord * NEW.coitem_qty_invuomratio, TRUE),
                     itemsite_leadtime,
                     NEW.coitem_scheddate,
-		    NEW.coitem_memo,
+		    cust_number || '-' || cust_name || E'\n' || NEW.coitem_memo,
                     'S',
                     NEW.coitem_id,
 		    cohead_prj_id) INTO NEW.coitem_order_id
-    FROM cohead, itemsite
+    FROM cohead, itemsite, custinfo
     WHERE ((cohead_id=NEW.coitem_cohead_id)
-    AND (itemsite_id=NEW.coitem_itemsite_id));
+    AND (itemsite_id=NEW.coitem_itemsite_id)
+    AND (cust_id=cohead_cust_id));
 
     INSERT INTO charass
       (charass_target_type, charass_target_id,

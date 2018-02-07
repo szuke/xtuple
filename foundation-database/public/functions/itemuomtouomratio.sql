@@ -65,7 +65,7 @@ BEGIN
       _uom2     := (SELECT uom_name FROM uom WHERE uom_id=_uomidInv);
       RAISE EXCEPTION 'A conversion for item % from uom % to uom % was not found.', _itemNumb, _uom1, _uom2;
     END IF;
-    IF(_conv.itemuomconv_from_uom_id=_uomidInv) THEN
+    IF(_conv.itemuomconv_to_uom_id=_uomidInv) THEN
       _valueFrom := _conv.itemuomconv_from_value;
       _valueTo := _conv.itemuomconv_to_value;
     ELSE

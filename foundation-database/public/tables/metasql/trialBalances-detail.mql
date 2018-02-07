@@ -1,7 +1,7 @@
 -- Group: trialBalances
 -- Name: detail
 -- Notes: used by dspTrialBalances
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT accnt_id, period_id, accnt_descrip, trialbal_dirty,
@@ -44,6 +44,9 @@ WHERE ((trialbal_accnt_id=accnt_id)
 <? endif ?>
 <? if exists("period_id") ?>
    AND (period_id=<? value("period_id") ?>)
+<? endif ?>
+<? if exists("yearperiod_id") ?>
+   AND (period_yearperiod_id=<? value("yearperiod_id") ?>)
 <? endif ?>
 <? if not exists("showZero") ?>
    AND (abs(trialbal_beginning)+abs(trialbal_ending)+abs(trialbal_debits)+abs(trialbal_credits) > 0)
