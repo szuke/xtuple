@@ -1,4 +1,3 @@
-CREATE OR REPLACE RULE "_INSERT" AS ON INSERT TO api.creditmemo DO INSTEAD NOTHING;
 SELECT dropIfExists('FUNCTION', 'insertCreditMemo(api.creditmemo)');
 -- Cleanup old bad installs.
 SELECT dropIfExists('FUNCTION', 'insertCreditMemo(api.creditmemo)', 'xt');

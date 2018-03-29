@@ -1,7 +1,3 @@
-CREATE OR REPLACE RULE "_INSERT" AS
-  ON INSERT TO api.creditmemoline DO INSTEAD NOTHING;
-CREATE OR REPLACE RULE "_UPDATE" AS
-  ON UPDATE TO api.creditmemoline DO INSTEAD NOTHING;
 SELECT dropIfExists('FUNCTION', 'insertCreditMemoLine(api.creditmemoline)');
 SELECT dropIfExists('FUNCTION', 'updateCreditMemoLine(api.creditmemoline, api.creditmemoline)');
 -- Cleanup old bad installs.

@@ -1,4 +1,3 @@
-CREATE OR REPLACE RULE "_INSERT" AS ON INSERT TO api.invoice DO INSTEAD NOTHING;
 SELECT dropIfExists('FUNCTION', 'insertInvoice(api.invoice)');
 -- Cleanup old bad installs.
 SELECT dropIfExists('FUNCTION', 'insertInvoice(api.invoice)', 'xt');

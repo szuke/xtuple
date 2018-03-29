@@ -1,7 +1,3 @@
-CREATE OR REPLACE RULE "_INSERT" AS
-	ON INSERT TO api.invoiceline DO INSTEAD NOTHING;
-CREATE OR REPLACE RULE "_UPDATE" AS
-	ON UPDATE TO api.invoiceline DO INSTEAD NOTHING;
 SELECT dropIfExists('FUNCTION', 'insertInvoiceLineItem(api.invoiceline)');
 SELECT dropIfExists('FUNCTION', 'updateInvoiceLineItem(api.invoiceline, api.invoiceline)');
 -- Cleanup old bad installs.
