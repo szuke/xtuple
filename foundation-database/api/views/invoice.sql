@@ -1,3 +1,4 @@
+DROP RULE IF EXISTS "_INSERT" ON api.invoice;
 SELECT dropIfExists('FUNCTION', 'insertInvoice(api.invoice)');
 -- Cleanup old bad installs.
 SELECT dropIfExists('FUNCTION', 'insertInvoice(api.invoice)', 'xt');

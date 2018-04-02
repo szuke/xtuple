@@ -1,3 +1,5 @@
+DROP RULE IF EXISTS "_INSERT" ON api.invoiceline;
+DROP RULE IF EXISTS "_UPDATE" ON api.invoiceline;
 SELECT dropIfExists('FUNCTION', 'insertInvoiceLineItem(api.invoiceline)');
 SELECT dropIfExists('FUNCTION', 'updateInvoiceLineItem(api.invoiceline, api.invoiceline)');
 -- Cleanup old bad installs.

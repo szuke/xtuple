@@ -1,3 +1,5 @@
+SELECT dropIfExists('VIEW', 'itemimage');
+
 CREATE VIEW itemimage AS
 SELECT imageass_id AS itemimage_id,
        imageass_source_id AS itemimage_item_id,

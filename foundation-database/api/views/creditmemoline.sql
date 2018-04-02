@@ -1,3 +1,5 @@
+DROP RULE IF EXISTS "_INSERT" ON api.creditmemoline;
+DROP RULE IF EXISTS "_UPDATE" ON api.creditmemoline;
 SELECT dropIfExists('FUNCTION', 'insertCreditMemoLine(api.creditmemoline)');
 SELECT dropIfExists('FUNCTION', 'updateCreditMemoLine(api.creditmemoline, api.creditmemoline)');
 -- Cleanup old bad installs.
