@@ -1,7 +1,6 @@
-DROP RULE IF EXISTS "_INSERT" ON api.creditmemo;
-SELECT dropIfExists('FUNCTION', 'insertCreditMemo(api.creditmemo)');
+DROP FUNCTION IF EXISTS insertCreditMemo(api.creditmemo) CASCADE;
 -- Cleanup old bad installs.
-SELECT dropIfExists('FUNCTION', 'insertCreditMemo(api.creditmemo)', 'xt');
+DROP FUNCTION IF EXISTS xt.insertCreditMemo(api.creditmemo) CASCADE;
 
 SELECT dropIfExists('VIEW', 'creditmemo', 'api');
 CREATE OR REPLACE VIEW api.creditmemo AS

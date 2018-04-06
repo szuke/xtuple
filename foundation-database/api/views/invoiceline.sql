@@ -1,10 +1,8 @@
-DROP RULE IF EXISTS "_INSERT" ON api.invoiceline;
-DROP RULE IF EXISTS "_UPDATE" ON api.invoiceline;
-SELECT dropIfExists('FUNCTION', 'insertInvoiceLineItem(api.invoiceline)');
-SELECT dropIfExists('FUNCTION', 'updateInvoiceLineItem(api.invoiceline, api.invoiceline)');
+DROP FUNCTION IF EXISTS insertInvoiceLineItem(api.invoiceline) CASCADE;
+DROP FUNCTION IF EXISTS updateInvoiceLineItem(api.invoiceline, api.invoiceline) CASCADE;
 -- Cleanup old bad installs.
-SELECT dropIfExists('FUNCTION', 'insertInvoiceLineItem(api.invoiceline)', 'xt');
-SELECT dropIfExists('FUNCTION', 'updateInvoiceLineItem(api.invoiceline, api.invoiceline)', 'xt');
+DROP FUNCTION IF EXISTS xt.insertInvoiceLineItem(api.invoiceline) CASCADE;
+DROP FUNCTION IF EXISTS xt.updateInvoiceLineItem(api.invoiceline, api.invoiceline) CASCADE;
 SELECT dropIfExists('VIEW', 'invoiceline', 'api');
 CREATE OR REPLACE VIEW api.invoiceline
 AS

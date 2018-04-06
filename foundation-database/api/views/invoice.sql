@@ -1,7 +1,6 @@
-DROP RULE IF EXISTS "_INSERT" ON api.invoice;
-SELECT dropIfExists('FUNCTION', 'insertInvoice(api.invoice)');
+DROP FUNCTION IF EXISTS insertInvoice(api.invoice) CASCADE;
 -- Cleanup old bad installs.
-SELECT dropIfExists('FUNCTION', 'insertInvoice(api.invoice)', 'xt');
+DROP FUNCTION IF EXISTS xt.insertInvoice(api.invoice) CASCADE;
 SELECT dropIfExists('VIEW', 'invoice', 'api');
 CREATE OR REPLACE VIEW api.invoice
 AS

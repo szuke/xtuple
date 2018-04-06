@@ -1,10 +1,8 @@
-DROP RULE IF EXISTS "_INSERT" ON api.creditmemoline;
-DROP RULE IF EXISTS "_UPDATE" ON api.creditmemoline;
-SELECT dropIfExists('FUNCTION', 'insertCreditMemoLine(api.creditmemoline)');
-SELECT dropIfExists('FUNCTION', 'updateCreditMemoLine(api.creditmemoline, api.creditmemoline)');
+DROP FUNCTION IF EXISTS insertCreditMemoLine(api.creditmemoline) CASCADE;
+DROP FUNCTION IF EXISTS updateCreditMemoLine(api.creditmemoline, api.creditmemoline) CASCADE;
 -- Cleanup old bad installs.
-SELECT dropIfExists('FUNCTION', 'insertCreditMemoLine(api.creditmemoline)', 'xt');
-SELECT dropIfExists('FUNCTION', 'updateCreditMemoLine(api.creditmemoline, api.creditmemoline)', 'xt');
+DROP FUNCTION IF EXISTS xt.insertCreditMemoLine(api.creditmemoline) CASCADE;
+DROP FUNCTION IF EXISTS xt.updateCreditMemoLine(api.creditmemoline, api.creditmemoline) CASCADE;
 SELECT dropIfExists('VIEW', 'creditmemoline', 'api');
 CREATE OR REPLACE VIEW api.creditmemoline AS
   SELECT cmhead_number AS memo_number,
