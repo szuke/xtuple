@@ -1,7 +1,4 @@
-DROP FUNCTION IF EXISTS insertInvoice(api.invoice) CASCADE;
--- Cleanup old bad installs.
-DROP FUNCTION IF EXISTS xt.insertInvoice(api.invoice) CASCADE;
-SELECT dropIfExists('VIEW', 'invoice', 'api');
+DROP VIEW IF EXISTS api.invoice CASCADE;
 CREATE OR REPLACE VIEW api.invoice
 AS
 	SELECT

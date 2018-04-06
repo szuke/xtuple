@@ -1,9 +1,4 @@
-DROP FUNCTION IF EXISTS insertCreditMemoLine(api.creditmemoline) CASCADE;
-DROP FUNCTION IF EXISTS updateCreditMemoLine(api.creditmemoline, api.creditmemoline) CASCADE;
--- Cleanup old bad installs.
-DROP FUNCTION IF EXISTS xt.insertCreditMemoLine(api.creditmemoline) CASCADE;
-DROP FUNCTION IF EXISTS xt.updateCreditMemoLine(api.creditmemoline, api.creditmemoline) CASCADE;
-SELECT dropIfExists('VIEW', 'creditmemoline', 'api');
+DROP VIEW IF EXISTS api.creditmemoline CASCADE;
 CREATE OR REPLACE VIEW api.creditmemoline AS
   SELECT cmhead_number AS memo_number,
          cmitem_linenumber AS line_number,

@@ -1,8 +1,4 @@
-DROP FUNCTION IF EXISTS insertCreditMemo(api.creditmemo) CASCADE;
--- Cleanup old bad installs.
-DROP FUNCTION IF EXISTS xt.insertCreditMemo(api.creditmemo) CASCADE;
-
-SELECT dropIfExists('VIEW', 'creditmemo', 'api');
+DROP VIEW IF EXISTS api.creditmemo CASCADE;
 CREATE OR REPLACE VIEW api.creditmemo AS
   SELECT cmhead_number AS memo_number,
          CASE
