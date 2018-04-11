@@ -1,3 +1,6 @@
+DROP FUNCTION IF EXISTS saveIpsProdcat(INTEGER, INTEGER, INTEGER, NUMERIC, NUMERIC);
+DROP FUNCTION IF EXISTS saveIpsProdcat(INTEGER, INTEGER, INTEGER, NUMERIC, NUMERIC, NUMERIC);
+
 CREATE OR REPLACE FUNCTION saveIpsProdcat(pIpsProdcatId INTEGER,
                                           pIpsHeadId INTEGER,
                                           pProdCatId INTEGER,

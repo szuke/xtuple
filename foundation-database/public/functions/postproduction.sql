@@ -1,5 +1,8 @@
 -- Function: postproduction(integer, numeric, boolean, integer, timestamp with time zone)
 
+DROP FUNCTION IF EXISTS postproduction(integer, numeric, boolean, boolean);
+DROP FUNCTION IF EXISTS postproduction(integer, numeric, boolean, boolean, integer);
+DROP FUNCTION IF EXISTS postproduction(integer, numeric, boolean, boolean, integer, text, text);
 DROP FUNCTION IF EXISTS postproduction(integer, numeric, boolean, integer, timestamp with time zone);
 DROP FUNCTION IF EXISTS postproduction(integer, numeric, boolean, integer, timestamp with time zone, boolean);
 CREATE OR REPLACE FUNCTION postproduction(pWoid integer,

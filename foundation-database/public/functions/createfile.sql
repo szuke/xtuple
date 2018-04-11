@@ -1,4 +1,6 @@
-create or replace function createFile(pTitle TEXT, pDescription TEXT, pStream BYTEA, pMimeType TEXT) returns integer as $$
+drop function if exists createFile(TEXT, TEXT, BYTEA);
+
+create or replace function createFile(pTitle TEXT, pDescription TEXT, pStream BYTEA, pMimeType TEXT DEFAULT NULL) returns integer as $$
 declare
   _id integer;
 begin

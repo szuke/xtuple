@@ -1,3 +1,5 @@
+DROP FUNCTION IF EXISTS saveIpsItem(INTEGER, INTEGER, INTEGER, NUMERIC, NUMERIC, INTEGER, INTEGER);
+
 CREATE OR REPLACE FUNCTION saveIpsItem(pIpsItemId INTEGER,
                                        pIpsHeadId INTEGER,
                                        pItemId INTEGER,

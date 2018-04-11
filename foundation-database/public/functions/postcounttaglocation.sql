@@ -1,3 +1,5 @@
+DROP FUNCTION IF EXISTS public.postcounttaglocation(INTEGER, BOOLEAN, TEXT);
+
 CREATE OR REPLACE FUNCTION postCountTagLocation(pInvcntid INTEGER,
                                                 pThaw BOOLEAN) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 

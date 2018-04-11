@@ -95,3 +95,14 @@ BEGIN
 
 END;
 $$ LANGUAGE 'plpgsql';
+
+CREATE OR REPLACE FUNCTION deleteglseries(pSequence INTEGER) RETURNS INTEGER AS $$
+BEGIN
+
+  DELETE FROM glseries
+  WHERE (glseries_sequence=pSequence);
+
+  RETURN pSequence;
+
+END;
+$$ language plpgsql;

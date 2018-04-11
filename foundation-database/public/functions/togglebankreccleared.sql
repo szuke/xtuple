@@ -1,4 +1,5 @@
 SELECT dropIfExists('FUNCTION', 'toggleBankrecCleared(int,text,int)', 'public');
+DROP FUNCTION IF EXISTS toggleBankrecCleared(INTEGER, TEXT, INTEGER, NUMERIC);
 
 CREATE OR REPLACE FUNCTION toggleBankrecCleared(pBankrecid INTEGER,
                                                 pSource TEXT,
