@@ -1,6 +1,5 @@
 (function () {
   'use strict';
-
   /**
    * TODO caveats and missing features:
    *
@@ -10,11 +9,16 @@
    *   workspace, even though it works in browser.
    */
 
+  var NOW = new Date();
+  var YESTERDAY = new Date();
+  var TENDAYSAGO = new Date();
+
+  YESTERDAY.setDate(NOW.getDate() - 1);
+  TENDAYSAGO.setDate(NOW.getDate() - 10);
+
   var async = require("async"),
     _ = require("underscore"),
-    moment = require('moment'),
     assert = require("chai").assert,
-    NOW = new Date(),
 
     receivableHash = {
       uuid: "TestReceivableId" + Math.random(),
@@ -62,7 +66,7 @@
           discount: 50,
           cashReceiptReceivable: {
             receivable: _.defaults({
-              documentDate: moment(NOW).subtract('days', 10),
+              documentDate: TENDAYSAGO,
               amount: (Math.random() * 100) + 100,
               currency: { abbreviation: 'USD' }
             }, receivableHash)
@@ -73,7 +77,7 @@
           discount: 0,
           cashReceiptReceivable: {
             receivable: _.defaults({
-              documentDate: moment(NOW).subtract('days', 1),
+              documentDate: YESTERDAY,
               amount: (Math.random() * 100) + 100,
               currency: { abbreviation: 'EUR' }
             }, receivableHash)
@@ -91,7 +95,7 @@
     @property {Currency} currency
     @property {Number} currencyRate
     @property {String} documentNumber
-    @property {Date} documentDate 
+    @property {Date} documentDate
     @property {BankAccount} bankAccount
     @property {Date} distributionDate defaults to the current date
     @property {Date} applicationDate defaults to the current date
@@ -254,7 +258,7 @@
           /**
           @member -
           @memberof CashReceipt.prototype
-          @description FundsType value should default to 'CHECK' 
+          @description FundsType value should default to 'CHECK'
           */
           it('CashReceipt "fundsType" required, defaulting to XM.CashReceipt.CHECK', function () {
             assert.equal(new XM.CashReceipt().get('fundsType'), XM.CashReceipt.CHECK);

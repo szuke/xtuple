@@ -1,34 +1,60 @@
 (function () {
   "use strict";
 
-  var zombie = require("zombie"),
-    assert = require("chai").assert;
+  var https = require('https');
+  var url = require('url');
 
-  // Allow self signed cert for our test.
-  // @See: https://github.com/assaf/zombie/issues/605
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  var assert = require("chai").assert;
 
-  var loginData = require('../lib/login_data'),
-    database = loginData.data.org,
-    host = loginData.data.webaddress || "https://localhost",
-    delimiter = host.charAt(host.length - 1) === "/" ? "" : "/",
-    discoveryPath = host + delimiter + database +
-                    "/discovery/v1alpha1/apis/v1alpha1/rest",
-    maxWait = 100000;
+  var loginData = require('../lib/login_data');
+  var database = loginData.data.org;
 
   describe('The REST discovery document', function () {
     it('should load', function (done) {
-      this.timeout(maxWait);
-      zombie.visit(discoveryPath, {maxWait: maxWait}, function (e, browser) {
-        var doc;
+      this.timeout(1000 * 100);
 
-        assert.ok(browser.success);
-        doc = JSON.parse(browser.text("body"));
-        assert.isString(doc.discoveryVersion);
-        assert.isObject(doc.schemas.Country);
-        assert.isObject(doc.resources.Sales);
-        done();
+      var webaddress = loginData.data.webaddress || 'https://localhost';
+      var reqUrl = url.parse(webaddress);
+      var delimiter = webaddress.charAt(webaddress.length - 1) === "/" ? "" : "/";
+
+      var requestOptions = {
+        hostname: reqUrl.hostname,
+        path: delimiter + database + '/discovery/v1alpha1/apis/v1alpha1/rest',
+        port: reqUrl.port,
+        method: 'GET',
+        // TODO: Use valid HTTPS cert?
+        rejectUnauthorized: false,
+        requestCert: true,
+        agent: false
+      };
+
+      var request = https.request(requestOptions, function (res) {
+        var data = '';
+
+        res.on('data', function (chunk) {
+          data = data + chunk;
+        });
+        res.on('end', function () {
+          var isJSON = res.headers['content-type']
+            ? res.headers['content-type'].indexOf('application/json') > -1 : false;
+
+          try {
+            res.body = isJSON ? JSON.parse(data) : data;
+            assert.isString(res.body.discoveryVersion);
+            assert.isObject(res.body.schemas.Country);
+            assert.isObject(res.body.resources.Sales);
+            done();
+          } catch (err) {
+            console.log('restApiRequest res.body error: ', data);
+            done(err);
+          }
+        });
+        res.on('error', function (err) {
+          done(err);
+        });
       });
+
+      request.end();
     });
   });
 }());

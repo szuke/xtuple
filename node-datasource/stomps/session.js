@@ -212,8 +212,13 @@ function session(options){
     req.session.cookie = new Cookie(cookie);
   };
 
-  store.on('disconnect', function (){ storeReady = false; });
-  store.on('connect', function (){ storeReady = true; });
+  // The passed `store` is reused for each session. Only add one event handler.
+  if (store.listenerCount('disconnect') === 0) {
+    store.on('disconnect', function (){ storeReady = false; });
+  }
+  if (store.listenerCount('connect') === 0) {
+    store.on('connect', function (){ storeReady = true; });
+  }
 
   return function session(req, res, next) {
     // self-awareness
