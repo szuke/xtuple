@@ -55,7 +55,7 @@ BEGIN
               invdetail_qty_after - invdetail_qty_before AS nnqty,
               invhist_unitcost AS cost
        FROM period
-       LEFT OUTER JOIN invhist ON invhist_transdate BETWEEN period_start AND period_end
+       LEFT OUTER JOIN invhist ON invhist_transdate::DATE BETWEEN period_start AND period_end
                               AND invhist_itemsite_id=pItemsiteId
                               AND invhist_posted
        LEFT OUTER JOIN (invdetail JOIN location ON invdetail_location_id=location_id

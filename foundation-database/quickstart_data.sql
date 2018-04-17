@@ -5951,4 +5951,3 @@ BEGIN
 END;
 $$ language plpgsql;
 
-INSERT INTO metric (metric_name, metric_value, metric_module) VALUES ('RegistrationKey', 'KEEKT-CTWEJ-ZGY8Z-MXJZK-ECVCB', NULL);

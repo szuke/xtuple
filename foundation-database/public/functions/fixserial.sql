@@ -5,7 +5,7 @@
          instead of searching by schema.table.
  */
 CREATE OR REPLACE FUNCTION fixSerial(pTablename TEXT, pSchema TEXT) RETURNS BOOL AS $$
--- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _a    RECORD;
@@ -29,6 +29,8 @@ BEGIN
                 AND attnotnull
                 AND pg_get_expr(d.adbin, d.adrelid) ~* 'nextval'
                 AND a.atthasdef
+                AND relpersistence IN ('p', 'u')
+                AND relkind != 'f'
                 AND relname = pTablename
                 AND nspname = pSchema
   LOOP
@@ -57,7 +59,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION fixSerial() RETURNS BOOL AS $$
--- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
   SELECT BOOL_AND(fixSerial(relname, nspname))
     FROM pg_class c

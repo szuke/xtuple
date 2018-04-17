@@ -78,6 +78,13 @@ BEGIN
                      AND (relname='crmacct')
                      AND (nspname='public')
                      AND (attname NOT IN ('crmacct_id', 'crmacct_number'))
+                     AND EXISTS(SELECT 1
+                                  FROM pg_attribute a
+                                  JOIN pg_class c ON a.attrelid=c.oid
+                                  JOIN pg_namespace n ON c.relnamespace=n.oid
+                                 WHERE a.attname='crmacctsel_mrg_' || pg_attribute.attname
+                                   AND c.relname='crmacctsel'
+                                   AND n.nspname='public')
   LOOP
 
     -- if we're supposed to merge this column at all

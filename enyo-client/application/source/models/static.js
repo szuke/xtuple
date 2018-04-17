@@ -261,7 +261,8 @@ white:true*/
     { id: K.CREDIT_HOLD_TYPE, name: "_credit".loc() },
     { id: K.SHIPPING_HOLD_TYPE, name: "_shipping".loc() },
     { id: K.PACKING_HOLD_TYPE, name: "_packing".loc() },
-    { id: K.RETURN_HOLD_TYPE, name: "_return".loc() }
+    { id: K.RETURN_HOLD_TYPE, name: "_return".loc() },
+    { id: K.TAX_HOLD_TYPE, name: "_tax".loc() }
   ];
   XM.HoldTypeModel = Backbone.Model.extend({
   });

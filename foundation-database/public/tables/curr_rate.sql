@@ -12,7 +12,7 @@ SELECT
   xt.add_column('curr_rate', 'curr_lastupdated', 'TIMESTAMP WITH TIME ZONE', NULL, 'public');
 
 SELECT
-  xt.add_constraint('curr_rate', 'curr_rate_pkey', 'PRIMARY KEY', 'public'),
+  xt.add_constraint('curr_rate', 'curr_rate_pkey', 'PRIMARY KEY (curr_rate_id)', 'public'),
   xt.add_constraint('curr_rate', 'curr_rate_to_curr_symbol',
                     'FOREIGN KEY (curr_id) REFERENCES curr_symbol(curr_id)', 'public'),
   xt.add_constraint('curr_rate', 'curr_rate_curr_rate_check',

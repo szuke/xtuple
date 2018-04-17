@@ -1,29 +1,23 @@
-CREATE OR REPLACE FUNCTION convertProspectToCustomer(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
--- See www.xtuple.com/CPAL for the full text of the software license.
-BEGIN
-  RETURN convertProspectToCustomer($1, FALSE);
-END;
-$$ LANGUAGE 'plpgsql';
+DROP FUNCTION IF EXISTS convertProspectToCustomer(INTEGER);
+DROP FUNCTION IF EXISTS convertProspectToCustomer(INTEGER, BOOLEAN);
 
-CREATE OR REPLACE FUNCTION convertProspectToCustomer(INTEGER,
-                                                     BOOLEAN)
+CREATE OR REPLACE FUNCTION convertProspectToCustomer(pProspectId INTEGER,
+                                                     pdoquotes   BOOLEAN DEFAULT FALSE)
 RETURNS INTEGER AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pProspectId ALIAS FOR $1;
-  pdoquotes   ALIAS FOR $2;
   _p          RECORD;
   _q          RECORD;
 
 BEGIN
   SELECT * INTO _p
   FROM prospect
-  WHERE (prospect_id=pProspectId);
+  WHERE prospect_id = pProspectId;
 
-  IF (EXISTS(SELECT cust_id FROM custinfo WHERE cust_id=pProspectId)) THEN
-    RAISE EXCEPTION '[xtuple: convertProspectToCustomer, -10]';
+  IF EXISTS(SELECT 1 FROM custinfo WHERE cust_id = pProspectId) THEN
+    RAISE EXCEPTION 'Cannot convert prospect % as there is already a customer with the same id [xtuple: convertProspectToCustomer, -10, %]',
+                    _p.prospect_number, _p.prospect_number;
   END IF;
 
   INSERT INTO custinfo (
@@ -53,10 +47,8 @@ BEGIN
     cust_shipchrg_id,
     cust_ffbillto,
     cust_usespos,
-    cust_emaildelivery,
     cust_autoupdatestatus,
-    cust_autoholdorders,
-    cust_soemaildelivery
+    cust_autoholdorders
   )
   SELECT
     _p.prospect_id,
@@ -72,7 +64,7 @@ BEGIN
     FetchMetricValue('DefaultTerms'),
     FetchMetricValue('DefaultCustType'),
     FetchMetricValue('DefaultShipFormId'),
-    COALESCE(FetchMetricValue('DefaultShipViaId'),-1),
+    COALESCE(FetchDefaultShipVia(),''),
     FetchMetricText('DefaultBalanceMethod'),
     FetchMetricBool('DefaultFreeFormShiptos'),
     FetchMetricBool('DefaultBackOrders'),
@@ -83,18 +75,16 @@ BEGIN
     0,
     false,
     COALESCE(FetchMetricValue('DefaultShipChrgId'), -1),
-    false,
-    false,
-    false,
+    fetchMetricBool('DefaultFreeFormBilltos'),
     false,
     false,
     false
-  FROM salesrep
-  WHERE (salesrep_id=COALESCE(_p.prospect_salesrep_id, FetchMetricValue('DefaultSalesRep')));
+    FROM salesrep
+   WHERE salesrep_id = COALESCE(_p.prospect_salesrep_id, FetchMetricValue('DefaultSalesRep'));
 
-  DELETE FROM prospect WHERE (prospect_id=pprospectId);
+  DELETE FROM prospect WHERE prospect_id = pProspectId;
 
-  IF (pdoquotes) THEN
+  IF pdoquotes THEN
     BEGIN
       FOR _q IN SELECT quhead_number, convertQuote(quhead_id) AS err
                   FROM quhead
@@ -106,10 +96,10 @@ BEGIN
         END IF;
       END LOOP;
     EXCEPTION WHEN OTHERS THEN
-      RAISE WARNING 'Ignored errors convering quotes: % %', SQLSTATE, SQLERRM;
+      RAISE WARNING 'Ignored errors converting quotes: % %', SQLSTATE, SQLERRM;
     END;
   END IF;
 
   RETURN pProspectId;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

@@ -31,7 +31,8 @@ SELECT CASE WHEN lock_id IS NOT NULL THEN lock_id ELSE pid END AS id, type,
                                   THEN <? value("disabled") ?>
                                   END
                                   ELSE NULL END AS state,
-       CASE WHEN type=0 THEN state_change ELSE NULL END AS state_change,
+       state_change,
+       CASE WHEN type=0 THEN state_change ELSE '' END AS state_change_qtdisplayrole,
        backend_start, tablename, record,
        orphaned,
        CASE WHEN type=1 THEN CASE WHEN orphaned THEN <? value("yes") ?>

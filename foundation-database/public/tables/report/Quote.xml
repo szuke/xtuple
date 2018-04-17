@@ -24,7 +24,7 @@
        salesrep_name,
        formatScrap(quhead_commission) as f_commission,
        (terms_code||' - '||terms_descrip) as f_terms,
-       cust_number,
+       COALESCE(cust_number, prospect_number),
        quhead_billtoname,
        formatAddr(quhead_billtoaddress1,
                   quhead_billtoaddress2,
@@ -44,6 +44,7 @@
        quhead_fob, saletype_code
 FROM quhead
      LEFT OUTER JOIN custinfo ON (quhead_cust_id = cust_id)
+     LEFT OUTER JOIN prospect ON (quhead_cust_id = prospect_id)
      LEFT OUTER JOIN terms ON (quhead_terms_id = terms_id)
      LEFT OUTER JOIN salesrep ON (quhead_salesrep_id = salesrep_id)
      LEFT OUTER JOIN saletype ON (quhead_saletype_id = saletype_id)
@@ -143,12 +144,12 @@ WHERE ( (addr_id = warehous_addr_id)
  </querysource>
  <querysource>
   <name>contact_fax_phone</name>
-  <sql>SELECT cntct_fax,
-       cntct_phone
-FROM cntct, quhead, custinfo
-WHERE ( (cust_id = quhead_cust_id)
-  AND   (cust_cntct_id = cntct_id)
-  AND   (quhead_id = &lt;? value("quhead_id") ?>) );
+  <sql>SELECT cntct_fax, cntct_phone
+         FROM quhead
+         LEFT OUTER JOIN custinfo ON quhead_cust_id = cust_id
+         LEFT OUTER JOIN prospect ON quhead_cust_id = prospect_id
+         JOIN cntct ON COALESCE(cust_cntct_id, prospect_cntct_id) = cntct_id
+        WHERE quhead_id = &lt;? value("quhead_id") ?>;
 </sql>
  </querysource>
  <rpthead>

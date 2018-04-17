@@ -60,6 +60,8 @@ BEGIN
       RETURN -14;
     ELSIF (_coholdtype = 'S') THEN
       RETURN -15;
+    ELSIF (_coholdtype = 'T') THEN
+      RETURN -16;
     END IF;
 
 ---Must Ship Kit components (coitem_subnumber <> 0 complete---------------

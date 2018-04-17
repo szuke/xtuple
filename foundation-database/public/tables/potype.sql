@@ -81,7 +81,8 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
-SELECT xt.add_constraint('potype', 'potype_potype_code_key', 'UNIQUE (potype_code)', 'public');
+SELECT xt.add_constraint('potype', 'potype_pkey',            'PRIMARY KEY (potype_id)', 'public'),
+       xt.add_constraint('potype', 'potype_potype_code_key', 'UNIQUE (potype_code)',    'public');
 
 ALTER TABLE public.potype ENABLE TRIGGER ALL;
 

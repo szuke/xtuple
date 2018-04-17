@@ -540,7 +540,8 @@ var _    = require("underscore"),
     it("should create a sales order", function (done) {
      var callback = function (result) {
         assert.isNotNull(result);
-        cohead.cohead_id = result;
+        assert.operator(result.cohead_id, '>', 0, 'cohead_id is greater than 0');
+        cohead.cohead_id = result.cohead_id;
         done();
       };
 

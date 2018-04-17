@@ -68,6 +68,8 @@ AS
          'Packing'
        WHEN cohead_holdtype = 'R' THEN
          'Return'
+       WHEN cohead_holdtype = 'T' THEN
+         'Tax'
        ELSE
          'Error'
      END AS hold_type,
@@ -325,6 +327,10 @@ CREATE OR REPLACE RULE "_UPDATE" AS
         'S'
       WHEN NEW.hold_type = 'Packing' THEN
         'P'
+      WHEN NEW.hold_type = 'Return' THEN
+        'R'
+      WHEN NEW.hold_type = 'Tax' THEN
+        'T'
       ELSE
         'N'
     END,

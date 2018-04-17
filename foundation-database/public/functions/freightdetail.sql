@@ -67,8 +67,8 @@ BEGIN
       currConcat(quhead_curr_id) AS currAbbr
     INTO _order
       FROM quhead
-      JOIN custinfo ON (cust_id=quhead_cust_id)
-      JOIN custtype ON (custtype_id=cust_custtype_id)
+      LEFT OUTER JOIN custinfo ON (cust_id=quhead_cust_id)
+      LEFT OUTER JOIN custtype ON (custtype_id=cust_custtype_id)
       LEFT OUTER JOIN shiptoinfo ON (shipto_id=quhead_shipto_id)
     WHERE (quhead_id=pOrderId);
 

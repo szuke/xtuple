@@ -9,7 +9,10 @@ DECLARE
   _soitemid INTEGER;
   _orderid INTEGER;
   _ordertype CHARACTER(1);
+  _custid INTEGER;
   _creditstatus	TEXT;
+  _autoupdate BOOLEAN;
+  _autohold BOOLEAN;
   _usespos BOOLEAN := false;
   _blanketpos BOOLEAN := true;
   _showConvertedQuote BOOLEAN := false;
@@ -41,8 +44,10 @@ BEGIN
     RETURN -1;
   END IF;
 
-  SELECT cust_creditstatus, cust_usespos, cust_blanketpos
-    INTO _creditstatus, _usespos, _blanketpos
+  SELECT cust_id, cust_creditstatus, cust_autoupdatestatus, cust_autoholdorders,
+         cust_usespos, cust_blanketpos
+    INTO _custid, _creditstatus, _autoupdate, _autohold,
+         _usespos, _blanketpos
   FROM quhead, custinfo
   WHERE ((quhead_cust_id=cust_id)
     AND  (quhead_id=pQuheadid));
@@ -292,6 +297,28 @@ BEGIN
     END IF;
 
   END LOOP;
+
+  IF (SELECT fetchMetricBool('CreditCheckSOOnSave')
+         AND creditcheck_bookings + creditcheck_aropen >= creditcheck_limit
+        FROM creditlimitcheck(_custid)) THEN
+    UPDATE cohead
+       SET cohead_holdtype='C'
+     WHERE cohead_id=_soheadid;
+
+    IF (_autoupdate AND _creditstatus = 'G') THEN
+      UPDATE custinfo
+         SET cust_creditstatus='W'
+       WHERE cust_id=_custid;
+    END IF;
+
+    IF (_autohold) THEN
+      UPDATE cohead
+         SET cohead_holdtype='C'
+       WHERE cohead_status='O'
+         AND cohead_holdtype='N'
+         AND cohead_cust_id=_custid;
+    END IF;
+  END IF;
 
   PERFORM postEvent('QuoteConvertedToSO', 'Q', quhead_id,
                       quhead_warehous_id, quhead_number,

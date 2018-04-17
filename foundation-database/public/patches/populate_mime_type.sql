@@ -40,7 +40,7 @@ UPDATE file
                            WHEN '.patch' THEN 'text/x-patch'
                            WHEN '.pdf'   THEN 'application/pdf'
                            WHEN '.plist' THEN 'application/xml'
-                           WHEN  'png'  THEN 'image/png'
+                           WHEN '.png'   THEN 'image/png'
                            WHEN '.po'    THEN 'text/x-gettext-translation'
                            WHEN '.pps'   THEN 'application/vnd.ms-powerpoint'
                            WHEN '.ppt'   THEN 'application/vnd.ms-powerpoint'
@@ -77,4 +77,4 @@ UPDATE file
                            WHEN '.zip'   THEN 'application/zip'
                            ELSE 'application/octet-stream'
                     END
-  WHERE COALESCE(file_mime_type, '') = '';
+  WHERE COALESCE(file_mime_type, '') IN ('', 'application/octet-stream');

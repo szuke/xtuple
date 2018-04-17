@@ -23,7 +23,7 @@ select xt.create_table('sordtype', 'xt');
 select xt.add_column('sordtype','sordtype_id', 'serial', 'primary key', 'xt', 'The sordtype primary key.');
 select xt.add_column('sordtype','sordtype_nsname', 'text', 'not null', 'xt', 'sordtype child table namespace schema');
 select xt.add_column('sordtype','sordtype_tblname', 'text', 'not null', 'xt', 'sordtype child table name');
-select xt.add_column('sordtype','sordtype_code', 'text', '', 'xt', 'sordtype code');
+select xt.add_column('sordtype','sordtype_code', 'text', 'not null UNIQUE', 'xt', 'sordtype code');
 select xt.add_column('sordtype','sordtype_col_sochild_id', 'text', 'not null', 'xt', 'sordtype child table sochild_id column name');
 select xt.add_column('sordtype','sordtype_col_sochild_uuid', 'text', 'not null', 'xt', 'sordtype child table sochild_uuid column name');
 select xt.add_column('sordtype','sordtype_col_sochild_key', 'text', 'not null', 'xt', 'sordtype child table sochild_key column name');

@@ -38,6 +38,7 @@ select xt.create_view('xt.shipheadinfo', $$
   from (
     select
       shiphead.*,
+      cohead_number AS ordhead_number,
       cohead.obj_uuid as order_uuid
     from shiphead
       join cohead on shiphead_order_id = cohead_id

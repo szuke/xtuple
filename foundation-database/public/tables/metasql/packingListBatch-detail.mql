@@ -15,6 +15,7 @@ SELECT DISTINCT
             WHEN (cohead_holdtype='S') THEN <? value("ship") ?>
             WHEN (cohead_holdtype='P') THEN <? value("pack") ?>
             WHEN (cohead_holdtype='R') THEN <? value("return") ?>
+            WHEN (cohead_holdtype='T') THEN <? value("tax") ?>
             ELSE <? value("other") ?>
        END AS f_holdtype,
        pack_printed
@@ -29,17 +30,17 @@ WHERE ( (pack_head_type='SO')
 <? if exists("warehous_id") ?>
   AND   (itemsite_warehous_id = <? value("warehous_id") ?>)
 <? endif ?>
-  AND (cohead_holdtype = 'N'
+  AND (cohead_holdtype IN ('N', 'R', 'T'
 <? if exists("showCredit") ?>
-   OR cohead_holdtype = 'C' 
+   , 'C'
 <? endif ?>
 <? if exists("showShip") ?>
-   OR cohead_holdtype = 'S' 
+   , 'S'
 <? endif ?>
 <? if exists("showPack") ?>
-   OR cohead_holdtype = 'P' 
+   , 'P'
 <? endif ?>
-   )
+   ))
       )
 
 <? if exists("MultiWhs") ?>

@@ -1,8 +1,8 @@
-﻿DROP FUNCTION IF EXISTS postDistDetail(INTEGER, INTEGER);
+DROP FUNCTION IF EXISTS postDistDetail(INTEGER, INTEGER);
 
 CREATE OR REPLACE FUNCTION postDistDetail(pItemlocSeries INTEGER)
   RETURNS INTEGER AS $$
--- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _distCount      INTEGER := 0;

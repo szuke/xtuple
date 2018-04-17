@@ -293,7 +293,7 @@ select createDoctype(17, --pDocAssNum
                      '', --pWidget
                      'join invchead on invcitem_invchead_id = invchead_id ' ||
                         'join custinfo on invchead_cust_id = cust_id join item on invcitem_item_id=item_id', --pJoin
-                     '', --pParam
+                     'invcitem_id', --pParam
                      '', --pUi
                      '', --pPriv
                      'Sales' --pModule
@@ -500,10 +500,11 @@ select createDoctype(29, --pDocAssNum
                      'quhead', --pTable
                      'quhead_id', --pKey
                      'quhead_number', --pNumber
-                     'cust_name', --pName
+                     'coalesce(cust_name, prospect_name)', --pName
                      'firstline(quhead_ordercomments)', --pDesc
                      'core', --pWidget
-                     'join custinfo on quhead_cust_id = cust_id', --pJoin
+                     'left outer join custinfo on quhead_cust_id = cust_id ' ||
+                        'left outer join prospect on quhead_cust_id = prospect_id', --pJoin
                      'quhead_id', --pParam
                      'salesOrder', --pUi
                      '', --pPriv
@@ -517,10 +518,11 @@ select createDoctype(30, --pDocAssNum
                      'quitem', --pTable
                      'quitem_id', --pKey
                      'quhead_number', --pNumber
-                     'cust_name', --pName
+                     'coalesce(cust_name, prospect_name)', --pName
                      'item_number', --pDesc
                      '', --pWidget
-                     'join quhead on quitem_quhead_id=quhead_id join custinfo on quhead_cust_id=cust_id ' ||
+                     'join quhead on quitem_quhead_id=quhead_id left outer join custinfo on quhead_cust_id=cust_id ' ||
+                        'left outer join prospect on quhead_cust_id=prospect_id ' ||
                         'join itemsite on quitem_itemsite_id=itemsite_id join item on itemsite_item_id=item_id', --pJoin
                      'quitem_id', --pParam
                      '', --pUi

@@ -107986,3 +107986,10 @@ DO $$
     IF NOT _pkgheadExists THEN DROP TABLE pkghead; END IF;
   END
 $$ LANGUAGE plpgsql;
+
+
+-- 2018-03-23 Add new column that did not exist in the 440 schema so it can be
+-- populated by demo_data.sql. Data is populated on this 440 schema before it is
+-- upgraded to the latest version.
+ALTER TABLE company
+  ADD COLUMN company_unassigned_accnt_id integer;

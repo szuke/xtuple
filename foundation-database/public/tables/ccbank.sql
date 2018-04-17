@@ -13,8 +13,8 @@ SELECT
   xt.add_constraint('ccbank', 'ccbank_pkey', 'PRIMARY KEY (ccbank_id)', 'public'),
   xt.add_constraint('ccbank', 'ccbank_ccbank_ccard_type_key',
                     'UNIQUE (ccbank_ccard_type)', 'public'),
-  xt.add_constraint('ccbank', 'ccbank_ccbank_ccard_type_check',
-                    $$CHECK (ccbank_ccard_type IN ('A', 'D', 'M', 'P', 'V', 'O'))$$, 'public'),
+  xt.add_constraint('ccbank', 'ccbank_ccbank_ccard_type_fkey',
+                    'FOREIGN KEY (ccbank_ccard_type) REFERENCES fundstype(fundstype_code)', 'public'),
   xt.add_constraint('ccbank', 'ccbank_ccbank_bankaccnt_id_fkey',
                     'FOREIGN KEY (ccbank_bankaccnt_id) REFERENCES bankaccnt(bankaccnt_id)', 'public');
 

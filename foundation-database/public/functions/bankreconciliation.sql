@@ -122,7 +122,7 @@ BEGIN
                                      JOIN tax ON (tax_id=taxhist_tax_id)
                         WHERE (gltrans_id=_r.bankrecitem_source_id)
                         -- Cash receipt, sltrans
-                        UNION
+                        UNION ALL
                         SELECT aropen_docnumber AS docnumber, cust_name AS custname,
                                aropen_curr_id AS currid, sltrans_date AS distdate,
                                (cashrcptitem_amount / aropen_amount) AS percentpaid,
@@ -140,7 +140,7 @@ BEGIN
                                      JOIN tax ON (tax_id=taxhist_tax_id)
                         WHERE (sltrans_id=_r.bankrecitem_source_id)
                         -- Cash payment, gltrans
-                        UNION
+                        UNION ALL
                         SELECT apopen_docnumber AS docnumber, vend_name AS vendname,
                                apopen_curr_id AS currid, gltrans_date AS distdate,
                                (checkitem_amount / apopen_amount) AS percentpaid,
@@ -157,7 +157,7 @@ BEGIN
                                      JOIN voheadtax ON (taxhist_parent_id=vohead_id)
                                      JOIN tax ON (tax_id=taxhist_tax_id)
                         WHERE (gltrans_id=_r.bankrecitem_source_id)
-                        UNION
+                        UNION ALL
                         SELECT apopen_docnumber AS docnumber, vend_name AS vendname,
                                apopen_curr_id AS currid, gltrans_date AS distdate,
                                (checkitem_amount / apopen_amount) AS percentpaid,
@@ -175,7 +175,7 @@ BEGIN
                                      JOIN voitemtax ON (taxhist_parent_id=voitem_id)
                                      JOIN tax ON (tax_id=taxhist_tax_id)
                         WHERE (gltrans_id=_r.bankrecitem_source_id)
-                        UNION
+                        UNION ALL
                         SELECT checkhead_number::TEXT AS docnumber, 
                                COALESCE(vend_name, cust_name) AS vendname,
                                checkhead_curr_id AS currid, gltrans_date AS distdate,
@@ -192,7 +192,7 @@ BEGIN
                                      LEFT OUTER JOIN custinfo ON (checkhead_recip_id=cust_id)
                         WHERE (gltrans_id=_r.bankrecitem_source_id)
                         -- Cash payment, sltrans
-                        UNION
+                        UNION ALL
                         SELECT apopen_docnumber AS docnumber, vend_name AS vendname,
                                apopen_curr_id AS currid, sltrans_date AS distdate,
                                (checkitem_amount / apopen_amount) AS percentpaid,
@@ -209,7 +209,7 @@ BEGIN
                                      JOIN voheadtax ON (taxhist_parent_id=vohead_id)
                                      JOIN tax ON (tax_id=taxhist_tax_id)
                         WHERE (sltrans_id=_r.bankrecitem_source_id)
-                        UNION
+                        UNION ALL
                         SELECT apopen_docnumber AS docnumber, vend_name AS vendname,
                                apopen_curr_id AS currid, sltrans_date AS distdate,
                                (checkitem_amount / apopen_amount) AS percentpaid,
@@ -228,7 +228,7 @@ BEGIN
                                      JOIN tax ON (tax_id=taxhist_tax_id)
                         WHERE (sltrans_id=_r.bankrecitem_source_id)
                         -- Miscellaneous Payments, gltrans
-                        UNION
+                        UNION ALL
                         SELECT checkhead_number::TEXT AS docnumber, 
                                COALESCE(vend_name, cust_name) AS vendname,
                                checkhead_curr_id AS currid, gltrans_date AS distdate,
@@ -245,7 +245,7 @@ BEGIN
                                      LEFT OUTER JOIN custinfo ON (checkhead_recip_id=cust_id)
                         WHERE (gltrans_id=_r.bankrecitem_source_id)
                         -- Miscellaneous Payments, sltrans
-                        UNION
+                        UNION ALL
                         SELECT checkhead_number::TEXT AS docnumber, 
                                COALESCE(vend_name, cust_name) AS vendname,
                                checkhead_curr_id AS currid, sltrans_date AS distdate,

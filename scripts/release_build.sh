@@ -213,7 +213,7 @@ rm -rf scripts/output
 MODES="upgrade install"
 EDITIONS="postbooks manufacturing distribution"
 DATABASES="empty quickstart demo"
-PACKAGES="inventory commercialcore"
+PACKAGES="commercialcore inventory"
 
 if $TRANSLATIONS ; then
   for PACKAGE in $EDITIONS $PACKAGES ; do

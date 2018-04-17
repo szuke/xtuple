@@ -10,6 +10,7 @@ PGPORT=${PGPORT:-5432}
 PGUSER=${PGUSER:-admin}
 PGPASSWORD=${PGPASSWORD:-admin}
 TMPDIR=${TMPDIR:-/tmp}
+export PGOPTIONS="-c client_min_messages=warning"
 
 export PGHOST PGPORT PGUSER PGPASSWORD
 
@@ -66,24 +67,23 @@ getValueArg() {
 # -h is handled as either --host if it has an arg or --help if not
 while [ $# -gt 0 ] ; do
   case "$1" in
-    --help)       usage ; exit 0 ;;
-    -n|--no-run)  RUN=echo       ;;
-    -h|--host)    if getValueArg PGHOST     $2 ; then shift ; else usage ; exit 0 ; fi ;;
-    -p|--port)    if getValueArg PGPORT     $2 ; then shift ; else usage ; exit 1 ; fi ;;
-    -U|--user)    if getValueArg PGUSER     $2 ; then shift ; else usage ; exit 1 ; fi ;;
-    --pass*)      if getValueArg PGPASSWORD $2 ; then shift ; else usage ; exit 1 ; fi ;;
-    -u|--updater) if getValueArg UPDATER    $2 ; then shift ; else usage ; exit 1 ; fi ;;
-    -P|--public)  if getValueArg PUBLICDIR  $2 ; then shift ; else usage ; exit 1 ; fi ;;
-    *)            usage ; exit 1 ;;
+    --help)        usage ; exit 0 ;;
+    -n|--no-run*)  RUN=echo       ;;
+    -h|--host*)    if getValueArg PGHOST     $2 ; then shift ; else usage ; exit 0 ; fi ;;
+    -p|--port*)    if getValueArg PGPORT     $2 ; then shift ; else usage ; exit 1 ; fi ;;
+    -U|--user*)    if getValueArg PGUSER     $2 ; then shift ; else usage ; exit 1 ; fi ;;
+    --pass*)       if getValueArg PGPASSWORD $2 ; then shift ; else usage ; exit 1 ; fi ;;
+    -u|--updater*) if getValueArg UPDATER    $2 ; then shift ; else usage ; exit 1 ; fi ;;
+    -P|--public*)  if getValueArg PUBLICDIR  $2 ; then shift ; else usage ; exit 1 ; fi ;;
+    *)             usage ; exit 1 ;;
   esac
   shift
 done
 
-ls ${PUBLICDIR}/[1-9].[0-9].[0-9]/*.backup ${PUBLICDIR}/[1-9].[0-9][0-9].[0-9]/*.backup
-for FILE in $(ls ${PUBLICDIR}/[1-9].[0-9].[0-9]/*.backup ${PUBLICDIR}/[1-9].[0-9][0-9].[0-9]/*.backup) ; do
+ls ${PUBLICDIR}/4.[5-9].[0-9]/*.backup ${PUBLICDIR}/[5-9].[0-9][0-9].[0-9]/*.backup | cat -n
+for FILE in $(ls ${PUBLICDIR}/4.[5-9].[0-9]/*.backup ${PUBLICDIR}/[5-9].[0-9][0-9].[0-9]/*.backup) ; do
     STARTVER=$(basename $(dirname $FILE))
     DB=$(basename $FILE -${STARTVER}.backup)_to${DESTVER}
-    echo $DB from $STARTVER ============================================
     case $DB in
       dist*|stand*)
         if [[ "$STARTVER" =~ ^4.[45].[0-9] ]] ; then
@@ -106,25 +106,27 @@ for FILE in $(ls ${PUBLICDIR}/[1-9].[0-9].[0-9]/*.backup ${PUBLICDIR}/[1-9].[0-9
         ;;
     esac
 
-    echo testing upgrade from $STARTVER to $DESTVER for $DB = $FILE using $GZ
+    echo ===== $(date) $STARTVER to $DESTVER for $DB =================================
     $RUN dropdb --if-exists $DB
     $RUN createdb $DB
     $RUN pg_restore -d $DB $FILE
-    #$RUN psql -d $DB -c "CREATE EXTENSION plv8;"
+    echo ===== starting upgrade ---------------------------------------------------------------
     applyUpdate $DB $GZ || logErr error upgrading from $STARTVER to $DESTVER for $DB = $FILE using $GZ
     $RUN psql -t -d $DB -c "SELECT fetchMetricText('ServerVersion') = '$DESTVER';" | tee $TMPDIR/$PROG.$$
     [ -n "$RUN" -o "$(tr -d [:space:] < $TMPDIR/$PROG.$$)" = 't' ] || logErr ServerVersion in $DB does not match $DESTVER
     $RUN psql -t -d $DB -c "SELECT COUNT(*) = 0 OR BOOL_AND(pkghead_version = '$DESTVER') \
                            FROM pkghead WHERE pkghead_name in ('xtcore', 'xtmfg', 'xwd');" | tee $TMPDIR/$PROG.$$
     [ -n "$RUN" -o "$(tr -d [:space:] < $TMPDIR/$PROG.$$)" = 't' ] || logErr Core extensions in $DB do not match $DESTVER
+    echo ===== reapplying upgrade -------------------------------------------------------------
     applyUpdate $DB $GZ || logErr error reapplying upgrade to $DESTVER for $DB = $FILE using $GZ
     case $DB in
       dist*|stand*)
+        echo ===== upgrading $DB to enterprise ---------------------------------------------------
         applyUpdate $DB $SCRIPTDIR/add-manufacturing-to-distribution-*.gz || logErr error upgrading $DB to enterprise
         ;;
     esac
 
-    echo =========================================================================
+    echo ===== $(date) $STARTVER to $DESTVER for $DB finished ========================
 done
 
 if [ -n "$ERRS" ] ; then

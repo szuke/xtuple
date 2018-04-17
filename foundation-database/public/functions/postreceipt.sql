@@ -542,7 +542,7 @@ BEGIN
       WHERE (toitem_id=_r.orderitem_id);
 
     END IF;
-    IF(_r.itemsite_costmethod='A') THEN
+    IF(_r.itemsite_costmethod!='S') THEN
       _recvvalue := ROUND((_o.item_unitprice_base * _r.recv_qty),2);
     ELSIF (fetchMetricBool('RecordPPVonReceipt')) THEN
       _recvvalue := ROUND((_o.item_unitprice_base * _r.recv_qty), 2);

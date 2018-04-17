@@ -17,10 +17,13 @@ DECLARE
 
 BEGIN
 
-  SELECT MAX(COALESCE(pApplyDate, aropen_distdate, CURRENT_DATE)) INTO _applyDate
-    FROM aropen
-    JOIN arcreditapply ON aropen_id IN (arcreditapply_source_aropen_id, arcreditapply_target_aropen_id)
-   WHERE aropen_id IN (arcreditapply_source_aropen_id, arcreditapply_target_aropen_id);
+  SELECT COALESCE(pApplyDate, GREATEST(s.aropen_distdate, MAX(t.aropen_distdate)), CURRENT_DATE)
+    INTO _applyDate
+    FROM aropen s
+    LEFT OUTER JOIN arcreditapply ON s.aropen_id = arcreditapply_source_aropen_id
+    LEFT OUTER JOIN aropen t ON arcreditapply_target_aropen_id = t.aropen_id
+   WHERE s.aropen_id = pAropenid
+   GROUP BY s.aropen_distdate;
 
   -- find source CM and calc total amount to apply in CM currency
   SELECT ROUND(aropen_amount - aropen_paid, 2) AS balance,

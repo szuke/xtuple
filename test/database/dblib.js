@@ -281,7 +281,7 @@
               " cmitem_qtycredit, cmitem_updateinv, cmitem_qty_uom_id, cmitem_qty_invuomratio, " +
               " cmitem_price_uom_id, cmitem_price_invuomratio, cmitem_unitprice, cmitem_listprice, " +
               " cmitem_taxtype_id, cmitem_comments, " +
-              " cmitem_rsncode_id, cmitem_number, cmitem_descrip, cmitem_salescat_id, cmitem_rev_accnt_id ) " + 
+              " cmitem_rsncode_id, cmitem_number, cmitem_descrip, cmitem_salescat_id, cmitem_rev_accnt_id ) " +
               "SELECT $1, 1, $2, $3, " +
               " $3, true, item_inv_uom_id, 1, " +
               " item_price_uom_id, 1, 1.99, 1.99, " +
@@ -292,7 +292,7 @@
               "RETURNING cmitem_id AS result; ",
       options = _.extend({}, adminCred,
         { parameters: [ params.cmheadId, params.itemsiteId, params.qty, params.itemsiteId ] });
-      
+
     datasource.query(sql, options, function (err, res) {
       assert.isNull(err);
       assert.isNotNull(res.rows[0].result);
@@ -344,7 +344,7 @@
               "RETURNING invcitem_id AS result;",
       options = _.extend({}, adminCred,
         { parameters: [ params.invcheadId, params.qty, params.itemsiteId ] });
-      
+
     datasource.query(sql, options, function (err, res) {
       assert.isNull(err);
       assert.isNotNull(res.rows[0].result);
@@ -377,12 +377,12 @@
 
   exports.createPurchaseOrderLineItem = function (params, callback) {
     var sql = "INSERT INTO poitem (poitem_pohead_id, poitem_itemsite_id, poitem_unitprice, " +
-              " poitem_qty_ordered, poitem_duedate) " +    
+              " poitem_qty_ordered, poitem_duedate) " +
               "SELECT $1, $2, 1.99, $3, current_date " +
               "RETURNING poitem_id AS result; ",
       options = _.extend({}, adminCred,
         { parameters: [ params.poheadId, params.itemsiteId, params.qty ] });
-      
+
     datasource.query(sql, options, function (err, res) {
       assert.isNull(err);
       assert.isNotNull(res.rows[0].result);
@@ -394,21 +394,33 @@
     });
   };
 
-  exports.createSalesOrder = function (callback) {
-    var sql = "INSERT INTO cohead (cohead_number, cohead_cust_id, cohead_status) " +
-              "SELECT fetchsonumber(), cust_id, 'O' " +
-              "FROM custinfo " +
-              "WHERE cust_number='TTOYS' " +
-              "RETURNING cohead_id AS result;";
+  exports.createSalesOrder = function (params, callback) {
+    var qryParams = {
+      custNumber: 'TTOYS'
+    };
 
-    datasource.query(sql, adminCred, function (err, res) {
+    if (typeof params === 'function') {
+      callback = params;
+    } else {
+      qryParams = params;
+    }
+
+    var sql = "INSERT INTO cohead (cohead_number, cohead_cust_id, cohead_status)" +
+              "SELECT fetchsonumber(), cust_id, 'O'" +
+              "  FROM custinfo" +
+              " WHERE cust_number = $1" +
+              " RETURNING *;";
+    var options = _.extend({}, adminCred,
+        { parameters: [ qryParams.custNumber ] });
+
+    datasource.query(sql, options, function (err, res) {
       assert.isNull(err);
       assert.isNotNull(res.rows[0].result);
 
       if (DEBUG)
-        console.log("createSalesOrder result: ", res.rows[0].result);
+        console.log("createSalesOrder result: ", res.rows[0]);
 
-      callback(res.rows[0].result);
+      callback(res.rows[0]);
     });
   };
 
@@ -416,7 +428,7 @@
     var sql = "INSERT INTO coitem (coitem_cohead_id, coitem_itemsite_id, coitem_qtyord, " +
               " coitem_unitcost, coitem_price, coitem_custprice, coitem_qtyshipped, " +
               " coitem_qty_uom_id, coitem_qty_invuomratio, coitem_price_uom_id, " +
-              " coitem_price_invuomratio) " +  
+              " coitem_price_invuomratio) " +
               "SELECT $1, $2, $3, " +
               " itemcost($2), 1.99, 1.99, 0, " +
               " item_inv_uom_id, 1, item_price_uom_id, " +
@@ -426,7 +438,7 @@
               "RETURNING coitem_id AS result; ",
       options = _.extend({}, adminCred,
         { parameters: [ params.coheadId, params.itemsiteId, params.qty ] });
-      
+
     datasource.query(sql, options, function (err, res) {
       assert.isNull(err);
       assert.isNotNull(res.rows[0].result);

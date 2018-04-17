@@ -166,7 +166,7 @@ BEGIN
         IF(_r.itemsite_costmethod='A') THEN
           UPDATE recv
           SET recv_qty=pQty,
-             recv_value=(recv_value + _recvcost * _qty * _o.orderitem_qty_invuomratio),
+             recv_value=(recv_value + _recvcost * _qty),
                    recv_date = pEffective
           WHERE(recv_id=pRecvId);
         ELSE

@@ -469,12 +469,16 @@ BEGIN
                              (CASE OLD.cohead_holdtype WHEN('N') THEN 'No Hold'
                                                        WHEN('C') THEN 'Credit Hold'
                                                        WHEN('P') THEN 'Packing Hold'
+                                                       WHEN('R') THEN 'Return Hold'
                                                        WHEN('S') THEN 'Shipping Hold'
+                                                       WHEN('T') THEN 'Tax Hold'
                                                        ELSE 'Unknown/Error' END),
                              (CASE NEW.cohead_holdtype WHEN('N') THEN 'No Hold'
                                                        WHEN('C') THEN 'Credit Hold'
                                                        WHEN('P') THEN 'Packing Hold'
+                                                       WHEN('R') THEN 'Return Hold'
                                                        WHEN('S') THEN 'Shipping Hold'
+                                                       WHEN('T') THEN 'Tax Hold'
                                                        ELSE 'Unknown/Error' END) );
       END IF;
     END IF;

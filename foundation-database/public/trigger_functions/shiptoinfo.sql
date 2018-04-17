@@ -33,7 +33,7 @@ BEGIN
   END IF;
 
   IF (NEW.shipto_shipvia IS NULL OR NEW.shipto_shipvia = '') THEN
-    SELECT shipvia_code INTO _ShipViaName FROM shipvia WHERE shipvia_id = fetchmetricvalue('DefaultShipViaId');
+    SELECT FetchDefaultShipVia() INTO _ShipViaName;
     IF (_ShipViaName IS NOT NULL) THEN
       NEW.shipto_shipvia = _ShipViaName;
     END IF;

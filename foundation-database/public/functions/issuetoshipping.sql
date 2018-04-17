@@ -107,6 +107,8 @@ BEGIN
       RETURN -13;
     ELSIF (_coholdtype = 'R') THEN
       RETURN -14;
+    ELSIF (_coholdtype = 'T') THEN
+      RETURN -16;
     END IF;
 
     SELECT shiphead_id INTO _shipheadid

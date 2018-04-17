@@ -21,6 +21,7 @@ DECLARE
   _comment      TEXT;
   _ccpayid  INTEGER;
   _cctype TEXT;
+  _creditid INTEGER;
 
 BEGIN
   _posted := 0;
@@ -312,6 +313,14 @@ BEGIN
       ( cashrcptitem_cashrcpt_id, cashrcptitem_aropen_id, cashrcptitem_amount )
     VALUES
       ( pCashrcptid, _aropenid, ((_p.cashrcpt_amount - _posted) * 1.0) );
+
+    SELECT cashrcptitem_aropen_id INTO _creditid
+      FROM cashrcptitem
+     WHERE cashrcptitem_cashrcpt_id = pCashrcptId
+       AND NOT cashrcptitem_applied;
+
+    PERFORM applyARCreditMemoToBalance(_creditid, _aropenid);
+    PERFORM postARCreditMemoApplication(_creditid);
 
   ELSIF (round(_posted_base, 2) > round(_p.cashrcpt_amount_base, 2)) THEN
     PERFORM insertIntoGLSeries(_sequence, 'A/R', 'CR',

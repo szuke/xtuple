@@ -84,6 +84,10 @@ BEGIN
       ELSE
         UPDATE recur SET recur_parent_id=_newparentid
          WHERE recur_id=_recurid;
+        UPDATE incdt
+           SET incdt_recurring_incdt_id=_newparentid
+         WHERE incdt_recurring_incdt_id=OLD.incdt_id
+           AND NOT incdt_id=OLD.incdt_id;
       END IF;
     END IF;
 

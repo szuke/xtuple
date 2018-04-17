@@ -53,7 +53,8 @@
           console.log("issuetoshipping createSalesOrder callback result: ", result);
 
         assert.isNotNull(result);
-        params.coheadId = result;
+        assert.operator(result.cohead_id, '>', 0, 'cohead_id is greater than 0');
+        params.coheadId = result.cohead_id;
         done();
       };
 
@@ -61,7 +62,7 @@
     });
 
     it("needs a sales order line item",function (done) {
-      var callback = function (result) {  
+      var callback = function (result) {
         params.coitemId = result;
         done();
       };
@@ -99,7 +100,7 @@
     it("should succeed", function (done) {
       var sql = "SELECT issueToShipping('SO', $1::integer, $2::numeric, NULL::integer, NOW(), NULL, FALSE, FALSE) AS result;",
         options = _.extend({}, adminCred, { parameters: [ params.coitemId, params.qty ]});
-        
+
       datasource.query(sql, options, function (err, res) {
         assert.isNull(err);
         assert.equal(res.rowCount, 1);
@@ -125,7 +126,7 @@
                 "  FROM itemsite" +
                 " WHERE itemsite_id=$1::integer;",
         options = _.extend({}, adminCred, { parameters: [ params.itemsiteId ]});
-        
+
       datasource.query(sql, options, function (err, res) {
         assert.isNull(err);
         assert.equal(res.rowCount, 1);
@@ -145,6 +146,6 @@
       });
     });
 
-  }); 
+  });
 }());
 

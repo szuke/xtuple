@@ -15,6 +15,7 @@ SELECT DISTINCT
             WHEN cohead_holdtype = 'S' THEN <? value("ship") ?>
             WHEN cohead_holdtype = 'P' THEN <? value("pack") ?>
             WHEN cohead_holdtype = 'R' THEN <? value("return") ?>
+            WHEN cohead_holdtype = 'T' THEN <? value("tax") ?>
        END AS holdtype,
 <? foreach("char_id_text_list") ?>
        charass_alias<? literal("char_id_text_list") ?>.charass_value AS char<? literal("char_id_text_list") ?>,
@@ -100,7 +101,8 @@ WHERE(
             WHEN <? value("holdtype") ?> = 1 THEN cohead_holdtype = 'C'
             WHEN <? value("holdtype") ?> = 2 THEN cohead_holdtype = 'S'
             WHEN <? value("holdtype") ?> = 3 THEN cohead_holdtype = 'P'
-            WHEN <? value("holdtype") ?> = 4 THEN cohead_holdtype = 'R' END)
+            WHEN <? value("holdtype") ?> = 4 THEN cohead_holdtype = 'R'
+            WHEN <? value("holdtype") ?> = 5 THEN cohead_holdtype = 'T' END)
 <? endif ?>
 <? if exists("search_pattern") ?>
   AND (cohead_number ~ <? value("search_pattern") ?>

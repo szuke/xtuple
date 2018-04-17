@@ -187,3 +187,22 @@ SELECT
 WHERE NOT EXISTS (
   SELECT 1 FROM fundstype WHERE fundstype_code = 'O'
 );
+
+INSERT INTO fundstype (
+  fundstype_code,
+  fundstype_name,
+  fundstype_descrip,
+  fundstype_creditcard,
+  fundstype_external,
+  fundstype_prepay
+)
+SELECT
+  'P',
+  'Paypal',
+  'Payment by Paypal',
+  FALSE,
+  FALSE,
+  FALSE
+WHERE NOT EXISTS (
+  SELECT 1 FROM fundstype WHERE fundstype_code = 'P'
+);

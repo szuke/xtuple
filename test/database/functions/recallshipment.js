@@ -48,7 +48,9 @@
 
     it("needs a sales order", function (done) {
      var callback = function (result) {
-        params.coheadId = result;
+        assert.isNotNull(result);
+        assert.operator(result.cohead_id, '>', 0, 'cohead_id is greater than 0');
+        params.coheadId = result.cohead_id;
         done();
       };
 
@@ -56,7 +58,7 @@
     });
 
     it("needs a sales order line item",function (done) {
-      var callback = function (result) {  
+      var callback = function (result) {
         params.coitemId = result;
         done();
       };
@@ -69,7 +71,7 @@
     it("issuetoshipping() should succeed", function (done) {
       var sql = "SELECT issueToShipping($1::integer, $2::numeric) AS result;",
         options = _.extend({}, adminCred, { parameters: [ params.coitemId, params.qty ]});
-        
+
       datasource.query(sql, options, function (err, res) {
         assert.isNull(err);
         assert.equal(res.rowCount, 1);
@@ -93,10 +95,10 @@
     it("should have a shiphead_id", function (done) {
       var sql = "SELECT getOpenShipmentId('SO', $1, $2) AS result;",
         options = _.extend({}, adminCred, { parameters: [ params.coheadId, params.whId ]});
-        
+
       datasource.query(sql, options, function (err, res) {
         assert.isNull(err);
-        assert.equal(res.rowCount, 1); 
+        assert.equal(res.rowCount, 1);
         assert.operator(res.rows[0].result, ">", 0);
         params.shipheadId = res.rows[0].result;
         done();
@@ -106,7 +108,7 @@
     it("shipShipment() should succeed", function (done) {
       var sql = "SELECT shipShipment($1, current_timestamp) AS result;",
         options = _.extend({}, adminCred, { parameters: [ params.shipheadId ]});
-        
+
       datasource.query(sql, options, function (err, res) {
         assert.isNull(err);
         assert.equal(res.rowCount, 1);
@@ -120,11 +122,11 @@
     it("recallShipment() should succeed", function (done) {
       var sql = "SELECT recallShipment($1, current_timestamp) AS result;",
         options = _.extend({}, adminCred, { parameters: [ params.shipheadId ]});
-        
+
       datasource.query(sql, options, function (err, res) {
         if (DEBUG)
           console.log("recallShipment result: ", res.rows[0].result);
-        
+
         assert.isNull(err);
         assert.equal(res.rowCount, 1);
         assert.operator(res.rows[0].result, ">", 0);
@@ -137,7 +139,7 @@
                 "  FROM shiphead" +
                 " WHERE shiphead_id = $1;",
         options = _.extend({}, adminCred, { parameters: [ params.shipheadId ]});
-        
+
       datasource.query(sql, options, function (err, res) {
         assert.isNull(err);
         assert.equal(res.rowCount, 1);
@@ -151,7 +153,7 @@
                 "  FROM itemsite" +
                 " WHERE itemsite_id=$1::integer;",
         options = _.extend({}, adminCred, { parameters: [ params.itemsiteId ]});
-        
+
       datasource.query(sql, options, function (err, res) {
         assert.isNull(err);
         assert.equal(res.rowCount, 1);

@@ -15,7 +15,8 @@ SELECT xt.add_column('fundstype', 'fundstype_lastupdated', 'TIMESTAMP WITH TIME 
 SELECT xt.add_column('fundstype', 'fundstype_lastusername', 'text', 'NOT NULL DEFAULT CURRENT_USER', 'public');
 SELECT xt.add_column('fundstype', 'obj_uuid', 'uuid', 'DEFAULT uuid_generate_v4()', 'public');
 
-SELECT xt.add_constraint('fundstype','fundstype_unique', 'unique(fundstype_code, fundstype_name)', 'public');
+ALTER TABLE fundstype DROP CONSTRAINT IF EXISTS fundstype_unique;
+SELECT xt.add_constraint('fundstype','fundstype_code_unique', 'unique(fundstype_code)', 'public');
 
 SELECT xt.add_index('fundstype', 'fundstype_code', 'fundstype_fundstype_code_idx', 'btree', 'public');
 SELECT xt.add_index('fundstype', 'fundstype_name', 'fundstype_fundstype_name_idx', 'btree', 'public');
