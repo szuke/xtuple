@@ -1921,6 +1921,7 @@
     "public/patches/migrateccpay.sql",
     "public/patches/updatetrialbal.sql",
     "public/patches/deleteinvalidcntcteml.sql",
+    "public/patches/cntctcreated.sql",
 
     "../lib/orm/source/xt/javascript/parsemetasql.sql",
     "../lib/orm/source/xt/javascript/parseediprofile.sql",
