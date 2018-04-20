@@ -13,6 +13,7 @@ DECLARE
   _pkcol  	TEXT;
   _qry  	TEXT;
   _multi	BOOLEAN;
+  _created      TIMESTAMP WITH TIME ZONE;
 
 BEGIN
   -- Validate
@@ -368,6 +369,15 @@ BEGIN
   ELSE
     RAISE EXCEPTION 'Source Contact not Found';
   END IF;
+
+  -- Use oldest create date
+  SELECT MIN(cntct_created) INTO _created
+    FROM cntct
+   WHERE cntct_id IN (pSourceCntctId, pTargetCntctId);
+
+  UPDATE cntct
+     SET cntct_created = _created
+   WHERE cntct_id = pTargetCntctId;
 
   -- Disposition source contact
   IF (pPurge) THEN

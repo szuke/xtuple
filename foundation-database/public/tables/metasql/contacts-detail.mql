@@ -16,7 +16,7 @@ SELECT DISTINCT ON (length(cntct_last_name)=0, length(cntct_first_name)=0, cntct
   COALESCE(crmacct_prospect_id,-1) > 0 AS prospect_qtdisplayrole,
   crmacct_prospect_id AS prospect,
   cntct_first_name, cntct_last_name, cntct_owner_username, cntct_title, cntct_phone,
-  cntct_phone2, cntct_fax, cntct_email, cntct_webaddr
+  cntct_phone2, cntct_fax, cntct_email, cntct_webaddr, cntct_created, cntct_lastupdated
 <? foreach("char_id_text_list") ?>
   , charass_alias<? literal("char_id_text_list") ?>.charass_value AS char<? literal("char_id_text_list") ?>
 <? endforeach ?>
@@ -111,6 +111,18 @@ WHERE true
 <? endif ?>
 <? if exists("addr_id") ?>
   AND (addr_id=<? value("addr_id") ?>)
+<? endif ?>
+<? if exists("createStartDate") ?>
+  AND cntct_created::DATE >= <? value("createStartDate") ?>
+<? endif ?>
+<? if exists("createEndDate") ?>
+  AND cntct_created::DATE <= <? value("createEndDate") ?>
+<? endif ?>
+<? if exists("updateStartDate") ?>
+  AND cntct_lastupdated::DATE >= <? value("updateStartDate") ?>
+<? endif ?>
+<? if exists("updateEndDate") ?>
+  AND cntct_lastupdated::DATE <= <? value("updateEndDate") ?>
 <? endif ?>
 <? literal("charClause") ?>
 ORDER BY length(cntct_last_name)=0, length(cntct_first_name)=0, cntct_last_name, cntct_first_name, cntct_number, cntcteml_primary desc;
