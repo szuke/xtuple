@@ -50,13 +50,13 @@ BEGIN
 	( checkitem_checkhead_id, checkitem_apopen_id,
 	  checkitem_vouchernumber, checkitem_invcnumber, checkitem_ponumber,
 	  checkitem_amount, checkitem_discount, checkitem_docdate,
-          checkitem_curr_id, checkitem_curr_rate )
+          checkitem_curr_id, checkitem_curr_rate, checkitem_currdate )
 	VALUES
 	( _checkid, _r.apopen_id,
 	  _r.apopen_docnumber, _r.apopen_invcnumber, _r.apopen_ponumber,
 	  _r.apselect_amount, _r.apselect_discount, _r.apopen_docdate,
 	  _r.apselect_curr_id, 
-          _r.apopen_curr_rate );
+          currRate(_r.apselect_curr_id, pCheckDate), pCheckDate );
 
 	DELETE FROM apselect
 	WHERE (apselect_id=_r.apselect_id);

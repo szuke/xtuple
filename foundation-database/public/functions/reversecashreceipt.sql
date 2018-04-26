@@ -222,8 +222,7 @@ BEGIN
           CURRENT_DATE, _p.cashrcpt_distdate, pJournalNumber, getEffectiveXtUser(), _p.cashrcpt_curr_id );
       END IF;
 
-      _exchGain := arCurrGain(_r.aropen_id,_p.cashrcpt_curr_id, abs(_r.cashrcptitem_amount),
-                              _p.cashrcpt_distdate);
+      _exchGain := currGain(abs(_r.cashrcptitem_amount), _r.aropen_curr_rate, _p.cashrcpt_curr_rate);
 
       PERFORM insertIntoGLSeries( _sequence, 'A/R', 'CR',
                           (_r.aropen_doctype || '-' || _r.aropen_docnumber),
