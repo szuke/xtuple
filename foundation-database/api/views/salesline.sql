@@ -68,7 +68,7 @@ COMMENT ON VIEW api.salesline IS 'Sales Order Line Item';
 DROP FUNCTION IF EXISTS public.insertsalesline(api.salesline);
 
 CREATE OR REPLACE FUNCTION api.insertSalesLine(api.salesline) RETURNS boolean AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pNEW ALIAS FOR $1;
