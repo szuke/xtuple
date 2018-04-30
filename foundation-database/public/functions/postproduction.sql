@@ -1,5 +1,8 @@
 -- Function: postproduction(integer, numeric, boolean, integer, timestamp with time zone)
 
+DROP FUNCTION IF EXISTS postproduction(integer, numeric, boolean, boolean);
+DROP FUNCTION IF EXISTS postproduction(integer, numeric, boolean, boolean, integer);
+DROP FUNCTION IF EXISTS postproduction(integer, numeric, boolean, boolean, integer, text, text);
 DROP FUNCTION IF EXISTS postproduction(integer, numeric, boolean, integer, timestamp with time zone);
 DROP FUNCTION IF EXISTS postproduction(integer, numeric, boolean, integer, timestamp with time zone, boolean);
 CREATE OR REPLACE FUNCTION postproduction(pWoid integer,
@@ -11,7 +14,7 @@ CREATE OR REPLACE FUNCTION postproduction(pWoid integer,
                                           pPostDistDetail boolean DEFAULT TRUE)
 RETURNS integer AS
 $BODY$
--- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _whsId         INTEGER;

@@ -1,13 +1,4 @@
-CREATE OR REPLACE RULE "_INSERT" AS
-	ON INSERT TO api.invoiceline DO INSTEAD NOTHING;
-CREATE OR REPLACE RULE "_UPDATE" AS
-	ON UPDATE TO api.invoiceline DO INSTEAD NOTHING;
-SELECT dropIfExists('FUNCTION', 'insertInvoiceLineItem(api.invoiceline)');
-SELECT dropIfExists('FUNCTION', 'updateInvoiceLineItem(api.invoiceline, api.invoiceline)');
--- Cleanup old bad installs.
-SELECT dropIfExists('FUNCTION', 'insertInvoiceLineItem(api.invoiceline)', 'xt');
-SELECT dropIfExists('FUNCTION', 'updateInvoiceLineItem(api.invoiceline, api.invoiceline)', 'xt');
-SELECT dropIfExists('VIEW', 'invoiceline', 'api');
+DROP VIEW IF EXISTS api.invoiceline CASCADE;
 CREATE OR REPLACE VIEW api.invoiceline
 AS
 	SELECT
@@ -48,7 +39,7 @@ populated';
 
 CREATE OR REPLACE FUNCTION insertInvoiceLineItem(api.invoiceline) RETURNS BOOLEAN AS
 $insertInvoiceLineItem$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
 	pNew ALIAS FOR $1;
@@ -141,7 +132,7 @@ $insertInvoiceLineItem$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION updateInvoiceLineItem(api.invoiceline, api.invoiceline) RETURNS BOOLEAN AS
 $updateInvoiceLineItem$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
 	pNew ALIAS FOR $1;
