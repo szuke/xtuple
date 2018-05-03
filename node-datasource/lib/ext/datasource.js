@@ -25,7 +25,10 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
    *
    * TODO: Proper large number support in JavaScript requires adding a library
    * to our stack and using it everywhere. The `decimal.js` library is an option
-   * used by `Math.js`.
+   * used by `Math.js`. There may soon be support in native JavaScript that can
+   * help:
+   * @see
+   * https://v8project.blogspot.com/2018/05/bigint.html
    *
    * @see
    * https://github.com/MikeMcl/decimal.js
