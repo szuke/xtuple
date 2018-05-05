@@ -20,6 +20,8 @@ $BODY$
 DECLARE 
   _setSearchPath ALIAS FOR $1;
   _p RECORD;
+  _timezone TEXT;
+  _tzstatement TEXT;
 
 BEGIN
   -- added support for PostgreSQL 9.2.0, Incident 21852
@@ -63,6 +65,17 @@ BEGIN
                  AND proname='buildsearchpath') THEN
       EXECUTE 'SET SEARCH_PATH TO ' || public.buildSearchPath();
     END IF;
+  END IF;
+
+ -- Override server time zone if user selected it
+  SELECT usrpref_value INTO _timezone
+    FROM usrpref
+   WHERE usrpref_name = 'TimeZone'
+     AND usrpref_username = getEffectiveXtUser();
+
+  IF (_timezone) IS NOT NULL THEN
+    _tzstatement := format('SET TIME ZONE %L', _timezone);
+    EXECUTE _tzstatement;
   END IF;
 
   RETURN 1;
