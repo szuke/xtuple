@@ -11,6 +11,7 @@ MAJ=
 MIN=
 PAT=
 TRANSLATIONS=false
+export PGOPTIONS="-c client_min_messages=warning"
 
 XTUPLEDIR=$(pwd)
 
