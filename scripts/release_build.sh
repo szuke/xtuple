@@ -402,7 +402,7 @@ for EDITION in $EDITIONS ; do
         fi
         CNT=$(($CNT + 1))
       done
-      /usr/bin/pg_dump --host $HOST --username $ADMIN --port $PORT --format c --file $DB-$MAJ.$MIN.$PAT.backup $DB
+      pg_dump --host $HOST --username $ADMIN --port $PORT --format c --file $DB-$MAJ.$MIN.$PAT.backup $DB
     fi
   done
 done
