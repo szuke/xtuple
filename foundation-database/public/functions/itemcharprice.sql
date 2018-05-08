@@ -139,7 +139,6 @@ BEGIN
          AND ipsitem_item_id = pItemid
          AND ipsitemchar_char_id = pCharid
          AND ipsitemchar_value = pCharValue
-         AND cust_id = pCustid
     ) AS proto
    WHERE ipsprice_qtybreak <= pQty
    ORDER BY
