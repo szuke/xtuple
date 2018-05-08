@@ -123,12 +123,11 @@ BEGIN
 --  Check for a Sale Price
 
   SELECT currToCurr(ipshead_curr_id, pCurrid,
-                    ipsprice_price - (ipsprice_price * cust_discntprcnt),
+                    ipsprice_price - (ipsprice_price * _cust.cust_discntprcnt),
                     pEffective) INTO _sales
     FROM (
       SELECT
         ipshead_curr_id,
-        cust_discntprcnt,
         ipsitem_ipshead_id AS ipsprice_ipshead_id,
         itemuomtouom(ipsitem_item_id, ipsitem_qty_uom_id, NULL, ipsitem_qtybreak) AS ipsprice_qtybreak,
         (ipsitemchar_price * itemuomtouomratio(ipsitem_item_id, NULL, ipsitem_price_uom_id)) * _iteminvpricerat AS ipsprice_price
@@ -136,7 +135,6 @@ BEGIN
         JOIN sale ON ipshead.ipshead_id = sale_ipshead_id
         JOIN ipsiteminfo ON ipshead.ipshead_id = ipsiteminfo.ipsitem_ipshead_id
         JOIN ipsitemchar ON ipsiteminfo.ipsitem_id = ipsitemchar.ipsitemchar_ipsitem_id
-       CROSS JOIN custinfo
        WHERE pAsOf BETWEEN sale_startdate AND sale_enddate
          AND ipsitem_item_id = pItemid
          AND ipsitemchar_char_id = pCharid
@@ -233,16 +231,15 @@ BEGIN
 
 --  Check for a list price
   SELECT MIN(currToLocal(pCurrid,
-                         charass_price - (charass_price * COALESCE(cust_discntprcnt, 0)),
+                         charass_price - (charass_price * COALESCE(_cust.cust_discntprcnt, 0)),
                          pEffective)) AS price,
          item_exclusive INTO _item
-    FROM charass, item
-    LEFT OUTER JOIN custinfo ON (cust_id=pCustid)
+    FROM charass
+    JOIN item ON charass_target_id = item_id
    WHERE item_id = pItemid
      AND charass_char_id = pCharid
      AND charass_value = pCharValue
      AND charass_target_type = 'I'
-     AND charass_target_id = item_id
    GROUP BY item_exclusive;
   IF (FOUND) THEN
     IF (NOT _item.item_exclusive) THEN
