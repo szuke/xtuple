@@ -160,7 +160,8 @@ BEGIN
          AND COALESCE(cntct_crmacct_id, -1) != NEW.crmacct_id;
     END IF;
 
-    IF NEW.crmacct_usr_username IS NOT NULL
+    IF TG_OP = 'UPDATE'
+      AND NEW.crmacct_usr_username IS NOT NULL
       AND OLD.crmacct_usr_username IS NOT NULL
       AND NEW.crmacct_usr_username != OLD.crmacct_usr_username
     THEN
