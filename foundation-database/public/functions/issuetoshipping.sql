@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION issueToShipping(INTEGER, NUMERIC) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   RETURN issueToShipping('SO', $1, $2, 0, CURRENT_TIMESTAMP);
@@ -7,7 +7,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION issueToShipping(INTEGER, NUMERIC, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   RETURN issueToShipping('SO', $1, $2, $3, CURRENT_TIMESTAMP);
@@ -15,7 +15,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION issueToShipping(TEXT, INTEGER, NUMERIC, INTEGER, TIMESTAMP WITH TIME ZONE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   RETURN issueToShipping($1, $2, $3, $4, $5, NULL);
@@ -34,7 +34,7 @@ CREATE OR REPLACE FUNCTION issueToShipping(pordertype TEXT,
                                            pinvhistid INTEGER,
                                            pDropship BOOLEAN DEFAULT FALSE,
                                            pPreDistributed BOOLEAN DEFAULT FALSE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _itemlocSeries        INTEGER := COALESCE(pItemlocSeries, NEXTVAL('itemloc_series_seq'));
@@ -55,7 +55,7 @@ DECLARE
   _orditemid            INTEGER;
 
 BEGIN
-  IF (pPreDistributed AND COALESCE(pItemlocSeries, 0) = 0) THEN 
+  IF (pPreDistributed AND COALESCE(pItemlocSeries, 0) = 0) THEN
     RAISE EXCEPTION 'pItemlocSeries is Required when pPreDistributed [xtuple: issueToShipping, -2]';
   ELSIF (_itemlocSeries = 0) THEN
     _itemlocSeries := NEXTVAL('itemloc_series_seq');
@@ -66,11 +66,11 @@ BEGIN
     -- Check site security
     SELECT warehous_id, isControlledItemsite(itemsite_id) AS controlled, coitem_cohead_id, coitem_id
       INTO _warehouseid, _controlled, _ordheadid, _orditemid
-    FROM coitem, itemsite, site() 
+    FROM coitem, itemsite, site()
     WHERE coitem_id = pitemid
       AND itemsite_id = coitem_itemsite_id
       AND warehous_id = itemsite_warehous_id;
-          
+
     IF (NOT FOUND) THEN
       RETURN 0;
     END IF;
@@ -94,8 +94,8 @@ BEGIN
       IF (_cntctid = -1) THEN
         RETURN -15;
       END IF;
-    END IF; 
-  
+    END IF;
+
     -- Check Hold
     SELECT soHoldType(coitem_cohead_id) INTO _coholdtype
     FROM coitem
@@ -164,6 +164,37 @@ BEGIN
 	AND  (coitem_id=pitemid));
     END IF;
 
+    _shipitemid := nextval('shipitem_shipitem_id_seq');
+    INSERT INTO shipitem
+    ( shipitem_id, shipitem_shiphead_id, shipitem_orderitem_id, shipitem_qty,
+      shipitem_transdate, shipitem_trans_username, shipitem_invoiced,
+      shipitem_value, shipitem_invhist_id )
+    VALUES
+    ( _shipitemid, _shipheadid, pitemid, pQty,
+      _timestamp, getEffectiveXtUser(), FALSE,
+      _value,
+      CASE WHEN _invhistid = -1 THEN
+        NULL
+      ELSE
+        _invhistid
+      END );
+
+    -- Handle reservations
+    IF (fetchmetricbool('EnableSOReservations')) THEN
+      -- Remember what was reserved so we can re-reserve if this issue is returned
+      INSERT INTO shipitemrsrv
+        (shipitemrsrv_shipitem_id, shipitemrsrv_qty)
+      SELECT _shipitemid, least(pQty,itemuomtouom(itemsite_item_id, NULL, coitem_qty_uom_id, coitem_qtyreserved))
+      FROM coitem JOIN itemsite ON (itemsite_id=coitem_itemsite_id)
+      WHERE ((coitem_id=pitemid)
+      AND (coitem_qtyreserved > 0));
+
+      -- Update sales order (must be done prior to postInvTrans)
+      UPDATE coitem
+        SET coitem_qtyreserved = noNeg((coitem_qtyreserved / coitem_qty_invuomratio) - pQty)
+      WHERE(coitem_id=pitemid);
+    END IF;
+
     -- Handle g/l transaction
     SELECT postInvTrans( itemsite_id, 'SH', (pQty * coitem_qty_invuomratio),
 			   'S/R', porderType,
@@ -187,37 +218,6 @@ BEGIN
     FROM invhist
     WHERE (invhist_id=_invhistid);
 
-    _shipitemid := nextval('shipitem_shipitem_id_seq');
-    INSERT INTO shipitem
-    ( shipitem_id, shipitem_shiphead_id, shipitem_orderitem_id, shipitem_qty,
-      shipitem_transdate, shipitem_trans_username, shipitem_invoiced,
-      shipitem_value, shipitem_invhist_id )
-    VALUES
-    ( _shipitemid, _shipheadid, pitemid, pQty,
-      _timestamp, getEffectiveXtUser(), FALSE,
-      _value, 
-      CASE WHEN _invhistid = -1 THEN
-        NULL
-      ELSE 
-        _invhistid
-      END );
-
-    -- Handle reservation
-    IF (fetchmetricbool('EnableSOReservations')) THEN
-      -- Remember what was reserved so we can re-reserve if this issue is returned
-      INSERT INTO shipitemrsrv 
-        (shipitemrsrv_shipitem_id, shipitemrsrv_qty)
-      SELECT _shipitemid, least(pQty,itemuomtouom(itemsite_item_id, NULL, coitem_qty_uom_id, coitem_qtyreserved))
-      FROM coitem JOIN itemsite ON (itemsite_id=coitem_itemsite_id)
-      WHERE ((coitem_id=pitemid)
-      AND (coitem_qtyreserved > 0));
-
-      -- Update sales order
-      UPDATE coitem
-        SET coitem_qtyreserved = noNeg((coitem_qtyreserved / coitem_qty_invuomratio) - pQty)
-      WHERE(coitem_id=pitemid);
-    END IF;
-
     -- Calculate shipment freight
     SELECT calcShipFreight(_shipheadid) INTO _freight;
     UPDATE shiphead SET shiphead_freight=_freight
@@ -237,7 +237,7 @@ BEGIN
         AND tohead_src_warehous_id = itemsite_warehous_id
         AND warehous_id=tohead_src_warehous_id;
 
-          
+
       IF (NOT FOUND) THEN
         RETURN 0;
       END IF;
@@ -302,7 +302,7 @@ BEGIN
     VALUES
     ( _shipheadid, pitemid, pQty,
       _timestamp, getEffectiveXtUser(), FALSE,
-      _value, 
+      _value,
       CASE WHEN _invhistid = -1 THEN NULL
            ELSE _invhistid
       END
