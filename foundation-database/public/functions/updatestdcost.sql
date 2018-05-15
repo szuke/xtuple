@@ -53,8 +53,8 @@ BEGIN
     UPDATE itemsite SET itemsite_value=(_r.totalQty * stdCost(itemsite_item_id))
     WHERE (itemsite_id=_r.itemsite_id);
 
---  Add an InvHist record for reconciliation purposes only if value changes (zero qty. movement)
-    IF (ABS(_r.itemsite_value - _r.totalQty * stdCost(_r.itemsite_item_id)) >= 0.01) THEN
+--  Add an InvHist record for reconciliation purposes only if value changes > cost threshold (zero qty. movement)
+    IF (ABS(roundcost(_r.itemsite_value - _r.totalQty * stdCost(_r.itemsite_item_id))) > 0) THEN
       INSERT INTO invhist
       ( invhist_itemsite_id, invhist_transdate, invhist_transtype, invhist_invqty, invhist_invuom,
         invhist_qoh_before, invhist_qoh_after, invhist_unitcost,
