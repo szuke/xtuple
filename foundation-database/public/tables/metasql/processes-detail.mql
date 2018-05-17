@@ -1,43 +1,36 @@
 -- Group: processes
 -- Name: detail
 -- Notes: used by dspProcesses
--- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
--- See www.xtuple.com/CPAL for the full text of the software license.
+--        Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
+--        See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT CASE WHEN lock_id IS NOT NULL THEN lock_id ELSE pid END AS id, type,
        CASE WHEN type=0 THEN <? value("process") ?>
                         ELSE <? value("lock") ?> END AS type_qtdisplayrole,
        pid,
-       current,
-       CASE WHEN current THEN <? value("yes") ?>
-                           ELSE <? value("no") ?> END AS current_qtdisplayrole,
+       COALESCE(current, false) AS current,
        CASE WHEN type=0 THEN COALESCE(client_addr::TEXT, 'localhost') ELSE NULL END AS client,
        CASE WHEN type=0 THEN CASE WHEN client_port >= 0
                                   THEN client_port::TEXT
-                                  ELSE 'socket' END
-                        ELSE NULL END AS port, usename,
-       CASE WHEN type=0 THEN application_name ELSE NULL END AS application_name,
-       CASE WHEN type=0 THEN CASE WHEN state='active'
-                                  THEN <? value("active") ?>
-                                  WHEN state='idle'
-                                  THEN <? value("idle") ?>
-                                  WHEN state='idle in transaction'
-                                  THEN <? value("idletrans") ?>
-                                  WHEN state='idle in transaction (aborted)'
-                                  THEN <? value("idletransabort") ?>
-                                  WHEN state='fastpath function call'
-                                  THEN <? value("fastpath") ?>
-                                  WHEN state='disabled'
-                                  THEN <? value("disabled") ?>
-                                  END
-                                  ELSE NULL END AS state,
+                                  ELSE 'socket'
+                             END
+       END AS port,
+       usename,
+       application_name,
+       CASE state WHEN 'active'                        THEN <? value("active") ?>
+                  WHEN 'idle'                          THEN <? value("idle") ?>
+                  WHEN 'idle in transaction'           THEN <? value("idletrans") ?>
+                  WHEN 'idle in transaction (aborted)' THEN <? value("idletransabort") ?>
+                  WHEN 'fastpath function call'        THEN <? value("fastpath") ?>
+                  WHEN 'disabled'                      THEN <? value("disabled") ?>
+                  ELSE state
+       END AS state,
        state_change,
-       CASE WHEN type=0 THEN state_change ELSE '' END AS state_change_qtdisplayrole,
        backend_start, tablename, record,
        orphaned,
        CASE WHEN type=1 THEN CASE WHEN orphaned THEN <? value("yes") ?>
                                                 ELSE <? value("no") ?> END
-                        ELSE NULL END AS orphaned_qtdisplayrole,
+       END AS orphaned_qtdisplayrole,
        CASE WHEN pid IS NULL THEN 0 ELSE type END AS xtindentrole,
        CASE WHEN current THEN '#FF0000' END AS qtbackgroundrole
   FROM
@@ -51,8 +44,8 @@ SELECT CASE WHEN lock_id IS NOT NULL THEN lock_id ELSE pid END AS id, type,
    UNION
   SELECT pg_stat_activity.pid, pg_stat_activity.pid=pg_backend_pid() AS current,
          1 AS type,
-         client_addr, client_port, usename, application_name, state, datname, state_change,
   <? if exists("mobilized") ?>
+         client_addr, client_port, lock_username, application_name, state, datname, state_change,
          lock_effective AS backend_start, lock_id, relname AS tablename, lock_record_id AS record,
          lock_pid IS NOT NULL AND pid IS NULL AS orphaned
     FROM xt.lock
@@ -60,6 +53,7 @@ SELECT CASE WHEN lock_id IS NOT NULL THEN lock_id ELSE pid END AS id, type,
     LEFT OUTER JOIN pg_stat_activity ON lock_pid=pid
    WHERE TRUE
   <? else ?>
+         client_addr, client_port, usename, application_name, state, datname, state_change,
          NULL AS backend_start, NULL::INTEGER AS lock_id, relname AS tablename, objid AS record,
          pg_stat_activity.pid IS NULL AS orphaned
     FROM pg_locks
@@ -67,7 +61,8 @@ SELECT CASE WHEN lock_id IS NOT NULL THEN lock_id ELSE pid END AS id, type,
     LEFT OUTER JOIN pg_stat_activity ON pg_locks.pid=pg_stat_activity.pid
    WHERE locktype='advisory'
   <? endif ?>
-     AND COALESCE(datname, current_database())=current_database()
+ ) sub
+  WHERE COALESCE(datname, current_database())=current_database()
      AND COALESCE(state_change::DATE BETWEEN COALESCE(<? value("startdate") ?>, startOfTime())
                                          AND COALESCE(<? value("enddate") ?>, endOfTime()), TRUE)
      <? if exists("usename") ?>
@@ -90,5 +85,4 @@ SELECT CASE WHEN lock_id IS NOT NULL THEN lock_id ELSE pid END AS id, type,
      <? if exists("table") ?>
      AND tablename ~* <? value("table") ?>
      <? endif ?>
- ) sub
  ORDER BY state_change, pid, xtindentrole, backend_start;

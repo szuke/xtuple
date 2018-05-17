@@ -2,7 +2,7 @@
   "author": "xTuple <dev@xtuple.com>",
   "name": "xtuple",
   "description": "xTuple Enterprise Resource Planning Mobile-Web client",
-  "version": "4.11.3",
+  "version": "4.12.0-alpha",
   "repository": {
     "type": "git",
     "url": "https://github.com/xtuple/xtuple.git"

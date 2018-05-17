@@ -1,8 +1,4 @@
-CREATE OR REPLACE RULE "_INSERT" AS ON INSERT TO api.invoice DO INSTEAD NOTHING;
-SELECT dropIfExists('FUNCTION', 'insertInvoice(api.invoice)');
--- Cleanup old bad installs.
-SELECT dropIfExists('FUNCTION', 'insertInvoice(api.invoice)', 'xt');
-SELECT dropIfExists('VIEW', 'invoice', 'api');
+DROP VIEW IF EXISTS api.invoice CASCADE;
 CREATE OR REPLACE VIEW api.invoice
 AS
 	SELECT
@@ -72,7 +68,7 @@ populated';
 
 CREATE OR REPLACE FUNCTION insertInvoice(api.invoice) RETURNS BOOLEAN AS
 $insertInvoice$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
 	pNew ALIAS FOR $1;

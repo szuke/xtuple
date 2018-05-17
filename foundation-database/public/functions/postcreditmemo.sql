@@ -117,9 +117,24 @@ BEGIN
 -- Always use std cost
   FOR _r IN SELECT *, stdCost(item_id) AS std_cost
             FROM creditmemoitem
+            JOIN itemsite ON cmitem_itemsite_id = itemsite_id
             WHERE ( (cmitem_cmhead_id=pCmheadid)
-              AND   (cmitem_qtycredit <> 0 )
-              AND   (cmitem_itemsite_id IS NOT NULL ) ) LOOP
+              AND   (cmitem_qtycredit <> 0 ) ) LOOP
+
+    IF (_r.itemsite_costmethod = 'A') THEN
+      -- Get cost from original shipment if it exists
+      SELECT COALESCE(SUM(shipitem_value) / SUM(shipitem_qty), _r.std_cost) INTO _r.std_cost
+        FROM cmitem
+        JOIN itemsite ON cmitem_itemsite_id = itemsite_id
+        JOIN cmhead ON cmitem_cmhead_id = cmhead_id
+        JOIN invchead ON cmhead_invcnumber = invchead_invcnumber
+        JOIN invcitem ON invchead_id = invcitem_invchead_id
+                     AND itemsite_item_id = invcitem_item_id
+                     AND itemsite_warehous_id = invcitem_warehous_id
+        JOIN shipitem ON invcitem_id = shipitem_invcitem_id
+       WHERE cmitem_id=_r.cmitem_id;
+    END IF;
+
 
 --  Calculate the Commission to be debited
     _commissionDue := (_commissionDue + (_r.extprice * _p.cmhead_commission));
@@ -538,6 +553,20 @@ BEGIN
 
       IF (_r.controlled) THEN 
         _hasControlledItems := TRUE;
+      END IF;
+
+      IF (_r.itemsite_costmethod = 'A') THEN
+        -- Get cost from original shipment if it exists
+        SELECT COALESCE(SUM(shipitem_value) / SUM(shipitem_qty), _r.std_cost) INTO _r.std_cost
+          FROM cmitem
+          JOIN itemsite ON cmitem_itemsite_id = itemsite_id
+          JOIN cmhead ON cmitem_cmhead_id = cmhead_id
+          JOIN invchead ON cmhead_invcnumber = invchead_invcnumber
+          JOIN invcitem ON invchead_id = invcitem_invchead_id
+                       AND itemsite_item_id = invcitem_item_id
+                       AND itemsite_warehous_id = invcitem_warehous_id
+          JOIN shipitem ON invcitem_id = shipitem_invcitem_id
+         WHERE cmitem_id=_r.cmitem_id;
       END IF;
 
       SELECT postInvTrans(_r.itemsite_id, 'RS', _r.qty,

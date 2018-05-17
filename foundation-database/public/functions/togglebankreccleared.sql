@@ -1,11 +1,12 @@
 SELECT dropIfExists('FUNCTION', 'toggleBankrecCleared(int,text,int)', 'public');
+DROP FUNCTION IF EXISTS toggleBankrecCleared(INTEGER, TEXT, INTEGER, NUMERIC);
 
 CREATE OR REPLACE FUNCTION toggleBankrecCleared(pBankrecid INTEGER,
                                                 pSource TEXT,
                                                 pSourceid INTEGER,
                                                 pCurrrate NUMERIC,
                                                 pBaseAmount NUMERIC) RETURNS BOOLEAN AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   RETURN toggleBankrecCleared(pBankrecid, pSource, pSourceid, pCurrrate, pBaseAmount, NULL);
@@ -18,7 +19,7 @@ CREATE OR REPLACE FUNCTION toggleBankrecCleared(pBankrecid INTEGER,
                                                 pCurrrate NUMERIC,
                                                 pBaseAmount NUMERIC,
                                                 pDate DATE) RETURNS BOOLEAN AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _cleared BOOLEAN;

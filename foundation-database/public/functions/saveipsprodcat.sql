@@ -1,3 +1,6 @@
+DROP FUNCTION IF EXISTS saveIpsProdcat(INTEGER, INTEGER, INTEGER, NUMERIC, NUMERIC);
+DROP FUNCTION IF EXISTS saveIpsProdcat(INTEGER, INTEGER, INTEGER, NUMERIC, NUMERIC, NUMERIC);
+
 CREATE OR REPLACE FUNCTION saveIpsProdcat(pIpsProdcatId INTEGER,
                                           pIpsHeadId INTEGER,
                                           pProdCatId INTEGER,
@@ -5,7 +8,7 @@ CREATE OR REPLACE FUNCTION saveIpsProdcat(pIpsProdcatId INTEGER,
                                           pDiscount NUMERIC,
                                           pFixedAmtDiscount NUMERIC,
                                           pType TEXT) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _ipsitemid	INTEGER;

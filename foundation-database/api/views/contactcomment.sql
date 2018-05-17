@@ -1,6 +1,6 @@
 -- Contact Comment
 
-DROP VIEW api.contactcomment;
+DROP VIEW IF EXISTS api.contactcomment;
 CREATE VIEW api.contactcomment
 AS 
    SELECT 

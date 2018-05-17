@@ -160,6 +160,28 @@ BEGIN
          AND COALESCE(cntct_crmacct_id, -1) != NEW.crmacct_id;
     END IF;
 
+    IF TG_OP = 'UPDATE'
+      AND NEW.crmacct_usr_username IS NOT NULL
+      AND OLD.crmacct_usr_username IS NOT NULL
+      AND NEW.crmacct_usr_username != OLD.crmacct_usr_username
+    THEN
+      UPDATE usrgrp SET
+        usrgrp_username = NEW.crmacct_usr_username
+       WHERE usrgrp_username = OLD.crmacct_usr_username;
+
+      UPDATE usrpref SET
+        usrpref_username = NEW.crmacct_usr_username
+       WHERE usrpref_username = OLD.crmacct_usr_username;
+
+      UPDATE usrpriv SET
+        usrpriv_username = NEW.crmacct_usr_username
+       WHERE usrpriv_username = OLD.crmacct_usr_username;
+
+      UPDATE usrsite SET
+        usrsite_username = NEW.crmacct_usr_username
+       WHERE usrsite_username = OLD.crmacct_usr_username;
+    END IF;
+
     -- cannot have fkey references to system catalogs so enforce them here
     IF (NEW.crmacct_usr_username IS NOT NULL) THEN
       UPDATE usrpref SET usrpref_value = NEW.crmacct_name
