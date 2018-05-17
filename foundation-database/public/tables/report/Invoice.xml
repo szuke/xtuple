@@ -86,7 +86,7 @@ ORDER BY ordernumber;</sql>
       AS coitem_characteristics
 FROM invcitem LEFT OUTER JOIN (item JOIN uom ON (item_inv_uom_id=uom_id)) ON (invcitem_item_id=item_id) LEFT OUTER JOIN itemalias ON (itemalias_item_id=item_id AND itemalias_number=invcitem_custpn)
 WHERE (invcitem_invchead_id=&lt;? value("invchead_id") ?>)
-ORDER BY invcitem_linenumber;</sql>
+ORDER BY invcitem_linenumber, invcitem_subnumber;</sql>
  </querysource>
  <querysource>
   <name>foot</name>
