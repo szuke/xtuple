@@ -177,9 +177,15 @@ BEGIN
         usrpriv_username = NEW.crmacct_usr_username
        WHERE usrpriv_username = OLD.crmacct_usr_username;
 
-      UPDATE usrsite SET
-        usrsite_username = NEW.crmacct_usr_username
-       WHERE usrsite_username = OLD.crmacct_usr_username;
+      IF EXISTS (SELECT 1
+                   FROM information_schema.tables
+                  WHERE table_schema = 'public'
+                    AND table_name = 'usrsite')
+      THEN
+        UPDATE usrsite SET
+          usrsite_username = NEW.crmacct_usr_username
+         WHERE usrsite_username = OLD.crmacct_usr_username;
+      END IF;
     END IF;
 
     -- cannot have fkey references to system catalogs so enforce them here
