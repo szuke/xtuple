@@ -51,7 +51,7 @@ CREATE OR REPLACE RULE "_INSERT" AS
     getItemSrcId(new.item_number,new.vendor,new.vendor_item_number,new.effective,new.expires),
     new.qty_break,
     new.price_per_unit,
-    getCurrId(new.currency),
+    COALESCE(getCurrId(NEW.currency), basecurrid()),
     now(),
     COALESCE(new.dropship_only, FALSE),
     CASE WHEN (new.pricing_site='All') THEN -1
@@ -68,7 +68,7 @@ CREATE OR REPLACE RULE "_UPDATE" AS
     itemsrcp_qtybreak = new.qty_break, 
     itemsrcp_price = new.price_per_unit,
     itemsrcp_updated = now(), 
-    itemsrcp_curr_id = getcurrid(new.currency),
+    itemsrcp_curr_id = COALESCE(getCurrId(NEW.currency), basecurrid()),
     itemsrcp_dropship=COALESCE(new.dropship_only, FALSE),
     itemsrcp_warehous_id=CASE WHEN (new.pricing_site='All') THEN -1
                               ELSE COALESCE(getWarehousId(new.pricing_site, 'ALL'), -1) END,
