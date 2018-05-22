@@ -55,6 +55,7 @@
     "public/tables/vendaddrinfo.sql",
     "public/tables/wo.sql",
     "public/tables/womatl.sql",
+    "public/trigger_functions/crmacct.sql",
     "xt/functions/grant_role_priv.sql",
     "xt/functions/add_priv.sql",
     "public/tables/priv.sql",
