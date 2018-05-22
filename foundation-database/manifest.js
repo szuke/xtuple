@@ -1065,6 +1065,7 @@
     "public/tables/itemuomconv.sql",
     "public/tables/location.sql",
     "public/tables/metric.sql",
+    "public/tables/mrkd.sql",
     "public/tables/ophead.sql",
     "public/tables/pack.sql",
     "public/tables/payco.sql",
