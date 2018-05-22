@@ -22,7 +22,7 @@ CREATE OR REPLACE FUNCTION postInvTrans(pItemsiteId    INTEGER,
                                         pOrdHeadId     INTEGER DEFAULT NULL,
                                         pOrdItemId     INTEGER DEFAULT NULL)
 RETURNS INTEGER AS $$
--- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 -- pInvhistid is the original transaction to be returned, reversed, etc.
 DECLARE
@@ -44,8 +44,8 @@ BEGIN
     RAISE EXCEPTION 'Transaction series must be provided [xtuple: postInvTrans, -7, %]', pItemlocSeries;
   END IF;
 
-  --  Cache item and itemsite info  
-  SELECT 
+  --  Cache item and itemsite info
+  SELECT
     CASE WHEN(itemsite_costmethod IN ('A','J')) THEN COALESCE(abs(pCostOvrld / pQty), avgcost(itemsite_id))
       ELSE stdCost(itemsite_item_id)
     END AS cost,
@@ -118,6 +118,13 @@ BEGIN
     _sense := 1;
   END IF;
 
+  -- Prevent Transactions that reduce QoH less than Sales Reservation qty
+  IF(fetchMetricBool('EnableSOReservations')) THEN
+    IF((_r.itemsite_qtyonhand + round(_sense * pQty, 6)) < qtyReserved(pitemsiteid)) THEN
+      RAISE EXCEPTION 'This transaction will cause inventory to be reduced below current Sales Reservations. [xtuple: postinvtrans, -9, %]', qtyReserved(pitemsiteid);
+    END IF;
+  END IF;
+
   IF((_r.itemsite_qtyonhand + round(_sense * pQty, 6)) < 0) THEN
     IF(fetchMetricBool('DisallowNegativeInventory')) THEN
       RAISE EXCEPTION 'This transaction will cause an item to go negative and negative inventory is currently disallowed [xtuple: postinvtrans, -6]';
@@ -184,9 +191,9 @@ BEGIN
 
   -- For controlled items handle itemlocdist creation
   IF (_r.lotserial OR _r.loccntrl) THEN
-    IF (pInvhistid IS NOT NULL OR (NOT pPreDistributed)) THEN 
+    IF (pInvhistid IS NOT NULL OR (NOT pPreDistributed)) THEN
 
-      IF (_debug) THEN 
+      IF (_debug) THEN
         RAISE NOTICE 'createItemlocdistParent(%, %, %, %, %, %, %, %)', pItemsiteId, (_sense * pQty), pOrderType,
           CASE WHEN pOrderType='SO' THEN getSalesLineItemId(pOrderNumber) ELSE pOrdItemId END,
           pItemlocSeries, _invhistid, NULL, pTransType;
@@ -212,9 +219,9 @@ BEGIN
       WHERE (invhist_id=pInvhistid);
 
       IF ( _r.lotserial)  THEN
-        INSERT INTO lsdetail 
+        INSERT INTO lsdetail
           ( lsdetail_itemsite_id, lsdetail_ls_id, lsdetail_created,
-            lsdetail_source_type, lsdetail_source_id, lsdetail_source_number ) 
+            lsdetail_source_type, lsdetail_source_id, lsdetail_source_number )
         SELECT invhist_itemsite_id, invdetail_ls_id, CURRENT_TIMESTAMP,
                'I', _itemlocdistid, ''
         FROM invhist JOIN invdetail ON (invdetail_invhist_id=invhist_id)
@@ -232,12 +239,12 @@ BEGIN
         JOIN (
           SELECT itemlocdist_id, itemlocdist_child_series
           FROM itemlocdist
-          WHERE itemlocdist_id =( 
+          WHERE itemlocdist_id =(
             SELECT MIN(itemlocdist_id)
             FROM getallitemlocdist(pItemlocSeries)
             WHERE itemlocdist_invhist_id IS NULL
               AND itemlocdist_child_series IS NOT NULL)
-        ) ilds2 ON ilds.itemlocdist_id = ilds2.itemlocdist_id 
+        ) ilds2 ON ilds.itemlocdist_id = ilds2.itemlocdist_id
                 OR ilds.itemlocdist_series=ilds2.itemlocdist_child_series
       WHERE ild.itemlocdist_id = ilds.itemlocdist_id
         AND ilds.itemlocdist_itemsite_id = pItemsiteId;
