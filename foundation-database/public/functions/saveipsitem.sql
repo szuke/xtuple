@@ -1,3 +1,5 @@
+DROP FUNCTION IF EXISTS saveIpsItem(INTEGER, INTEGER, INTEGER, NUMERIC, NUMERIC, INTEGER, INTEGER);
+
 CREATE OR REPLACE FUNCTION saveIpsItem(pIpsItemId INTEGER,
                                        pIpsHeadId INTEGER,
                                        pItemId INTEGER,
@@ -8,7 +10,7 @@ CREATE OR REPLACE FUNCTION saveIpsItem(pIpsItemId INTEGER,
                                        pPercent NUMERIC,
                                        pFixedAmt NUMERIC,
                                        pType TEXT) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _ipsitemid	INTEGER;

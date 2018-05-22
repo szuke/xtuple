@@ -1,10 +1,14 @@
+DROP FUNCTION IF EXISTS createBOMItem(INTEGER, INTEGER, INTEGER, CHAR, INTEGER, NUMERIC, NUMERIC, DATE, DATE, BOOL, INTEGER, BOOL, TEXT, CHAR, INTEGER, INTEGER, TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS createBOMItem(INTEGER, INTEGER, INTEGER, INTEGER, CHAR, INTEGER, NUMERIC, NUMERIC, DATE, DATE, BOOL, INTEGER, BOOL, TEXT, CHAR, INTEGER, INTEGER, TEXT);
+DROP FUNCTION IF EXISTS createBOMItem(INTEGER, INTEGER, INTEGER, INTEGER, CHAR, INTEGER, NUMERIC, NUMERIC, DATE, DATE, BOOL, INTEGER, BOOL, TEXT, CHAR, INTEGER, INTEGER, TEXT, TEXT, TEXT) CASCADE;
+
 CREATE OR REPLACE FUNCTION createBOMItem( INTEGER, INTEGER, INTEGER, INTEGER, CHAR,
                                           INTEGER, NUMERIC, NUMERIC, NUMERIC,
                                           DATE, DATE,
                                           BOOL, INTEGER, BOOL, TEXT, CHAR, INTEGER,
                                           INTEGER, TEXT, TEXT, TEXT )
                            RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pBomitemid ALIAS FOR $1;
@@ -84,7 +88,7 @@ CREATE OR REPLACE FUNCTION createBOMItem( INTEGER, INTEGER, INTEGER, INTEGER, CH
                                           BOOL, INTEGER, BOOL, TEXT, CHAR, INTEGER,
                                           INTEGER, TEXT )
                            RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pBomitemid ALIAS FOR $1;
@@ -131,7 +135,7 @@ CREATE OR REPLACE FUNCTION createBOMItem( INTEGER, INTEGER, INTEGER, CHAR,
                                           BOOL, INTEGER, BOOL, TEXT, CHAR(1), INTEGER,
                                           INTEGER, TEXT, TEXT, TEXT )
                            RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pBomitemid ALIAS FOR $1;

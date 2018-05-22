@@ -21,6 +21,7 @@
       ELSE
         formatdate(bomitem_expires)
     END AS expires,
+    bomitem_qtyfxd AS qty_fxd,
     bomitem_qtyper AS qty_per,
     uom_name AS issue_uom,
     bomitem_scrap AS scrap,
@@ -88,6 +89,7 @@ COMMENT ON VIEW api.bomitem IS 'Bill of Material Item';
                           SELECT item_inv_uom_id
                           FROM item
                           WHERE (item_id=getItemId(NEW.item_number)))), 
+                          NEW.qty_fxd,
                           NEW.qty_per, 
                           NEW.scrap,
                           CASE WHEN (NEW.effective = 'Always') THEN startoftime()
@@ -128,6 +130,7 @@ COMMENT ON VIEW api.bomitem IS 'Bill of Material Item';
                               'L'
       END,
       bomitem_uom_id=getUomId(NEW.issue_uom), 
+      bomitem_qtyfxd=NEW.qty_fxd,
       bomitem_qtyper=NEW.qty_per, 
       bomitem_scrap=NEW.scrap,
       bomitem_effective=
