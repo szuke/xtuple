@@ -6,7 +6,7 @@ RETURNS anyelement AS $$
 $$ LANGUAGE SQL STABLE;
 
 -- And then wrap an aggreagate around it
-DROP AGGREGATE public.first (anyelement);
+DROP AGGREGATE IF EXISTS public.first (anyelement);
 CREATE AGGREGATE public.first (
         sfunc    = public.first_agg,
         basetype = anyelement,

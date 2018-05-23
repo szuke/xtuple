@@ -1,13 +1,4 @@
-CREATE OR REPLACE RULE "_INSERT" AS
-  ON INSERT TO api.creditmemoline DO INSTEAD NOTHING;
-CREATE OR REPLACE RULE "_UPDATE" AS
-  ON UPDATE TO api.creditmemoline DO INSTEAD NOTHING;
-SELECT dropIfExists('FUNCTION', 'insertCreditMemoLine(api.creditmemoline)');
-SELECT dropIfExists('FUNCTION', 'updateCreditMemoLine(api.creditmemoline, api.creditmemoline)');
--- Cleanup old bad installs.
-SELECT dropIfExists('FUNCTION', 'insertCreditMemoLine(api.creditmemoline)', 'xt');
-SELECT dropIfExists('FUNCTION', 'updateCreditMemoLine(api.creditmemoline, api.creditmemoline)', 'xt');
-SELECT dropIfExists('VIEW', 'creditmemoline', 'api');
+DROP VIEW IF EXISTS api.creditmemoline CASCADE;
 CREATE OR REPLACE VIEW api.creditmemoline AS
   SELECT cmhead_number AS memo_number,
          cmitem_linenumber AS line_number,
@@ -36,7 +27,7 @@ COMMENT ON VIEW api.creditmemoline IS 'Credit Memo Line';
 
 CREATE OR REPLACE FUNCTION insertcreditmemoline(api.creditmemoline) RETURNS boolean AS
 $insertcreditmemoline$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pNew ALIAS FOR $1;
@@ -101,7 +92,7 @@ $insertcreditmemoline$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION updatecreditmemoline(api.creditmemoline, api.creditmemoline) RETURNS boolean AS
 $updatecreditmemoline$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pNew ALIAS FOR $1;
