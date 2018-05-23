@@ -2,9 +2,13 @@ SELECT xt.create_table('invhist', 'public');
 
 ALTER TABLE public.invhist DISABLE TRIGGER ALL;
 
+DROP VIEW IF EXISTS xm.inventory_history CASCADE;
+
 SELECT
   xt.add_column('invhist', 'invhist_ordhead_id', 'INTEGER', 'NULL', 'public'),
-  xt.add_column('invhist', 'invhist_orditem_id', 'INTEGER', 'NULL', 'public');
+  xt.add_column('invhist', 'invhist_orditem_id', 'INTEGER', 'NULL', 'public'),
+  xt.add_column('invhist', 'invhist_value_before', 'NUMERIC', 'NOT NULL', 'public'),
+  xt.add_column('invhist', 'invhist_value_after', 'NUMERIC', 'NOT NULL', 'public');
 
 ALTER TABLE public.invhist ENABLE TRIGGER ALL;
 
