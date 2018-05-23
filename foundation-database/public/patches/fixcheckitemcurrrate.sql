@@ -29,7 +29,7 @@ BEGIN
   UPDATE checkitem
      SET checkitem_curr_rate = 1.0
    WHERE checkitem_curr_id = _base
-     AND checkitem_curr_id != 1.0;
+     AND checkitem_curr_rate != 1.0;
 
   -- Loop over checkhead instead of checkitem due to potential use of SUM.
   -- Performance optimization because there can be a lot of checkitem records.
