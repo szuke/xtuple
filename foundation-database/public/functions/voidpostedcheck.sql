@@ -140,24 +140,24 @@ BEGIN
   ELSE
     FOR _r IN SELECT checkitem_amount, checkitem_discount,
                      CASE WHEN (checkitem_apopen_id IS NOT NULL AND apopen_doctype='C') THEN
-                            checkitem_amount / apopen_curr_rate * -1.0
-                          WHEN (checkitem_apopen_id IS NOT NULL) THEN
-                            checkitem_amount / apopen_curr_rate
+                            checkitem_amount * -1.0
                           ELSE
-                            currToBase(checkitem_curr_id,
-                                       checkitem_amount,
-                                       COALESCE(checkitem_docdate, _p.checkhead_checkdate)) 
+                            checkitem_amount
+                     END /
+                     CASE WHEN (checkitem_apopen_id IS NOT NULL) THEN
+                            apopen_curr_rate
+                          ELSE
+                            aropen_curr_rate
                      END AS checkitem_amount_base,
-                     currTocurr(checkitem_curr_id, _p.checkhead_curr_id,
-                                CASE WHEN (checkitem_apopen_id IS NOT NULL AND apopen_doctype='C') THEN
-                                          checkitem_amount * -1.0
-                                     ELSE checkitem_amount END,
-                                  _p.checkhead_checkdate) AS amount_check,
+                     CASE WHEN (checkitem_apopen_id IS NOT NULL AND apopen_doctype='C') THEN
+                            checkitem_amount * -1.0
+                          ELSE checkitem_amount
+                      END * checkhead_curr_rate / checkitem_curr_rate AS amount_check,
                      apopen_id, apopen_doctype, apopen_docnumber, apopen_curr_id, apopen_curr_rate,
                      apopen_docdate, aropen_id, aropen_doctype, aropen_docnumber,
-                     checkitem_curr_id,
-                     COALESCE(checkitem_docdate, _p.checkhead_checkdate) AS docdate
-              FROM (checkitem LEFT OUTER JOIN
+                     checkitem_curr_id, COALESCE(apopen_curr_rate, aropen_curr_rate) AS curr_rate,
+                     checkitem_curr_rate, checkhead_curr_rate
+              FROM (checkitem JOIN checkhead ON checkitem_checkhead_id=checkhead_id LEFT OUTER JOIN
 		    apopen ON (checkitem_apopen_id=apopen_id)) LEFT OUTER JOIN
 		    aropen ON (checkitem_aropen_id=aropen_id)
               WHERE (checkitem_checkhead_id=pcheckid) LOOP
@@ -258,15 +258,8 @@ BEGIN
       END IF; -- if check item's aropen_id is not null
 
 --  calculate currency gain/loss
-      IF (_r.apopen_id IS NOT NULL) THEN
-        SELECT apCurrGain(_r.apopen_id,_r.checkitem_curr_id, _r.checkitem_amount,
-                        _p.checkhead_checkdate)
-              INTO _exchGainTmp;
-      ELSIF (_r.aropen_id IS NOT NULL) THEN
-        SELECT arCurrGain(_r.aropen_id,_r.checkitem_curr_id, _r.checkitem_amount,
-                        _p.checkhead_checkdate)
-              INTO _exchGainTmp;
-      END IF;
+      SELECT currGain(_r.checkitem_amount, _r.curr_rate, _r.checkitem_curr_rate)
+        INTO _exchGainTmp;
       _exchGain := _exchGain + _exchGainTmp;
 
       PERFORM insertIntoGLSeries( _sequence, _p.checkrecip_gltrans_source,

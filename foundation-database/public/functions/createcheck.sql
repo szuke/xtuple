@@ -110,10 +110,10 @@ BEGIN
   IF (pAropenid IS NOT NULL AND fetchmetricbool('EnableReturnAuth')) THEN
     INSERT INTO checkitem (checkitem_checkhead_id,checkitem_amount,checkitem_discount,checkitem_ponumber,
                            checkitem_aropen_id,checkitem_docdate,checkitem_curr_id,checkitem_cmnumber,
-                           checkitem_ranumber, checkitem_curr_rate)
+                           checkitem_ranumber, checkitem_curr_rate, checkitem_currdate)
     SELECT _checkid, currToCurr(checkhead_curr_id, aropen_curr_id, pAmount, checkhead_checkdate),
       0,cmhead_custponumber,pAropenid,aropen_docdate,aropen_curr_id,cmhead_number,rahead_number,
-      aropen_curr_rate
+      currRate(aropen_curr_id, checkhead_checkdate), checkhead_checkdate
     FROM checkhead, aropen
       LEFT OUTER JOIN cmhead ON (aropen_docnumber=cmhead_number)
       LEFT OUTER JOIN rahead ON (cmhead_rahead_id=rahead_id)
@@ -122,10 +122,10 @@ BEGIN
   ELSIF (pAropenid IS NOT NULL) THEN
     INSERT INTO checkitem (checkitem_checkhead_id,checkitem_amount,checkitem_discount,checkitem_ponumber,
                            checkitem_aropen_id,checkitem_docdate,checkitem_curr_id,checkitem_cmnumber,
-                           checkitem_ranumber, checkitem_curr_rate)
+                           checkitem_ranumber, checkitem_curr_rate, checkitem_currdate)
     SELECT _checkid,currToCurr(checkhead_curr_id, aropen_curr_id, pAmount, checkhead_checkdate),
       0,cmhead_custponumber,pAropenid,aropen_docdate,aropen_curr_id,cmhead_number,NULL,
-      aropen_curr_rate
+      currRate(aropen_curr_id, checkhead_checkdate), checkhead_checkdate
     FROM checkhead, aropen
       LEFT OUTER JOIN cmhead ON (aropen_docnumber=cmhead_number)
     WHERE ((aropen_id=pAropenid)
