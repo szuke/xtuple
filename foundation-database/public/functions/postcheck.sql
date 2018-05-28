@@ -1,6 +1,6 @@
 CREATE OR REPLACE FUNCTION postcheck(integer, integer)
   RETURNS integer AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pcheckid		ALIAS FOR $1;
@@ -28,7 +28,7 @@ BEGIN
     _journalNumber := fetchJournalNumber('AP-CK');
   END IF;
 
-  SELECT checkhead.*,
+  SELECT checkhead.*, bankaccnt_prnt_check,
          checkhead_amount / checkhead_curr_rate AS checkhead_amount_base,
          COALESCE(calculateinversetax(checkhead_taxzone_id, checkhead_taxtype_id, 
             checkhead_checkdate, checkhead_curr_id, checkhead_amount),0) as total_tax,
@@ -71,6 +71,10 @@ BEGIN
     END IF;
   ELSE
     RAISE EXCEPTION 'Error Retrieving Check Information [xtuple: postCheck, -11, %]', pcheckid;
+  END IF;
+
+  IF (_p.bankaccnt_prnt_check AND NOT _p.checkhead_printed) THEN
+    RAISE EXCEPTION 'This payment must be printed before posting [xtuple: postCheck, -9, %]', pcheckid;
   END IF;
 
   IF (_p.checkhead_posted) THEN
@@ -254,7 +258,7 @@ BEGIN
     END LOOP;
 
     IF( (_amount_check - _p.checkhead_amount) <> 0.0 ) THEN 
-      _exchGainTmp := (amount_check - _p.checkhead_amount) / checkhead_curr_rate;
+      _exchGainTmp := (_amount_check - _p.checkhead_amount) / _p.checkhead_curr_rate;
       _exchGain := _exchGain + _exchGainTmp;
     END IF;
     --  ensure that the check balances, attribute rounding errors to gain/loss
