@@ -30,6 +30,13 @@ BEGIN
   FROM item
   WHERE (item_id=pSItemid);
 
+  INSERT INTO itemgrpitem
+  (itemgrpitem_itemgrp_id, itemgrpitem_item_id, itemgrpitem_item_type)
+  SELECT itemgrpitem_itemgrp_id, _itemid, 'I'
+    FROM itemgrpitem
+   WHERE itemgrpitem_item_type = 'I'
+     AND itemgrpitem_item_id=pSItemid;
+
   INSERT INTO imageass
   (imageass_source_id, imageass_source, imageass_image_id, imageass_purpose)
   SELECT _itemid, 'I', imageass_image_id, imageass_purpose
@@ -52,8 +59,8 @@ BEGIN
 
   INSERT INTO charass
   ( charass_target_type, charass_target_id,
-    charass_char_id, charass_value )
-  SELECT 'I', _itemid, charass_char_id, charass_value
+    charass_char_id, charass_value, charass_default, charass_price )
+  SELECT 'I', _itemid, charass_char_id, charass_value, charass_default, charass_price
   FROM charass
   WHERE ( (charass_target_type='I')
    AND (charass_target_id=pSItemid) );
