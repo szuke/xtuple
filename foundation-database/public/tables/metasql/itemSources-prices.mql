@@ -1,7 +1,7 @@
 -- Group: itemSources
 -- Name: prices
 -- Notes: 
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 WITH qry AS
@@ -20,7 +20,7 @@ SELECT itemsrcp_id, itemsrc_id,
        (itemsrc_vend_item_number || '/' || itemsrc_manuf_item_number) AS itemsrc_descrip,
        itemsrcp_qtybreak, itemsrcp_price, itemsrcp_dropship, itemsrcp_discntprcnt,
        itemsrcp_fixedamtdiscount,
-       formatQty(itemsrc_invvendoruomratio) AS f_uomratio,
+       formatratio(itemsrc_invvendoruomratio) AS f_uomratio,
        currConcat(itemsrcp_curr_id) AS item_curr,
        noNeg(CASE WHEN (itemsrcp_type='N') THEN currToBase(itemsrcp_curr_id, itemsrcp_price, itemsrcp_updated)
                   WHEN (itemsrcp_type='D') THEN (item_listcost - (item_listcost * COALESCE(itemsrcp_discntprcnt, 0.0)) - COALESCE(itemsrcp_fixedamtdiscount, 0.0))
@@ -30,7 +30,7 @@ SELECT itemsrcp_id, itemsrc_id,
                   WHEN (itemsrcp_type='D') THEN (item_listcost - (item_listcost * COALESCE(itemsrcp_discntprcnt, 0.0)) - COALESCE(itemsrcp_fixedamtdiscount, 0.0))
                   ELSE 0.0
              END) AS price_local,
-       formatQty(noNeg(CASE WHEN (itemsrcp_type='N') THEN itemsrcp_price
+       formatCost(noNeg(CASE WHEN (itemsrcp_type='N') THEN itemsrcp_price
                             WHEN (itemsrcp_type='D') THEN (item_listcost - (item_listcost * COALESCE(itemsrcp_discntprcnt, 0.0)) - COALESCE(itemsrcp_fixedamtdiscount, 0.0))
                             ELSE 0.0
                        END)) AS f_price_local,
