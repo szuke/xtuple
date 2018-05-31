@@ -179,13 +179,13 @@ BEGIN
           -- 2. Specific Customer Shipto Pattern
           OR (COALESCE(LENGTH(ipsass_shipto_pattern), 0) > 0
               AND ipsass_cust_id > -1
-              AND ipsass_shipto_pattern ~ COALESCE(_shipto.shipto_num, '')
+              AND COALESCE(_shipto.shipto_num, '') ~ ipsass_shipto_pattern
               AND ipsass_cust_id = _cust.cust_id
           )
           -- 3. Any Customer Shipto Pattern
           OR (COALESCE(LENGTH(ipsass_shipto_pattern), 0) > 0
               AND ipsass_cust_id = -1
-              AND ipsass_shipto_pattern ~ COALESCE(_shipto.shipto_num, '')
+              AND COALESCE(_shipto.shipto_num, '') ~ ipsass_shipto_pattern
           )
           -- 4. Specific Customer
           OR (COALESCE(LENGTH(ipsass_shipto_pattern), 0) = 0
@@ -195,7 +195,7 @@ BEGIN
           OR (ipsass_custtype_id = _cust.cust_custtype_id)
           -- 6. Customer Type Pattern
           OR (COALESCE(LENGTH(ipsass_custtype_pattern), 0) > 0
-              AND ipsass_custtype_pattern ~ COALESCE(_cust.custtype_code, '')
+              AND COALESCE(_cust.custtype_code, '') ~ ipsass_custtype_pattern
           )
           -- 7. Shipping Zone
           OR (COALESCE(ipsass_shipzone_id, 0) > 0
