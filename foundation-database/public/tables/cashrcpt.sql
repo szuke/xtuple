@@ -6,7 +6,7 @@ SELECT
   xt.add_column('cashrcpt', 'cashrcpt_id',                 'SERIAL', 'NOT NULL', 'public'),
   xt.add_column('cashrcpt', 'cashrcpt_cust_id',           'INTEGER', 'NOT NULL', 'public'),
   xt.add_column('cashrcpt', 'cashrcpt_amount',      'NUMERIC(20,2)', 'NOT NULL', 'public'),
-  xt.add_column('cashrcpt', 'cashrcpt_fundstype',    'CHARACTER(1)', 'NOT NULL', 'public'),
+  xt.add_column('cashrcpt', 'cashrcpt_fundstype',            'TEXT', 'NOT NULL', 'public'),
   xt.add_column('cashrcpt', 'cashrcpt_docnumber',            'TEXT', NULL,       'public'),
   xt.add_column('cashrcpt', 'cashrcpt_bankaccnt_id',      'INTEGER', 'NOT NULL', 'public'),
   xt.add_column('cashrcpt', 'cashrcpt_notes',                'TEXT', NULL,       'public'),
