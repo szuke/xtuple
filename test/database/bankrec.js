@@ -452,6 +452,18 @@ var _    = require("underscore"),
       });
     });
 
+    it('updates the bank account to allow unprinted apchecks to be posted', function(done) {
+      var sql = mqlToSql("UPDATE bankaccnt SET bankaccnt_prnt_check=FALSE " +
+                         " WHERE bankaccnt_id = <? value('bankaccntid') ?>" +
+                         " RETURNING bankaccnt_id AS result;",
+                         { bankaccntid: bankaccnt.bankaccnt_id});
+      datasource.query(sql, creds, function (err, res) {
+        assert.equal(res.rowCount, 1);
+        assert(res.rows[0].result == bankaccnt.bankaccnt_id, 'bank account was updated');
+        done();
+      });
+    });
+
     it('creates an apcheck to reconcile', function (done) {
       var sql = mqlToSql("SELECT createCheck(<? value('bankaccntid') ?>, 'V'," +
                          "   vohead_vend_id, CURRENT_DATE, vohead_amount,"     +
