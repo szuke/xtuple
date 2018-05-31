@@ -3,7 +3,7 @@ SELECT xt.create_table('fundstype', 'public');
 ALTER TABLE public.fundstype DISABLE TRIGGER ALL;
 
 select xt.add_column('fundstype', 'fundstype_id','SERIAL', 'PRIMARY KEY',    'public');
-select xt.add_column('fundstype', 'fundstype_code', 'CHARACTER(1)', 'NOT NULL', 'public');
+select xt.add_column('fundstype', 'fundstype_code', 'TEXT', 'NOT NULL', 'public');
 select xt.add_column('fundstype', 'fundstype_name', 'TEXT', 'NOT NULL', 'public');
 select xt.add_column('fundstype', 'fundstype_descrip', 'TEXT', 'NOT NULL', 'public');
 select xt.add_column('fundstype', 'fundstype_creditcard', 'BOOLEAN', 'NOT NULL DEFAULT FALSE', 'public');
