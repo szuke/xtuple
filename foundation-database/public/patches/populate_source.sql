@@ -682,7 +682,7 @@ select createDoctype(39, --pDocAssNum
                      '', --pWidget
                      'join vendinfo on vohead_vend_id=vend_id', --pJoin
                      'vohead_id', --pParam
-                     '', --pUi
+                     'miscVoucher', --pUi
                      '', --pPriv
                      'Purchase' --pModule
 );
