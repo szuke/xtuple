@@ -59,6 +59,19 @@ var _      = require("underscore"),
       });
     });
 
+    it('updates the bank account to allow unprinted apchecks to be posted', function(done) {
+      var sql = "UPDATE bankaccnt SET bankaccnt_prnt_check=FALSE " +
+                " WHERE bankaccnt_id = $1" +
+                " RETURNING bankaccnt_id AS result;",
+          cred = _.extend({}, adminCred,
+                          { parameters: [ bankaccnt.bankaccnt_id ] });
+      datasource.query(sql, cred, function (err, res) {
+        assert.equal(res.rowCount, 1);
+        assert(res.rows[0].result == bankaccnt.bankaccnt_id, 'bank account was updated');
+        done();
+      });
+    });
+
     it("should create a check to use", function (done) {
       var sql = "select createCheck($1, 'V',"                     +
                 "  (select min(vend_id) from vendinfo),"          +
