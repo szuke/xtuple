@@ -187,8 +187,8 @@ BEGIN
 				)
 			ELSE 1
 		END,
-		invcitem_rev_accnt_id=getGlAccntId(alternate_rev_account)
-		invcitem_subnumber = COALESCE(pNew.invoice_subnumber)
+		invcitem_rev_accnt_id=getGlAccntId(alternate_rev_account),
+		invcitem_subnumber = COALESCE(pNew.invoice_subnumber,0)
 	FROM invchead
 		LEFT OUTER JOIN item ON (item_id=getItemId(pNew.item_number))
 		LEFT OUTER JOIN taxtype ON (taxtype_id=CASE
