@@ -82,7 +82,7 @@ TODO deferred to later sprint:
     @property {Money} outstandingCredit the sum of all unallocated credits, not including
       cash receipts pending
     @property {Money} subtotal the sum of the extended price of all line items
-    @property {Money} taxTotal the sum of all taxes inluding line items, freight and
+    @property {Money} taxTotal the sum of all taxes including line items, freight and
       tax adjustments
     @property {Money} miscCharge read only (will be re-implemented as editable by Ledger)
     @property {Money} total the calculated total of subtotal + freight + tax + miscCharge
@@ -138,12 +138,13 @@ TODO deferred to later sprint:
       "orderNumber", "orderDate", // these 2 from sales extension
       "project"], // this 1 from project
     requiredAttributes: ["number", "invoiceDate", "isPosted", "isVoid",
-      "customer", "commission"],
+      "customer", "commission", "freight"],
     defaults: {
       invoiceDate: new Date(),
       isPosted: false,
-      isVoid: false,
-      commission: 0
+      isVoid:   false,
+      commission:   0,
+      freight:      0
     },
     /**
       @member Setup
