@@ -44,8 +44,16 @@ $insertInvoiceLineItem$
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
 	pNew ALIAS FOR $1;
+    _check INTEGER;
 	_r RECORD;
 BEGIN
+  SELECT invchead_id INTO _check
+  FROM invchead
+  WHERE (invchead_id=getInvcheadId(pNew.invoice_number));
+  IF (NOT FOUND) THEN
+    RAISE EXCEPTION 'Invoice # % not found [xtuple: insertInvoiceLineItem, -1, %]',
+                    pNew.invoice_number, pNew.invoice_number;
+  END IF;
 	INSERT INTO invcitem (
 		invcitem_invchead_id,
 		invcitem_linenumber,
@@ -140,8 +148,16 @@ $updateInvoiceLineItem$
 DECLARE
 	pNew ALIAS FOR $1;
 	pOld ALIAS FOR $2;
+    _check INTEGER;
 	_r RECORD;
 BEGIN
+  SELECT invcitem_id INTO _check
+  FROM invcitem
+  WHERE ( (invcitem_id=getInvcheadId(pOld.invoice_number)) AND (invcitem_linenumber=pOld.line_number) );
+  IF (NOT FOUND) THEN
+    RAISE EXCEPTION 'Invoice % Line % not found [xtuple: updateInvoiceLineItem, -1, %, %]',
+                     pOld.invoice_number, pOld.line_number, pOld.invoice_number, pOld.line_number;
+  END IF;
 	UPDATE invcitem SET
 		invcitem_linenumber=pNew.line_number,
 		invcitem_item_id=COALESCE(item_id, -1),
@@ -187,7 +203,7 @@ BEGIN
 				)
 			ELSE 1
 		END,
-		invcitem_rev_accnt_id=getGlAccntId(alternate_rev_account),
+		invcitem_rev_accnt_id=getGlAccntId(pNew.alternate_rev_account),
 		invcitem_subnumber = COALESCE(pNew.invoice_subnumber,0)
 	FROM invchead
 		LEFT OUTER JOIN item ON (item_id=getItemId(pNew.item_number))
@@ -219,10 +235,9 @@ CREATE OR REPLACE RULE "_UPDATE" AS
 
 CREATE OR REPLACE RULE "_DELETE" AS
 	ON DELETE TO api.invoiceline DO INSTEAD
-
-	DELETE FROM invcitem
-	WHERE invcitem_invchead_id=(
-		SELECT invchead_id FROM invchead
-		WHERE invchead_invcnumber=OLD.invoice_number
-			AND invchead_posted = FALSE
-	);
+      DELETE FROM invcitem
+      WHERE invcitem_invchead_id=(
+        SELECT invchead_id FROM invchead
+        WHERE invchead_invcnumber=OLD.invoice_number
+          AND invchead_posted = FALSE
+    );
