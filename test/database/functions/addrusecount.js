@@ -6,7 +6,7 @@ var _      = require("underscore"),
   "use strict";
 
   describe('addrUseCount()', function () {
-    this.timeout(5 * 1000);
+    this.timeout(10 * 1000);
 
     var datasource = dblib.datasource,
         adminCred  = dblib.generateCreds(),
