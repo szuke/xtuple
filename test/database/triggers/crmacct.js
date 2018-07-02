@@ -5,6 +5,7 @@ var _       = require('underscore'),
   'use strict';
 
   describe('crmacct trigger', function () {
+    this.timeout(10 * 1000);
 
     var dblib      = require('../dblib.js'),
         adminCred  = dblib.adminCred,
