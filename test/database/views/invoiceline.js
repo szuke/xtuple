@@ -58,13 +58,14 @@ var _ = require("underscore"),
           sql  = "select insertInvoiceLineItem(%) as result;".replace(/%/g, line)
         ;
       datasource.query(sql, creds, function (err, res) {
-        dblib.assertErrorCode(err,res,'insertInvoiceLineItem',-1);
+        assert.isNotNull(err);
+        assert.match(err, /xtuple:.*-1[^0-9]|not found/i);
         done();
       });
     });
     
     it("should allow creating a new invoice", function (done) {
-      var invoice = "ROW('"+inv+"', NULL, NULL, NULL, NULL,"
+      var invoice  = "ROW('"+inv+"', NULL, NULL, NULL, NULL,"
                +      "NULL, NULL, 0,"
                +      "NULL, NULL, 'TTOYS',"
                +      "NULL, NULL, NULL, NULL, NULL, "
@@ -75,6 +76,7 @@ var _ = require("underscore"),
                +      "0, NULL, 0, 'USD' , 0, 'invoice notes')",
           sql  = "select insertInvoice(%) as result;".replace(/%/g, invoice)
                  ;
+      
       datasource.query(sql, creds, function (err, res) {
         assert.isNull(err);
         assert.isTrue(res.rows[0].result);
