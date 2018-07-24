@@ -20,7 +20,7 @@ SELECT xt.create_view('public.usr', $BODY$
     COALESCE(locale.usrpref_value::integer, (SELECT locale_id FROM default_locale)) AS usr_locale_id,
     COALESCE(initials.usrpref_value, '') AS usr_initials,
     COALESCE((agent.usrpref_value = 't'), false) AS usr_agent,
-    COALESCE((active.usrpref_value = 't'), userCanLogin(usename), false) AS usr_active,
+    COALESCE((active.usrpref_value = 't'), false) AS usr_active,
     COALESCE(email.usrpref_value, '') AS usr_email,
     COALESCE(wind.usrpref_value, '') AS usr_window
     FROM pg_user
