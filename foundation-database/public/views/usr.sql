@@ -1,5 +1,5 @@
 SELECT xt.create_view('public.usr', $BODY$
--- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/EULA for the full text of the software license.
 
   WITH default_locale AS (
@@ -13,79 +13,23 @@ SELECT xt.create_view('public.usr', $BODY$
      LIMIT 1
   )
   SELECT
-    usr_id,
-    usr_username,
-    COALESCE(value[6], '') AS usr_propername,
-    usr_passwd,
-    COALESCE(value[5]::integer, (SELECT locale_id FROM default_locale)) AS usr_locale_id,
-    COALESCE(value[4], '') AS usr_initials,
-    COALESCE((value[2] = 't'), false) AS usr_agent,
-    COALESCE((value[1] = 't'), false) AS usr_active,
-    COALESCE(value[3], '') AS usr_email,
-    COALESCE(value[7], '') AS usr_window
-    FROM (
-      SELECT
-        usr_id,
-        usr_username,
-        usr_passwd,
-        -- Roll the value pairs up into an array for each user.
-        --array_agg(name) AS name, -- Not actually used above, but helpful for debugging.
-        array_agg(value ORDER BY name) AS value
-        FROM (
-          SELECT
-            usr_id,
-            usr_username,
-            usr_passwd,
-            pref_names.name,
-            value
-            FROM (
-              -- Make a table of users and dummy pref names to serve as default rows if not set for the user.
-              SELECT
-                usesysid::integer AS usr_id,
-                usename::text AS usr_username,
-                null::text AS usr_passwd,
-                name
-                FROM pg_user
-               CROSS JOIN (
-                  SELECT
-                    unnest(ARRAY[
-                      'active',
-                      'agent',
-                      'email',
-                      'initials',
-                      'locale_id',
-                      'propername',
-                      'window'
-                    ]) AS name
-                ) AS pref_names
-            ) AS pref_names
-            LEFT JOIN (
-              -- Join the user's pref settings with the users and dummy pref names table.
-              SELECT
-                usrpref_username AS username,
-                usrpref_name AS name,
-                usrpref_value AS value
-                FROM usrpref
-               WHERE true
-                 AND usrpref_name IN (
-                   'active',
-                   'agent',
-                   'email',
-                   'initials',
-                   'locale_id',
-                   'propername',
-                   'window'
-                 )
-            ) AS userprefs ON (pref_names.name = userprefs.name AND pref_names.usr_username = userprefs.username)
-           -- Make sure they are alpha ordered so the array access operators above know which is which.
-           ORDER BY
-            usr_username,
-            pref_names.name
-        ) AS userprefs
-       GROUP BY
-        usr_id,
-        usr_username,
-        usr_passwd
-  ) AS usrprefs;
+    usesysid::integer AS usr_id,
+    usename::text AS usr_username,
+    COALESCE(propername.usrpref_value, '') AS usr_propername,
+    null::text AS usr_passwd,
+    COALESCE(locale.usrpref_value::integer, (SELECT locale_id FROM default_locale)) AS usr_locale_id,
+    COALESCE(initials.usrpref_value, '') AS usr_initials,
+    COALESCE((agent.usrpref_value = 't'), false) AS usr_agent,
+    COALESCE((active.usrpref_value = 't'), false) AS usr_active,
+    COALESCE(email.usrpref_value, '') AS usr_email,
+    COALESCE(wind.usrpref_value, '') AS usr_window
+    FROM pg_user
+    LEFT JOIN usrpref AS propername ON propername.usrpref_username = usename AND propername.usrpref_name = 'propername'
+    LEFT JOIN usrpref AS locale ON locale.usrpref_username = usename AND locale.usrpref_name = 'locale_id'
+    LEFT JOIN usrpref AS initials ON initials.usrpref_username = usename AND initials.usrpref_name = 'initials'
+    LEFT JOIN usrpref AS agent ON agent.usrpref_username = usename AND agent.usrpref_name = 'agent'
+    LEFT JOIN usrpref AS active ON active.usrpref_username = usename AND active.usrpref_name = 'active'
+    LEFT JOIN usrpref AS email ON email.usrpref_username = usename AND email.usrpref_name = 'email'
+    LEFT JOIN usrpref AS wind ON wind.usrpref_username = usename AND wind.usrpref_name = 'window';
 
 $BODY$, false);
