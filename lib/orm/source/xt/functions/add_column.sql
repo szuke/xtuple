@@ -119,7 +119,7 @@ BEGIN
   END IF;
 
   IF (pType ~~* 'serial') THEN
-    _sequence := format('%I_%I_id_seq', pTable, pTable);
+    _sequence := format('%I_%I_id_seq', pTable, pColumn);
     IF (EXISTS(SELECT 1 FROM pg_class WHERE relname=_sequence
                AND relkind='S' AND relacl IS NULL ORDER BY relname)) THEN
       _query := format('GRANT ALL ON SEQUENCE %I.%I TO xtrole;', pSchema, _sequence);
