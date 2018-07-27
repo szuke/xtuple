@@ -295,9 +295,13 @@ BEGIN
                     NEW.coitem_id,
 		    cohead_prj_id) INTO NEW.coitem_order_id
     FROM cohead, itemsite, custinfo
-    WHERE ((cohead_id=NEW.coitem_cohead_id)
-    AND (itemsite_id=NEW.coitem_itemsite_id)
-    AND (cust_id=cohead_cust_id));
+    WHERE cohead_id=NEW.coitem_cohead_id
+      AND itemsite_id=NEW.coitem_itemsite_id
+      AND cust_id=cohead_cust_id
+      AND NOT EXISTS (SELECT 1 FROM wo
+                       WHERE wo_number  = CAST(cohead_number AS INTEGER)
+                         AND wo_ordtype = 'S'
+                         AND wo_ordid   = NEW.coitem_id);
 
     INSERT INTO charass
       (charass_target_type, charass_target_id,
