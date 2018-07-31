@@ -2,7 +2,7 @@ DROP FUNCTION IF EXISTS voidCreditMemo(INTEGER);
 CREATE OR REPLACE FUNCTION voidCreditMemo(pCmheadid INTEGER,
                                           pItemlocSeries INTEGER DEFAULT NULL,
                                           pPreDistributed BOOLEAN DEFAULT FALSE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _r RECORD;
@@ -25,7 +25,7 @@ DECLARE
   _hasControlledItems BOOLEAN := FALSE;
 
 BEGIN
-  IF (pPreDistributed AND COALESCE(pItemlocSeries, 0) = 0) THEN 
+  IF (pPreDistributed AND COALESCE(pItemlocSeries, 0) = 0) THEN
     RAISE EXCEPTION 'pItemlocSeries is Required when pPreDistributed [xtuple: voidCreditMemo, -3]';
   ELSIF (_itemlocSeries <= 0) THEN
     _itemlocSeries := NEXTVAL('itemloc_series_seq');
@@ -73,27 +73,29 @@ BEGIN
   SELECT fetchJournalNumber('AR-IN') INTO _glJournal;
 
 --  Start by handling taxes (reverse sense)
-  FOR _r IN SELECT tax_sales_accnt_id, 
+  FOR _r IN SELECT tax_sales_accnt_id,
               round(sum(taxdetail_tax),2) AS tax,
               currToBase(_p.cmhead_curr_id, round(sum(taxdetail_tax),2), _p.cmhead_docdate) AS taxbasevalue
-            FROM tax 
+            FROM tax
              JOIN calculateTaxDetailSummary('CM', _p.cmhead_id, 'T') ON (taxdetail_tax_id=tax_id)
 	    GROUP BY tax_id, tax_sales_accnt_id LOOP
 
     PERFORM insertIntoGLSeries( _glSequence, 'A/R', 'CM', _p.cmhead_number,
-                                _r.tax_sales_accnt_id, 
+                                _r.tax_sales_accnt_id,
                                 (_r.taxbasevalue * -1.0),
                                 _glDate, ('Void-' || _p.cmhead_billtoname) );
 
     _totalAmount := _totalAmount + _r.tax * -1;
-    _totalRoundedBase := _totalRoundedBase + _r.taxbasevalue * -1;  
+    _totalRoundedBase := _totalRoundedBase + _r.taxbasevalue * -1;
   END LOOP;
 
--- Process line items
+-- Process line items (with items)
   FOR _r IN SELECT *
             FROM creditmemoitem
-            WHERE ( (cmitem_cmhead_id=_p.cmhead_id)
-              AND   (cmitem_qtycredit <> 0 ) ) LOOP
+            WHERE cmitem_cmhead_id=_p.cmhead_id
+              AND cmitem_qtycredit <> 0
+              AND cmitem_itemsite_id IS NOT NULL
+  LOOP
 
     IF (_r.extprice <> 0) THEN
 --  Debit the Sales Account for the current cmitem (reverse sense)
@@ -111,7 +113,35 @@ BEGIN
                                           _p.cmhead_saletype_id, _p.cmhead_shipzone_id));
       IF (NOT FOUND) THEN
         PERFORM deleteGLSeries(_glSequence);
-        RETURN -11;
+        RAISE EXCEPTION 'Unable to void this Credit Memo because the Sales Account was not found. [xtuple: voidCreditMemo, -11]';
+      END IF;
+    END IF;
+
+    _totalAmount := _totalAmount + round(_r.extprice, 2);
+    _totalRoundedBase := _totalRoundedBase + _roundedBase;
+
+  END LOOP;
+
+-- Process line items (with Miscellaneoous C/M items)
+  FOR _r IN SELECT *
+            FROM creditmemoitem
+            JOIN salescat ON (salescat_id = cmitem_salescat_id)
+            WHERE cmitem_cmhead_id=_p.cmhead_id
+              AND cmitem_qtycredit <> 0
+              AND cmitem_itemsite_id IS NULL
+  LOOP
+
+    IF (_r.extprice <> 0) THEN
+--  Debit the Sales Account for the current cmitem (reverse sense)
+      _roundedBase := round(currToBase(_p.cmhead_curr_id, _r.extprice, _p.cmhead_docdate), 2);
+      SELECT insertIntoGLSeries( _glSequence, 'A/R', 'CM', _p.cmhead_number,
+                                   getPrjAccntId(_p.cmhead_prj_id,
+                                      COALESCE(_r.cmitem_rev_accnt_id, _r.salescat_sales_accnt_id)),
+                                 _roundedBase,
+                                 _glDate, ('Void-' || _p.cmhead_billtoname) ) INTO _test;
+      IF (NOT FOUND) THEN
+        PERFORM deleteGLSeries(_glSequence);
+        RAISE EXCEPTION 'Unable to void this Credit Memo because the Sales Account was not found. [xtuple: voidCreditMemo, -11]';
       END IF;
     END IF;
 
@@ -135,8 +165,8 @@ BEGIN
       PERFORM deleteGLSeries(_glSequence);
       IF (_test < 0) THEN
         RETURN _test;
-      ELSE 
-        RAISE EXCEPTION 'Failed to create GL entry, no record found for accnt_id % 
+      ELSE
+        RAISE EXCEPTION 'Failed to create GL entry, no record found for accnt_id %
           [xtuple: voidCreditMemo, -7, %]', _p.cmhead_misc_accnt_id, _p.cmhead_misc_accnt_id;
       END IF;
     END IF;
@@ -185,7 +215,7 @@ BEGIN
       PERFORM deleteGLSeries(_glSequence);
       IF (_test < 0) THEN
         RETURN _test;
-      ELSE 
+      ELSE
         RAISE EXCEPTION 'Failed to create GL entry for accnt_id % [xtuple: voidCreditMemo, -9, %]',
           _p.ar_accnt_id, _p.ar_accnt_id;
       END IF;
@@ -224,7 +254,7 @@ BEGIN
              AND (itemsite_item_id=item_id)
              AND (cmitem_qtyreturned <> 0)
              AND (cmitem_updateinv)
-             AND (cmhead_id=_p.cmhead_id) ) 
+             AND (cmhead_id=_p.cmhead_id) )
             ORDER BY cmitem_id LOOP
 
 --  Return credited stock to inventory
@@ -232,21 +262,21 @@ BEGIN
                          'S/O', 'CM', _r.cmhead_number, '',
                          ('Credit Voided ' || _r.item_number),
                          costcat_asset_accnt_id,
-                         getPrjAccntId(_r.prj_id, resolveCOSAccount(itemsite_id, _r.cust_id, _r.saletype_id, _r.shipzone_id)),  
+                         getPrjAccntId(_r.prj_id, resolveCOSAccount(itemsite_id, _r.cust_id, _r.saletype_id, _r.shipzone_id)),
                          _itemlocSeries, _glDate, NULL, NULL, NULL, pPreDistributed,
                          _r.cmhead_id, _r.cmitem_id) INTO _invhistid
     FROM itemsite, costcat
     WHERE ( (itemsite_costcat_id=costcat_id)
      AND (itemsite_id=_r.itemsite_id) );
 
-    IF (NOT FOUND) THEN 
-      RAISE EXCEPTION 'Could not post inventory transaction: no cost category found for 
+    IF (NOT FOUND) THEN
+      RAISE EXCEPTION 'Could not post inventory transaction: no cost category found for
         itemsite_id % [xtuple: voidCreditMemo, -2, %]', _r.itemsite_id, _r.itemsite_id;
     END IF;
 
     IF (_r.controlled) THEN
       _hasControlledItems := TRUE;
-    END IF; 
+    END IF;
 
   END LOOP;
 
@@ -273,7 +303,7 @@ BEGIN
   SET cmhead_void=TRUE
   WHERE (cmhead_id=_p.cmhead_id);
 
-  IF (pPreDistributed) THEN 
+  IF (pPreDistributed) THEN
     IF (postDistDetail(_itemlocSeries) <= 0 AND _hasControlledItems) THEN
       RAISE EXCEPTION 'Posting Distribution Detail Returned 0 Results [xtuple: voidCreditMemo, -6]';
     END IF;
