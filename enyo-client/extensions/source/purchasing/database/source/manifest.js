@@ -10,7 +10,6 @@
     "xt/functions/po_subtotal.sql",
     "xt/functions/po_tax_total.sql",
     "xt/functions/po_total.sql",
-    "xt/trigger_functions/itemsrc_did_change.sql",
     "xt/tables/poemlprofile.sql",
     "xt/tables/rptdef.sql",
     "xt/views/itemsrcmfg.sql",
