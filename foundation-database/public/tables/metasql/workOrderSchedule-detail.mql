@@ -1,7 +1,7 @@
 -- Group: workOrderSchedule
 -- Name:  detail
 -- Notes: 
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT wo_id,
@@ -14,10 +14,12 @@ SELECT wo_id,
        CASE wo_ordtype WHEN ('S') THEN formatSoitemNumber(wo_ordid)
                        WHEN ('W') THEN formatWoNumber(wo_ordid)
        END AS parentorder,
+<? if exists("isReport") ?>
        formatQty(wo_qtyord) AS ordered,
        formatQty(wo_qtyrcv) AS received,
        formatDate(wo_startdate) AS startdate,
        formatDate(wo_duedate) AS duedate,
+<? endif ?>
        formatWONumber(wo_id) AS wonumber,
        'qty' AS wo_qtyord_xtnumericrole,
        'qty' AS wo_qtyrcv_xtnumericrole,
@@ -69,7 +71,8 @@ WHERE ( (true)
 <? endif ?>
 <? if exists("woSoStatus") ?>
   AND (coitem_status <> 'X')
-<? elseif exists("woSoStatusMismatch") ?>
+<? endif ?>
+<? if exists("woSoStatusMismatch") ?>
   AND (coitem_status='C')
 <? endif ?>
 <? if exists("prj_id") ?>
@@ -93,16 +96,9 @@ WHERE ( (true)
                      WHERE (wo_id=<? value("wo_id") ?>)))
 <? endif ?>
 <? if exists("status_list") ?>
-<? foreach("status_list") ?>
-  <? if isfirst("status_list") ?>
-    AND (wo_status=<? value("status_list") ?>
-  <? else ?>
-    OR wo_status=<? value("status_list") ?>
-  <? endif ?>
-  <? if islast("status_list") ?>
-    )
-  <? endif ?>
-<? endforeach ?>
+  AND wo_status IN ('nOnExIsTeNt'
+    <? foreach("status_list") ?> , <? value("status_list") ?> <? endforeach ?>
+  )
 <? elseif exists("showOnlyRI") ?>
   AND (wo_status IN ('R','I'))
 <? else ?>
@@ -149,11 +145,7 @@ WHERE ( (true)
 <? endif ?>
    )
 ORDER BY 
-<? if exists("sortByStartDate") ?>
-  wo_startdate,
-<? elseif exists("sortByDueDate") ?>
-  wo_duedate,
-<? elseif exists("sortByItemNumber") ?>
-  item_number,
-<? endif ?>
+<? if exists("sortByStartDate") ?>  wo_startdate, <? endif ?>
+<? if exists("sortByDueDate") ?>    wo_duedate,   <? endif ?>
+<? if exists("sortByItemNumber") ?> item_number,  <? endif ?>
   wo_number, wo_subnumber;
