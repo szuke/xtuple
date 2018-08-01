@@ -541,7 +541,7 @@ BEGIN
   IF (TG_OP = 'INSERT') THEN
     -- Create Purchase Request if flagged to do so
     IF ((NEW.coitem_order_type='R') AND (NEW.coitem_order_id=-1)) THEN
-      IF (SELECT NOT itemsite_noautoord
+      IF (SELECT itemsite_autoord
             FROM itemsite
            WHERE itemsite_id = NEW.coitem_itemsite_id) THEN
         SELECT createPR(CAST(_r.cohead_number AS INTEGER), 'S', NEW.coitem_id) INTO _orderid;
@@ -567,7 +567,7 @@ BEGIN
       SELECT itemsrc_id INTO _itemsrcid
       FROM itemsite JOIN itemsrc ON (itemsrc_item_id=itemsite_item_id AND itemsrc_default AND itemsrc_active)
       WHERE (itemsite_id=NEW.coitem_itemsite_id)
-      AND NOT itemsite_noautoord;
+      AND itemsite_autoord;
       IF (FOUND) THEN
         SELECT createPurchaseToSale(NEW.coitem_id,
                                     _itemsrcid,
