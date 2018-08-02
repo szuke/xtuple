@@ -1,6 +1,6 @@
 
 CREATE OR REPLACE FUNCTION createInvoice(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pCobmiscid ALIAS FOR $1;
@@ -203,12 +203,13 @@ BEGIN
 
 -- close Job Costed W/O
     UPDATE wo SET wo_status = 'C'
-    FROM cobill
+    FROM cobill, itemsite
     WHERE ( (cobill_toclose)
      AND (cobill_cobmisc_id=pCobmiscid)
      AND (wo_ordid=cobill_coitem_id)
      AND (wo_ordtype='S')
-     AND (wo_qtyrcv >= wo_qtyord) );
+     AND (wo_qtyrcv >= wo_qtyord) 
+     AND (itemsite_costmethod = 'J') );
   END IF;
 
 --  Mark the cobmisc as posted
