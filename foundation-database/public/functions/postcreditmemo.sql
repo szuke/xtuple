@@ -48,6 +48,12 @@ BEGIN
   FROM cmhead
   WHERE (cmhead_id=pCmheadid);
 
+  IF (_p.cmhead_invcnumber IS NOT NULL AND _p.cmhead_invcnumber != '-1') THEN
+    SELECT invchead_id INTO _invcheadid
+      FROM invchead
+     WHERE invchead_invcnumber = _p.cmhead_invcnumber;
+  END IF;
+
   IF (_p.cmhead_posted) THEN
     RETURN -10;
   END IF;
@@ -125,12 +131,6 @@ BEGIN
                      AND itemsite_warehous_id = invcitem_warehous_id
         JOIN shipitem ON invcitem_id = shipitem_invcitem_id
        WHERE cmitem_id=_r.cmitem_id;
-    END IF;
-
-    IF (_r.cmhead_invcnumber IS NOT NULL AND _r.cmhead_invcnumber != '-1') THEN
-      SELECT invchead_id INTO _invcheadid
-        FROM invchead
-       WHERE invchead_invcnumber = _r.cmhead_invcnumber;
     END IF;
 
 --  Calculate the Commission to be debited
@@ -257,7 +257,7 @@ BEGIN
       cohist_shiptoaddress2, cohist_shiptoaddress3,
       cohist_shiptocity, cohist_shiptostate, cohist_shiptozip,
       cohist_curr_id, cohist_taxtype_id, cohist_taxzone_id,
-      cohist_shipzone_id, cohist_saletype_id )
+      cohist_shipzone_id, cohist_saletype_id, cohist_invchead_id )
     VALUES
     ( _cohistid, _p.cmhead_cust_id, _r.cmitem_itemsite_id, _p.cmhead_shipto_id,
       'M', (_r.cmitem_number || '-' || _r.cmitem_descrip),
@@ -274,7 +274,7 @@ BEGIN
       _p.cmhead_shipto_address2, _p.cmhead_shipto_address3,
       _p.cmhead_shipto_city, _p.cmhead_shipto_state, _p.cmhead_shipto_zipcode,
       _p.cmhead_curr_id, _r.cmitem_taxtype_id, _p.cmhead_taxzone_id,
-      _p.cmhead_shipzone_id, _p.cmhead_saletype_id );
+      _p.cmhead_shipzone_id, _p.cmhead_saletype_id, _invcheadid );
     INSERT INTO cohisttax
     ( taxhist_parent_id, taxhist_taxtype_id, taxhist_tax_id,
       taxhist_basis, taxhist_basis_tax_id, taxhist_sequence,
@@ -326,7 +326,7 @@ BEGIN
       cohist_shiptoaddress2, cohist_shiptoaddress3,
       cohist_shiptocity, cohist_shiptostate, cohist_shiptozip,
       cohist_curr_id,
-      cohist_shipzone_id, cohist_saletype_id )
+      cohist_shipzone_id, cohist_saletype_id, cohist_invchead_id )
     VALUES
     ( _p.cmhead_cust_id, -1, _p.cmhead_shipto_id,
       'M', _p.cmhead_misc_descrip, _p.cmhead_misc_accnt_id,
@@ -343,7 +343,7 @@ BEGIN
       _p.cmhead_shipto_address2, _p.cmhead_shipto_address3,
       _p.cmhead_shipto_city, _p.cmhead_shipto_state, _p.cmhead_shipto_zipcode,
       _p.cmhead_curr_id,
-      _p.cmhead_shipzone_id, _p.cmhead_saletype_id );
+      _p.cmhead_shipzone_id, _p.cmhead_saletype_id, _invcheadid );
 
 --  Cache the Misc. Amount distributed
     _totalAmount := _totalAmount + _p.cmhead_misc;
@@ -369,7 +369,7 @@ BEGIN
       cohist_shiptoaddress2, cohist_shiptoaddress3,
       cohist_shiptocity, cohist_shiptostate, cohist_shiptozip,
       cohist_curr_id, cohist_taxtype_id, cohist_taxzone_id,
-      cohist_shipzone_id, cohist_saletype_id )
+      cohist_shipzone_id, cohist_saletype_id, cohist_invchead_id )
     VALUES
     ( _cohistid, _p.cmhead_cust_id, -1, _p.cmhead_shipto_id,
       'T', 'Misc Tax Adjustment',
@@ -386,7 +386,7 @@ BEGIN
       _p.cmhead_shipto_address2, _p.cmhead_shipto_address3,
       _p.cmhead_shipto_city, _p.cmhead_shipto_state, _p.cmhead_shipto_zipcode,
       _p.cmhead_curr_id, getAdjustmentTaxtypeId(), _p.cmhead_taxzone_id,
-      _p.cmhead_shipzone_id, _p.cmhead_saletype_id );
+      _p.cmhead_shipzone_id, _p.cmhead_saletype_id, _invcheadid );
     INSERT INTO cohisttax
     ( taxhist_parent_id, taxhist_taxtype_id, taxhist_tax_id,
       taxhist_basis, taxhist_basis_tax_id, taxhist_sequence,
@@ -442,7 +442,7 @@ BEGIN
       cohist_shiptoaddress2, cohist_shiptoaddress3,
       cohist_shiptocity, cohist_shiptostate, cohist_shiptozip,
       cohist_curr_id, cohist_taxtype_id, cohist_taxzone_id,
-      cohist_shipzone_id, cohist_saletype_id )
+      cohist_shipzone_id, cohist_saletype_id, cohist_invchead_id )
     VALUES
     ( _cohistid, _p.cmhead_cust_id, -1, _p.cmhead_shipto_id,
       'F', 'Freight Charge',
@@ -459,7 +459,7 @@ BEGIN
       _p.cmhead_shipto_address2, _p.cmhead_shipto_address3,
       _p.cmhead_shipto_city, _p.cmhead_shipto_state, _p.cmhead_shipto_zipcode,
       _p.cmhead_curr_id, getFreightTaxtypeId(), _p.cmhead_taxzone_id,
-      _p.cmhead_shipzone_id, _p.cmhead_saletype_id );
+      _p.cmhead_shipzone_id, _p.cmhead_saletype_id, _invcheadid );
     INSERT INTO cohisttax
     ( taxhist_parent_id, taxhist_taxtype_id, taxhist_tax_id,
       taxhist_basis, taxhist_basis_tax_id, taxhist_sequence,
