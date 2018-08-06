@@ -16,7 +16,9 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
     EventEmitter = require('events').EventEmitter,
     DataSource = {
       requestNum: 0,
-      callbacks: { },
+      callbacks: {},
+
+      creds : {},
 
       getAdminCredentials: function (organization) {
         return {
@@ -89,7 +91,7 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
         @param {Function} callback
       */
       query: function (query, options, callback) {
-        var creds = {
+        this.creds = {
           "user": options.user,
           "port": options.port,
           "host": options.host || options.hostname,
@@ -103,7 +105,7 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
           this.callbacks[this.requestNum] = callback;
           // Single worker version.
           options.debugDatabase = X.options.datasource.debugDatabase;
-          this.worker.send({id: this.requestNum, query: query, options: options, creds: creds, poolSize: this.poolSize});
+          this.worker.send({id: this.requestNum, query: query, options: options, creds: this.creds, poolSize: this.poolSize});
 
           // NOTE: Round robin benchmarks are slower then the above single pgworker code.
           // Round robin workers version. This might be useful in the future.
@@ -113,14 +115,14 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
           //   this.nextWorker = 0;
           // }
           // options.debugDatabase = X.options.datasource.debugDatabase;
-          // worker.send({id: this.requestNum, query: query, options: options, creds: creds});
+          // worker.send({id: this.requestNum, query: query, options: options, creds: this.creds});
         } else {
           if (X.options && query.indexOf('select xt.delete($${"nameSpace":"SYS","type":"SessionStore"') < 0 &&
               query.indexOf('select xt.get($${"nameSpace":"SYS","type":"SessionStore"') < 0) {
             X.capture(query);
             X.debug(query);
           }
-          X.pg.connect(creds, _.bind(this.connected, this, query, options, callback));
+          X.pg.connect(this.creds, _.bind(this.connected, this, query, options, callback));
         }
       },
 
@@ -140,6 +142,12 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
             "{host}:{port}/{database} => %@".f(options, err.message)));
           done();
           return callback(err);
+        }
+
+        // If we got a client that was flagged to be destroyed, try again.
+        if (client.destroying) {
+          this.query(query, options, callback);
+          return;
         }
 
         var that = this,
@@ -238,10 +246,48 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
           }
 
           // Release the client from the pool.
-          done();
+          if (err) {
+            /**
+             * The package, `node-postgres`, we use maintains a connection pool
+             * to the database server, defaulting to 10 connections.
+             *
+             * We make use of plv8's `SET plv8.start_proc = 'xt.js_init'
+             * feature for those connections. This is only called the FIRST time
+             * a plv8 function is called for a connection. Because of this, if a
+             * connection, when added to the pool happens to cause an error in
+             * the database during its first transaction that uses plv8, all of
+             * the steps we do for a persistent client connection in
+             * `xt.js_init();` are rolled back. The main thing we setup is the
+             * `search_path`. If an error happens on the first query for this
+             * connection, the `search_path` will not be set the next time the
+             * pool's connection is used for a query.
+             *
+             * Because of this, on any emitted errors below in `connected()`, we
+             * destroy that client from the pool.
+             */
 
-          // Call the call back.
-          callback(err, result);
+            // Set flag so we don't use this client above before it's removed.
+            client.destroying = true;
+
+            done(err);
+
+            // Now that the client has been destroyed, for the pool to function
+            // correctly, we need to add one back to take its place.
+            // @see: https://github.com/brianc/node-postgres/issues/1460
+            X.pg.pools.all[JSON.stringify(that.creds)].acquire(function (newErr, newClient) {
+              // But we don't actually need it, so release it back to the pool.
+              X.pg.pools.all[JSON.stringify(that.creds)].release(newClient);
+
+              // Once the client has been added to the pool, call the callback.
+              callback(err, result);
+            });
+          } else {
+            done();
+
+            // Call the callback.
+            callback(err, result);
+          }
+
         };
 
         // node-postgres supports parameters as a second argument. These will be options.parameters

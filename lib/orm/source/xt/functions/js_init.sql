@@ -524,7 +524,7 @@ return (function () {
     culture = XT.getUserCulture();
     if(!XT.dbStrings[culture]) {
       /* need to load in the strings for this culture into the database */
-      dictSql = "select dict_strings from xt.dict where dict_is_database = true and dict_language_name = $1;";
+      dictSql = "select dict_strings from xt.dictobsolete where dict_is_database = true and dict_language_name = $1;";
       dictResult = plv8.execute(dictSql, [culture]);
       XT.dbStrings[culture] = JSON.parse(dictResult[0].dict_strings.toLowerCase());
     }
@@ -852,7 +852,7 @@ return (function () {
   };
 
   XT.message = function (code, message) {
-    var msg = {code: code, message: message.substring(0, 90)};
+    var msg = {code: code, message: message.substring(0, 900)};
 
     plv8.elog(INFO, JSON.stringify(msg));
     return 'Handled by XT.message';

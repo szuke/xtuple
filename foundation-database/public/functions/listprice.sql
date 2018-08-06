@@ -6,7 +6,7 @@ CREATE OR REPLACE FUNCTION listprice(pItemid INTEGER,
                                      pShiptoid INTEGER DEFAULT (NULL),
                                      pSiteid INTEGER DEFAULT (NULL),
                                      pAsOf DATE DEFAULT CURRENT_DATE) RETURNS NUMERIC AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _ips RECORD;
@@ -45,7 +45,7 @@ BEGIN
 -- 6. Customer Type Pattern
 
 -- Find the best List Price Schedule Price
- 
+
   SELECT INTO _ips
     *, currToBase(ipshead_curr_id, protoprice, pAsOf) AS rightprice
   FROM (
@@ -72,22 +72,17 @@ BEGIN
       AND (CURRENT_DATE BETWEEN ipshead_effective AND (ipshead_expires - 1))
       AND ( (ipsitem_warehous_id=pSiteid) OR (ipsitem_warehous_id IS NULL) )
       AND ( (ipsass_shipto_id=_shipto.shipto_id)
-       OR   ((COALESCE(LENGTH(ipsass_shipto_pattern), 0) > 0) AND (ipsass_cust_id > -1) AND (_shipto.shipto_num ~ ipsass_shipto_pattern) AND (ipsass_cust_id = _cust.cust_id))
-       OR   ((COALESCE(LENGTH(ipsass_shipto_pattern), 0) > 0) AND (ipsass_cust_id = -1) AND (_shipto.shipto_num ~ ipsass_shipto_pattern))
+       OR   ((COALESCE(LENGTH(ipsass_shipto_pattern), 0) > 0) AND (ipsass_cust_id > -1) AND (COALESCE(_shipto.shipto_num, '') ~ ipsass_shipto_pattern) AND (ipsass_cust_id = _cust.cust_id))
+       OR   ((COALESCE(LENGTH(ipsass_shipto_pattern), 0) > 0) AND (ipsass_cust_id = -1) AND (COALESCE(_shipto.shipto_num, '') ~ ipsass_shipto_pattern))
        OR   ((COALESCE(LENGTH(ipsass_shipto_pattern), 0) = 0) AND (ipsass_cust_id=_cust.cust_id))
        OR   (ipsass_custtype_id=_cust.cust_custtype_id)
-       OR   ((COALESCE(LENGTH(ipsass_custtype_pattern), 0) > 0) AND (_cust.custtype_code ~ ipsass_custtype_pattern)) )
+       OR   ((COALESCE(LENGTH(ipsass_custtype_pattern), 0) > 0) AND (COALESCE(_cust.custtype_code, '') ~ ipsass_custtype_pattern)) )
   ) AS proto
   ORDER BY assignseq, itemmatched DESC, protoprice
   LIMIT 1;
- 
+
   IF (_ips.rightprice IS NOT NULL) THEN
     RETURN _ips.rightprice;
-  END IF;
-
---  If item is exclusive then list list price does not apply
-  IF (_item.item_exclusive) THEN
-    RETURN -9999.0;
   END IF;
 
   RETURN _item.item_listprice;

@@ -67,8 +67,8 @@ BEGIN
       currConcat(quhead_curr_id) AS currAbbr
     INTO _order
       FROM quhead
-      JOIN custinfo ON (cust_id=quhead_cust_id)
-      JOIN custtype ON (custtype_id=cust_custtype_id)
+      LEFT OUTER JOIN custinfo ON (cust_id=quhead_cust_id)
+      LEFT OUTER JOIN custtype ON (custtype_id=cust_custtype_id)
       LEFT OUTER JOIN shiptoinfo ON (shipto_id=quhead_shipto_id)
     WHERE (quhead_id=pOrderId);
 
@@ -123,7 +123,9 @@ BEGIN
 
   IF (pOrderType = 'RA') THEN
     _qry := _qry || 'JOIN raitem ON ((orderitem_id=raitem_id)
-    AND (raitem_disposition IN (''C'',''R'',''P''))) ';
+    AND (raitem_disposition IN (''C'',''R'',''P'')))
+    JOIN rahead ON orderitem_orderhead_id=rahead_id
+    AND rahead_creditmethod!=''N'' ';
   END IF;
 
   _qry := _qry || '

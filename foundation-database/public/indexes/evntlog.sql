@@ -1,2 +1,2 @@
-SELECT dropIfExists('index', 'evntlog_evntlog_username_idx');
-CREATE INDEX evntlog_evntlog_username_idx ON evntlog(evntlog_username);
+select xt.add_index('evntlog', 'evntlog_dispatched', 'evntlog_dispatched_idx', 'btree', 'public');
+select xt.add_index('evntlog', 'evntlog_username', 'evntlog_evntlog_username_idx', 'btree', 'public');

@@ -16,10 +16,10 @@ if (compareVersion(fetchMetricText('ServerVersion'), '4.9.9') <= 0) then
     setCol := setCol || format($f$ %I = COALESCE(%I, '') $f$, col, col);
     altCol := altCol || format($f$ alter %I set not null, alter %I set default ' ' $f$, col, col);
   end loop;
-  alter table addr disable trigger addrtrigger;
+  ALTER TABLE ADDR DISABLE TRIGGER ALL;
   execute format($f$update addr set %s;$f$,  array_to_string(setCol, ','));
   execute format($f$alter table addr %s;$f$, array_to_string(altCol, ','));
-  alter table addr enable trigger addrtrigger;
+  ALTER TABLE ADDR ENABLE TRIGGER ALL;
 
   setCol = ARRAY[]::text[];
   altCol = ARRAY[]::text[];
@@ -33,10 +33,10 @@ if (compareVersion(fetchMetricText('ServerVersion'), '4.9.9') <= 0) then
     setCol := setCol || format($f$ %I = COALESCE(%I, '') $f$, col, col);
     altCol := altCol || format($f$ alter %I set not null, alter %I set default ' ' $f$, col, col);
   end loop;
-  alter table quhead disable trigger quheadtrigger;
+  ALTER TABLE QUHEAD DISABLE TRIGGER ALL;
   execute format($f$update quhead set %s;$f$,  array_to_string(setCol, ','));
   execute format($f$alter table quhead %s;$f$, array_to_string(altCol, ','));
-  alter table quhead enable trigger quheadtrigger;
+  ALTER TABLE QUHEAD ENABLE TRIGGER ALL;
 
   setCol = ARRAY[]::text[];
   altCol = ARRAY[]::text[];
@@ -51,12 +51,10 @@ if (compareVersion(fetchMetricText('ServerVersion'), '4.9.9') <= 0) then
     setCol := setCol || format($f$ %I = COALESCE(%I, '') $f$, col, col);
     altCol := altCol || format($f$ alter %I set not null, alter %I set default ' ' $f$, col, col);
   end loop;
-  alter table cohead disable trigger soheadtrigger,
-                     disable trigger soheadtriggerafter;
+  ALTER TABLE COHEAD DISABLE TRIGGER ALL;
   execute format($f$update cohead set %s;$f$,  array_to_string(setCol, ','));
   execute format($f$alter table cohead %s;$f$, array_to_string(altCol, ','));
-  alter table cohead enable trigger soheadtrigger,
-                     enable trigger soheadtriggerafter;
+  ALTER TABLE COHEAD ENABLE TRIGGER ALL;
 
   setCol = ARRAY[]::text[];
   altCol = ARRAY[]::text[];
@@ -85,14 +83,10 @@ if (compareVersion(fetchMetricText('ServerVersion'), '4.9.9') <= 0) then
     setCol := setCol || format($f$ %I = COALESCE(%I, '') $f$, col, col);
     altCol := altCol || format($f$ alter %I set not null, alter %I set default ' ' $f$, col, col);
   end loop;
-  alter table invchead disable trigger invcheadtrigger,
-                       disable trigger invcheadbeforetrigger,
-                       disable trigger invcheadaftertrigger;
+  ALTER TABLE INVCHEAD DISABLE TRIGGER ALL;
   execute format($f$update invchead set %s;$f$,  array_to_string(setCol, ','));
   execute format($f$alter table invchead %s;$f$, array_to_string(altCol, ','));
-  alter table invchead enable trigger invcheadtrigger,
-                       enable trigger invcheadbeforetrigger,
-                       enable trigger invcheadaftertrigger;
+  ALTER TABLE INVCHEAD ENABLE TRIGGER ALL;
 
   setCol = ARRAY[]::text[];
   altCol = ARRAY[]::text[];
@@ -106,12 +100,10 @@ if (compareVersion(fetchMetricText('ServerVersion'), '4.9.9') <= 0) then
     setCol := setCol || format($f$ %I = COALESCE(%I, '') $f$, col, col);
     altCol := altCol || format($f$ alter %I set not null, alter %I set default ' ' $f$, col, col);
   end loop;
-  alter table cmhead disable trigger cmheadtrigger,
-                     disable trigger cmheadbeforetrigger;
+  ALTER TABLE CMHEAD DISABLE TRIGGER ALL;
   execute format($f$update cmhead set %s;$f$,  array_to_string(setCol, ','));
   execute format($f$alter table cmhead %s;$f$, array_to_string(altCol, ','));
-  alter table cmhead enable trigger cmheadtrigger,
-                     enable trigger cmheadbeforetrigger;
+  ALTER TABLE CMHEAD ENABLE TRIGGER ALL;
 
   setCol = ARRAY[]::text[];
   altCol = ARRAY[]::text[];
@@ -125,12 +117,10 @@ if (compareVersion(fetchMetricText('ServerVersion'), '4.9.9') <= 0) then
     setCol := setCol || format($f$ %I = COALESCE(%I, '') $f$, col, col);
     altCol := altCol || format($f$ alter %I set not null, alter %I set default ' ' $f$, col, col);
   end loop;
-  alter table pohead disable trigger poheadtrigger,
-                     disable trigger poheadtriggerafter;
+  ALTER TABLE POHEAD DISABLE TRIGGER ALL;
   execute format($f$update pohead set %s;$f$,  array_to_string(setCol, ','));
   execute format($f$alter table pohead %s;$f$, array_to_string(altCol, ','));
-  alter table pohead enable trigger poheadtrigger,
-                     enable trigger poheadtriggerafter;
+  ALTER TABLE POHEAD ENABLE TRIGGER ALL;
 
 end if;
 end$$;

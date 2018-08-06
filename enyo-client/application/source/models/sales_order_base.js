@@ -257,6 +257,8 @@ white:true*/
         return '_returnHoldType'.loc();
       case K.SHIPPING_HOLD_TYPE:
         return '_shippingHoldType'.loc();
+      case K.TAX_HOLD_TYPE:
+        return '_taxHoldType'.loc();
       }
     },
 
@@ -913,12 +915,6 @@ white:true*/
         options = {},
         that = this;
 
-      // In addition to updates to line items, update workflow
-      // items if applicable
-      if (this.updateWorkflowItemShipDate) {
-        this.updateWorkflowItemShipDate();
-      }
-
       if (!lineItems.length) { return; }
 
       options.type = XM.Model.QUESTION;
@@ -1179,6 +1175,16 @@ white:true*/
       @default N
     */
     RETURN_HOLD_TYPE: "R",
+
+    /**
+      Order hold type is tax.
+
+      @static
+      @constant
+      @type String
+      @default N
+    */
+    TAX_HOLD_TYPE: "T",
 
     /**
       Order hold type is none.

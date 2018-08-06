@@ -293,7 +293,7 @@ select createDoctype(17, --pDocAssNum
                      '', --pWidget
                      'join invchead on invcitem_invchead_id = invchead_id ' ||
                         'join custinfo on invchead_cust_id = cust_id join item on invcitem_item_id=item_id', --pJoin
-                     '', --pParam
+                     'invcitem_id', --pParam
                      '', --pUi
                      '', --pPriv
                      'Sales' --pModule
@@ -452,7 +452,7 @@ select createDoctype(26, --pDocAssNum
                      '', --pWidget
                      'join pohead on poitem_pohead_id=pohead_id join vendinfo on pohead_vend_id=vend_id ' ||
                         'join itemsite on poitem_itemsite_id=itemsite_id join item on itemsite_item_id=item_id', --pJoin
-                     '', --pParam
+                     'poitem_id', --pParam
                      '', --pUi
                      '', --pPriv
                      'Purchase' --pModule
@@ -460,14 +460,14 @@ select createDoctype(26, --pDocAssNum
 select createDoctype(27, --pDocAssNum
                      'RA', --pType
                      'RA', --pDocAss
-                     '', --pCharAss
+                     'RA', --pCharAss
                      'Return Authorization', --pFull
                      'rahead', --pTable
                      'rahead_id', --pKey
                      'rahead_number', --pNumber
                      'cust_name', --pName
                      'firstline(rahead_notes)', --pDesc
-                     '', --pWidget
+                     'core', --pWidget
                      'join custinfo on rahead_cust_id = cust_id', --pJoin
                      'rahead_id', --pParam
                      'returnAuthorization', --pUi
@@ -500,10 +500,11 @@ select createDoctype(29, --pDocAssNum
                      'quhead', --pTable
                      'quhead_id', --pKey
                      'quhead_number', --pNumber
-                     'cust_name', --pName
+                     'coalesce(cust_name, prospect_name)', --pName
                      'firstline(quhead_ordercomments)', --pDesc
-                     '', --pWidget
-                     'join custinfo on quhead_cust_id = cust_id', --pJoin
+                     'core', --pWidget
+                     'left outer join custinfo on quhead_cust_id = cust_id ' ||
+                        'left outer join prospect on quhead_cust_id = prospect_id', --pJoin
                      'quhead_id', --pParam
                      'salesOrder', --pUi
                      '', --pPriv
@@ -517,12 +518,13 @@ select createDoctype(30, --pDocAssNum
                      'quitem', --pTable
                      'quitem_id', --pKey
                      'quhead_number', --pNumber
-                     'cust_name', --pName
+                     'coalesce(cust_name, prospect_name)', --pName
                      'item_number', --pDesc
                      '', --pWidget
-                     'join quhead on quitem_quhead_id=quhead_id join custinfo on quhead_cust_id=cust_id ' ||
+                     'join quhead on quitem_quhead_id=quhead_id left outer join custinfo on quhead_cust_id=cust_id ' ||
+                        'left outer join prospect on quhead_cust_id=prospect_id ' ||
                         'join itemsite on quitem_itemsite_id=itemsite_id join item on itemsite_item_id=item_id', --pJoin
-                     '', --pParam
+                     'quitem_id', --pParam
                      '', --pUi
                      '', --pPriv
                      'Sales' --pModule
@@ -557,7 +559,7 @@ select createDoctype(32, --pDocAssNum
                      '', --pWidget
                      'join cohead on coitem_cohead_id=cohead_id join custinfo on cohead_cust_id=cust_id ' ||
                         'join itemsite on coitem_itemsite_id=itemsite_id join item on itemsite_item_id=item_id', --pJoin
-                     '', --pParam
+                     'coitem_id', --pParam
                      '', --pUi
                      '', --pPriv
                      'Sales' --pModule
@@ -680,7 +682,7 @@ select createDoctype(39, --pDocAssNum
                      '', --pWidget
                      'join vendinfo on vohead_vend_id=vend_id', --pJoin
                      'vohead_id', --pParam
-                     '', --pUi
+                     'miscVoucher', --pUi
                      '', --pPriv
                      'Purchase' --pModule
 );
@@ -714,7 +716,7 @@ select createDoctype(41, --pDocAssNum
                      'item_descrip2', --pDesc
                      'core', --pWidget
                      'join itemsite on wo_itemsite_id=itemsite_id join item on itemsite_item_id=item_id', --pJoin
-                     '', --pParam
+                     'wo_id', --pParam
                      '', --pUi
                      '', --pPriv
                      'Manufacture' --pModule
@@ -845,7 +847,7 @@ select createDoctype(NULL, --pDocAssNum
 SELECT createDoctype(NULL, --pDocAssNum
                      'PR', --pType
                      '', --pDocAss
-                     'PR', --pCharAss
+                     '', --pCharAss
                      'Purchase Request', --pFull
                      'pr', --pTable
                      'pr_id', --pKey
@@ -880,3 +882,31 @@ SELECT createDoctype(97, --pDocAssNum
                      '', --pPriv
                      'Sales' --pModule
 );
+
+SELECT createDocType(NULL,
+                     'JE',
+                     'JE',
+                     '',
+                     'G/L Journal',
+                     'gltrans',
+                     'gltrans_id',
+                     'gltrans_journalnumber',
+                     'gltrans_docnumber',
+                     'firstline(gltrans_notes)'
+);
+
+SELECT createDoctype(NULL,
+                     'ITEMGRP',
+                     'ITEMGRP',
+                     'ITEMGRP',
+                     'Item Group',
+                     'itemgrp',
+                     'itemgrp_id',
+                     'itemgrp_name',
+                     'itemgrp_descrip',
+                     'itemgrp_catalog::text',
+                     'SELECT itemgrp_id, itemgrp_name, itemgrp_name FROM itemgrp ORDER BY 2;',
+                     '',
+                     'itemgrp_id',
+                     'itemGroup',
+                     '');

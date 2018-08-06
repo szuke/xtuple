@@ -18,19 +18,23 @@ BEGIN
    WHERE checkhead_bankaccnt_id=pBankaccntid;
 
   IF COALESCE(_maxUsed, 0) >= _nextChkNumber
+     AND EXISTS (SELECT 1
+                   FROM checkhead
+                  WHERE checkhead_bankaccnt_id=pBankaccntid
+                    AND checkhead_number=_nextChkNumber)
      AND NOT fetchmetricbool('ReprintPaymentNumbers') THEN
     SELECT prev + 1 INTO _result
       FROM (SELECT checkhead_number AS curr,
-                   lag(checkhead_number) OVER (PARTITION BY checkhead_bankaccnt_id
-                                                   ORDER BY checkhead_number) AS prev
+                   lag(checkhead_number) OVER (ORDER BY checkhead_number) AS prev
               FROM checkhead
              WHERE checkhead_bankaccnt_id=pBankaccntid
            ) numbers
      WHERE curr - prev > 1
-       AND coalesce(prev, -1) > 0
+       AND COALESCE(prev, -1) > 0
        AND prev >= _nextChkNumber
      ORDER BY curr
      LIMIT 1;
+    _result := COALESCE(_result, _maxUsed + 1);
   END IF;
   _result := COALESCE(_result, _nextChkNumber, 1);
 

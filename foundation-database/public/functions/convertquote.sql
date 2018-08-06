@@ -9,7 +9,10 @@ DECLARE
   _soitemid INTEGER;
   _orderid INTEGER;
   _ordertype CHARACTER(1);
+  _custid INTEGER;
   _creditstatus	TEXT;
+  _autoupdate BOOLEAN;
+  _autohold BOOLEAN;
   _usespos BOOLEAN := false;
   _blanketpos BOOLEAN := true;
   _showConvertedQuote BOOLEAN := false;
@@ -41,8 +44,10 @@ BEGIN
     RETURN -1;
   END IF;
 
-  SELECT cust_creditstatus, cust_usespos, cust_blanketpos
-    INTO _creditstatus, _usespos, _blanketpos
+  SELECT cust_id, cust_creditstatus, cust_autoupdatestatus, cust_autoholdorders,
+         cust_usespos, cust_blanketpos
+    INTO _custid, _creditstatus, _autoupdate, _autohold,
+         _usespos, _blanketpos
   FROM quhead, custinfo
   WHERE ((quhead_cust_id=cust_id)
     AND  (quhead_id=pQuheadid));
@@ -205,23 +210,23 @@ BEGIN
     SELECT NEXTVAL('coitem_coitem_id_seq') INTO _soitemid;
 
     INSERT INTO coitem
-    ( coitem_id, coitem_cohead_id, coitem_linenumber, coitem_itemsite_id,
+    ( coitem_id, coitem_cohead_id, coitem_linenumber, coitem_subnumber, coitem_itemsite_id,
       coitem_status, coitem_scheddate, coitem_promdate,
       coitem_price, coitem_custprice, coitem_listprice,
       coitem_qtyord, coitem_qtyshipped, coitem_qtyreturned,
       coitem_qty_uom_id, coitem_qty_invuomratio,
       coitem_price_uom_id, coitem_price_invuomratio,
       coitem_unitcost, coitem_prcost,
-      coitem_custpn, coitem_memo, coitem_taxtype_id, coitem_order_id )
+      coitem_custpn, coitem_memo, coitem_taxtype_id, coitem_order_id, coitem_dropship )
     VALUES
-    ( _soitemid, _soheadid, _r.quitem_linenumber, _r.quitem_itemsite_id,
+    ( _soitemid, _soheadid, _r.quitem_linenumber, _r.quitem_subnumber, _r.quitem_itemsite_id,
       'O', _r.quitem_scheddate, _r.quitem_promdate,
       _r.quitem_price, _r.quitem_custprice, _r.quitem_listprice,
       _r.quitem_qtyord, 0, 0,
       _r.quitem_qty_uom_id, _r.quitem_qty_invuomratio,
       _r.quitem_price_uom_id, _r.quitem_price_invuomratio,
       _r.quitem_unitcost, _r.quitem_prcost,
-      _r.quitem_custpn, _r.quitem_memo, _r.quitem_taxtype_id, -1 );
+      _r.quitem_custpn, _r.quitem_memo, _r.quitem_taxtype_id, -1, _r.quitem_dropship );
 
     IF (fetchMetricBool('enablextcommissionission')) THEN
       PERFORM xtcommission.getSalesReps(quhead_cust_id, quhead_shipto_id,
@@ -292,6 +297,28 @@ BEGIN
     END IF;
 
   END LOOP;
+
+  IF (SELECT fetchMetricBool('CreditCheckSOOnSave')
+         AND creditcheck_bookings + creditcheck_aropen >= creditcheck_limit
+        FROM creditlimitcheck(_custid)) THEN
+    UPDATE cohead
+       SET cohead_holdtype='C'
+     WHERE cohead_id=_soheadid;
+
+    IF (_autoupdate AND _creditstatus = 'G') THEN
+      UPDATE custinfo
+         SET cust_creditstatus='W'
+       WHERE cust_id=_custid;
+    END IF;
+
+    IF (_autohold) THEN
+      UPDATE cohead
+         SET cohead_holdtype='C'
+       WHERE cohead_status='O'
+         AND cohead_holdtype='N'
+         AND cohead_cust_id=_custid;
+    END IF;
+  END IF;
 
   PERFORM postEvent('QuoteConvertedToSO', 'Q', quhead_id,
                       quhead_warehous_id, quhead_number,

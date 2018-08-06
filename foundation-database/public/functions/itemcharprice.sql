@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION itemCharPrice(INTEGER, INTEGER, TEXT, INTEGER, NUMERIC) RETURNS NUMERIC AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pItemid ALIAS FOR $1;
@@ -14,7 +14,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION itemCharPrice(INTEGER, INTEGER, TEXT, INTEGER, INTEGER, NUMERIC) RETURNS NUMERIC AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pItemid ALIAS FOR $1;
@@ -30,7 +30,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION itemCharPrice(INTEGER, INTEGER, TEXT, INTEGER, INTEGER, NUMERIC, INTEGER) RETURNS NUMERIC AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pItemid ALIAS FOR $1;
@@ -47,7 +47,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION itemCharPrice(INTEGER, INTEGER, TEXT, INTEGER, INTEGER, NUMERIC, INTEGER, DATE) RETURNS NUMERIC AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pItemid ALIAS FOR $1;
@@ -66,21 +66,51 @@ $$ LANGUAGE plpgsql;
 
 DROP FUNCTION IF EXISTS itemcharprice(integer, integer, text, integer, integer, numeric, integer, date, date);
 
-CREATE OR REPLACE FUNCTION itemcharprice(pitemid integer, pcharid integer, pcharvalue text, pcustid integer, pshiptoid integer, pqty numeric, pcurrid integer, peffective date, pasof date, pshipzoneid integer DEFAULT (-1), psaletypeid integer DEFAULT (-1))
-  RETURNS numeric AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION itemCharPrice(
+    pItemid integer,
+    pCharid integer,
+    pCharValue text,
+    pCustid integer,
+    pShiptoid integer,
+    pQty numeric,
+    pCurrid integer,
+    pEffective date,
+    pAsOf date,
+    pShipZoneid integer DEFAULT (-1),
+    pSaleTypeid integer DEFAULT (-1))
+  RETURNS numeric AS
+$BODY$
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  _price NUMERIC;
-  _sales NUMERIC;
+  _cust RECORD;
   _item RECORD;
   _iteminvpricerat NUMERIC;
+  _price NUMERIC;
+  _sales NUMERIC;
+  _shipto RECORD;
 
 BEGIN
 -- If the charass_value passed in is NULL, we can skip this function
-  IF (pCharValue IS NULL) THEN 
+  IF (pCharValue IS NULL) THEN
     RETURN 0;
   END IF;
+
+-- Cache Customer and Shipto
+  SELECT
+    cust_id,
+    cust_custtype_id,
+    custtype_code,
+    cust_discntprcnt INTO _cust
+    FROM custinfo
+    JOIN custtype ON custtype_id = cust_custtype_id
+   WHERE cust_id = pCustid;
+
+  SELECT
+    shipto_id,
+    shipto_num INTO _shipto
+    FROM shiptoinfo
+   WHERE shipto_id = pShiptoid;
 
 -- Return the itemCharPrice in the currency passed in as pCurrid
 
@@ -91,109 +121,99 @@ BEGIN
 -- First get a sales price if any so we when we find other prices
 -- we can determine if we want that price or this price.
 --  Check for a Sale Price
+
   SELECT currToCurr(ipshead_curr_id, pCurrid,
-                      ipsprice_price - (ipsprice_price * cust_discntprcnt),
-                      pEffective) INTO _sales
-  FROM (
-  SELECT ipsitem_ipshead_id AS ipsprice_ipshead_id,
-         itemuomtouom(ipsitem_item_id, ipsitem_qty_uom_id, NULL, ipsitem_qtybreak) AS ipsprice_qtybreak,
-         (ipsitemchar_price * itemuomtouomratio(ipsitem_item_id, NULL, ipsitem_price_uom_id)) * _iteminvpricerat AS ipsprice_price
-    FROM ipsiteminfo,ipsitemchar
-   WHERE((ipsitem_item_id=pItemid)
-    AND (ipsitemchar_char_id=pCharid)
-    AND (ipsitemchar_value=pCharValue)
-    AND (ipsitemchar_ipsitem_id=ipsitem_id))
-       ) AS
-        ipsprice, ipshead, sale, custinfo
-  WHERE ( (ipsprice_ipshead_id=ipshead_id)
-   AND (sale_ipshead_id=ipshead_id)
-   AND (pAsOf BETWEEN sale_startdate AND sale_enddate)
-   AND (ipsprice_qtybreak <= pQty)
-   AND (cust_id=pCustid) )
-  ORDER BY ipsprice_qtybreak DESC, ipsprice_price ASC
-  LIMIT 1;
+                    ipsprice_price - (ipsprice_price * _cust.cust_discntprcnt),
+                    pEffective) INTO _sales
+    FROM (
+      SELECT
+        ipshead_curr_id,
+        ipsitem_ipshead_id AS ipsprice_ipshead_id,
+        itemuomtouom(ipsitem_item_id, ipsitem_qty_uom_id, NULL, ipsitem_qtybreak) AS ipsprice_qtybreak,
+        (ipsitemchar_price * itemuomtouomratio(ipsitem_item_id, NULL, ipsitem_price_uom_id)) * _iteminvpricerat AS ipsprice_price
+        FROM ipshead
+        JOIN sale ON ipshead.ipshead_id = sale_ipshead_id
+        JOIN ipsiteminfo ON ipshead.ipshead_id = ipsiteminfo.ipsitem_ipshead_id
+        JOIN ipsitemchar ON ipsiteminfo.ipsitem_id = ipsitemchar.ipsitemchar_ipsitem_id
+       WHERE pAsOf BETWEEN sale_startdate AND sale_enddate
+         AND ipsitem_item_id = pItemid
+         AND ipsitemchar_char_id = pCharid
+         AND ipsitemchar_value = pCharValue
+    ) AS proto
+   WHERE ipsprice_qtybreak <= pQty
+   ORDER BY
+    ipsprice_qtybreak DESC,
+    ipsprice_price
+   LIMIT 1;
 
---  Check for a Customer Shipto Price
-  SELECT currToCurr(ipshead_curr_id, pCurrid, ipsprice_price, pEffective) INTO _price
-  FROM (
-  SELECT ipsitem_ipshead_id AS ipsprice_ipshead_id,
-         itemuomtouom(ipsitem_item_id, ipsitem_qty_uom_id, NULL, ipsitem_qtybreak) AS ipsprice_qtybreak,
-         (ipsitemchar_price * itemuomtouomratio(ipsitem_item_id, NULL, ipsitem_price_uom_id)) * _iteminvpricerat AS ipsprice_price
-    FROM ipsiteminfo,ipsitemchar
-   WHERE ((ipsitem_item_id=pItemid)
-    AND (ipsitemchar_char_id=pCharid)
-    AND (ipsitemchar_value=pCharValue)
-    AND (ipsitemchar_ipsitem_id=ipsitem_id))
-       ) AS
-        ipsprice, ipshead, ipsass
-  WHERE ( (ipsprice_ipshead_id=ipshead_id)
-   AND (ipsass_ipshead_id=ipshead_id)
-   AND (pAsOf BETWEEN ipshead_effective AND (ipshead_expires - 1))
-   AND (ipsprice_qtybreak <= pQty)
-   AND (ipsass_shipto_id != -1)
-   AND (ipsass_shipto_id=pShiptoid) )
-  ORDER BY ipsprice_qtybreak DESC, ipsprice_price ASC
-  LIMIT 1;
-
-  IF (_price IS NOT NULL) THEN
-    IF ((_sales IS NOT NULL) AND (_sales < _price)) THEN
-      RETURN _sales;
-    END IF;
-    RETURN _price;
-  END IF;
-
---  Check for a Customer Shipto Pattern Price
-  SELECT currToCurr(ipshead_curr_id, pCurrid, ipsprice_price, pEffective) INTO _price
-  FROM (
-  SELECT ipsitem_ipshead_id AS ipsprice_ipshead_id,
-         itemuomtouom(ipsitem_item_id, ipsitem_qty_uom_id, NULL, ipsitem_qtybreak) AS ipsprice_qtybreak,
-         (ipsitemchar_price * itemuomtouomratio(ipsitem_item_id, NULL, ipsitem_price_uom_id)) * _iteminvpricerat AS ipsprice_price
-    FROM ipsiteminfo,ipsitemchar
-   WHERE ((ipsitem_item_id=pItemid)
-    AND (ipsitemchar_char_id=pCharid)
-    AND (ipsitemchar_value=pCharValue)
-    AND (ipsitemchar_ipsitem_id=ipsitem_id))
-       ) AS
-        ipsprice, ipshead, ipsass, shiptoinfo
-  WHERE ( (ipsprice_ipshead_id=ipshead_id)
-   AND (ipsass_ipshead_id=ipshead_id)
-   AND (pAsOf BETWEEN ipshead_effective AND (ipshead_expires - 1))
-   AND (ipsprice_qtybreak <= pQty)
-   AND (COALESCE(length(ipsass_shipto_pattern), 0) > 0)
-   AND (shipto_num ~ ipsass_shipto_pattern)
-   AND (ipsass_cust_id=pCustid)
-   AND (shipto_id=pShiptoid) )
-  ORDER BY ipsprice_qtybreak DESC, ipsprice_price ASC
-  LIMIT 1;
-
-  IF (_price IS NOT NULL) THEN
-    IF ((_sales IS NOT NULL) AND (_sales < _price)) THEN
-      RETURN _sales;
-    END IF;
-    RETURN _price;
-  END IF;
-
---  Check for a Customer Price
-  SELECT currToCurr(ipshead_curr_id, pCurrid, ipsprice_price, pEffective) INTO _price
-  FROM (
-  SELECT ipsitem_ipshead_id AS ipsprice_ipshead_id,
-         itemuomtouom(ipsitem_item_id, ipsitem_qty_uom_id, NULL, ipsitem_qtybreak) AS ipsprice_qtybreak,
-         (ipsitemchar_price * itemuomtouomratio(ipsitem_item_id, NULL, ipsitem_price_uom_id)) * _iteminvpricerat AS ipsprice_price
-    FROM ipsiteminfo,ipsitemchar
-   WHERE ((ipsitem_item_id=pItemid)
-    AND (ipsitemchar_char_id=pCharid)
-    AND (ipsitemchar_value=pCharValue)
-    AND (ipsitemchar_ipsitem_id=ipsitem_id))
-       ) AS
-        ipsprice, ipshead, ipsass
-  WHERE ( (ipsprice_ipshead_id=ipshead_id)
-   AND (ipsass_ipshead_id=ipshead_id)
-   AND (pAsOf BETWEEN ipshead_effective AND (ipshead_expires - 1))
-   AND (ipsprice_qtybreak <= pQty)
-   AND (COALESCE(length(ipsass_shipto_pattern), 0) = 0)
-   AND (ipsass_cust_id=pCustid) )
-  ORDER BY ipsprice_qtybreak DESC, ipsprice_price ASC
-  LIMIT 1;
+  SELECT
+    currToCurr(ipshead_curr_id, pCurrid, ipsprice_price, pEffective) INTO _price
+    FROM (
+      SELECT
+        ipshead_curr_id,
+        CASE
+          WHEN (COALESCE(ipsass_shipto_id, -1) > 0) THEN 1
+          WHEN (COALESCE(LENGTH(ipsass_shipto_pattern), 0) > 0 AND COALESCE(ipsass_cust_id, -1) > 0) THEN 2
+          WHEN (COALESCE(LENGTH(ipsass_shipto_pattern), 0) > 0) THEN 3
+          WHEN (COALESCE(ipsass_cust_id, -1) > 0) THEN 4
+          WHEN (COALESCE(ipsass_custtype_id, -1) > 0) THEN 5
+          WHEN (COALESCE(LENGTH(ipsass_custtype_pattern), 0) > 0) THEN 6
+          WHEN (COALESCE(ipsass_shipzone_id, -1) > 0) THEN 7
+          WHEN (COALESCE(ipsass_saletype_id, -1) > 0) THEN 8
+          ELSE 99
+        END AS assignseq,
+        ipsitem_ipshead_id AS ipsprice_ipshead_id,
+        itemuomtouom(ipsitem_item_id, ipsitem_qty_uom_id, NULL, ipsitem_qtybreak) AS ipsprice_qtybreak,
+        (ipsitemchar_price * itemuomtouomratio(ipsitem_item_id, NULL, ipsitem_price_uom_id)) * _iteminvpricerat AS ipsprice_price
+        FROM ipsass
+        JOIN ipshead ON ipshead_id = ipsass_ipshead_id AND NOT ipshead_listprice
+        JOIN ipsiteminfo ON ipshead_id = ipsitem_ipshead_id
+        JOIN ipsitemchar ON ipsitem_id = ipsitemchar_ipsitem_id
+       WHERE (pAsOf BETWEEN ipshead_effective AND (ipshead_expires - 1))
+         AND ipsitem_item_id = pItemid
+         AND ipsitemchar_char_id = pCharid
+         AND ipsitemchar_value = pCharValue
+         AND (
+          -- 1. Specific Customer Shipto Id
+          (ipsass_shipto_id != -1 AND ipsass_shipto_id = _shipto.shipto_id)
+          -- 2. Specific Customer Shipto Pattern
+          OR (COALESCE(LENGTH(ipsass_shipto_pattern), 0) > 0
+              AND ipsass_cust_id > -1
+              AND COALESCE(_shipto.shipto_num, '') ~ ipsass_shipto_pattern
+              AND ipsass_cust_id = _cust.cust_id
+          )
+          -- 3. Any Customer Shipto Pattern
+          OR (COALESCE(LENGTH(ipsass_shipto_pattern), 0) > 0
+              AND ipsass_cust_id = -1
+              AND COALESCE(_shipto.shipto_num, '') ~ ipsass_shipto_pattern
+          )
+          -- 4. Specific Customer
+          OR (COALESCE(LENGTH(ipsass_shipto_pattern), 0) = 0
+              AND ipsass_cust_id = _cust.cust_id
+          )
+          -- 5. Customer Type
+          OR (ipsass_custtype_id = _cust.cust_custtype_id)
+          -- 6. Customer Type Pattern
+          OR (COALESCE(LENGTH(ipsass_custtype_pattern), 0) > 0
+              AND COALESCE(_cust.custtype_code, '') ~ ipsass_custtype_pattern
+          )
+          -- 7. Shipping Zone
+          OR (COALESCE(ipsass_shipzone_id, 0) > 0
+              AND ipsass_shipzone_id = pShipZoneid
+          )
+          -- 8. Sale Type
+          OR (COALESCE(ipsass_saletype_id, 0 ) > 0
+              AND ipsass_saletype_id = pSaleTypeid
+          )
+         )
+    ) AS proto
+   WHERE ipsprice_qtybreak <= pQty
+   ORDER BY
+    assignseq,
+    ipsprice_qtybreak DESC,
+    ipsprice_price
+   LIMIT 1
+  ;
 
   IF (_price IS NOT NULL) THEN
     IF ((_sales IS NOT NULL) AND (_sales < _price)) THEN
@@ -202,124 +222,6 @@ BEGIN
     RETURN _price;
   END IF;
 
---  Check for a Customer Type Price
-  SELECT currToCurr(ipshead_curr_id, pCurrid, ipsprice_price, pEffective) INTO _price
-  FROM (
-  SELECT ipsitem_ipshead_id AS ipsprice_ipshead_id,
-         itemuomtouom(ipsitem_item_id, ipsitem_qty_uom_id, NULL, ipsitem_qtybreak) AS ipsprice_qtybreak,
-         (ipsitemchar_price * itemuomtouomratio(ipsitem_item_id, NULL, ipsitem_price_uom_id)) * _iteminvpricerat AS ipsprice_price
-    FROM ipsiteminfo,ipsitemchar
-   WHERE((ipsitem_item_id=pItemid)
-    AND (ipsitemchar_char_id=pCharid)
-    AND (ipsitemchar_value=pCharValue)
-    AND (ipsitemchar_ipsitem_id=ipsitem_id))
-       ) AS
-        ipsprice, ipshead, ipsass, custinfo
-  WHERE ( (ipsprice_ipshead_id=ipshead_id)
-   AND (ipsass_ipshead_id=ipshead_id)
-   AND (ipsass_custtype_id=cust_custtype_id)
-   AND (pAsOf BETWEEN ipshead_effective AND (ipshead_expires - 1))
-   AND (ipsprice_qtybreak <= pQty)
-   AND (cust_id=pCustid) )
-  ORDER BY ipsprice_qtybreak DESC, ipsprice_price ASC
-  LIMIT 1;
-
-  IF (_price IS NOT NULL) THEN
-    IF ((_sales IS NOT NULL) AND (_sales < _price)) THEN
-      RETURN _sales;
-    END IF;
-    RETURN _price;
-  END IF;
-
---  Check for a Customer Type Pattern Price
-  SELECT currToCurr(ipshead_curr_id, pCurrid, ipsprice_price, pEffective) INTO _price
-  FROM (
-  SELECT ipsitem_ipshead_id AS ipsprice_ipshead_id,
-         itemuomtouom(ipsitem_item_id, ipsitem_qty_uom_id, NULL, ipsitem_qtybreak) AS ipsprice_qtybreak,
-         (ipsitemchar_price * itemuomtouomratio(ipsitem_item_id, NULL, ipsitem_price_uom_id)) * _iteminvpricerat AS ipsprice_price
-    FROM ipsiteminfo,ipsitemchar
-   WHERE ((ipsitem_item_id=pItemid)
-    AND (ipsitemchar_char_id=pCharid)
-    AND (ipsitemchar_value=pCharValue)
-    AND (ipsitemchar_ipsitem_id=ipsitem_id))
-       ) AS
-        ipsprice, ipshead, ipsass, custtype, custinfo
-  WHERE ( (ipsprice_ipshead_id=ipshead_id)
-   AND (ipsass_ipshead_id=ipshead_id)
-   AND (coalesce(length(ipsass_custtype_pattern), 0) > 0)
-   AND (custtype_code ~ ipsass_custtype_pattern)
-   AND (cust_custtype_id=custtype_id)
-   AND (pAsOf BETWEEN ipshead_effective AND (ipshead_expires - 1))
-   AND (ipsprice_qtybreak <= pQty)
-   AND (cust_id=pCustid) )
-  ORDER BY ipsprice_qtybreak DESC, ipsprice_price ASC
-  LIMIT 1;
-
-  IF (_price IS NOT NULL) THEN
-    IF ((_sales IS NOT NULL) AND (_sales < _price)) THEN
-      RETURN _sales;
-    END IF;
-    RETURN _price;
-  END IF;
-
---  Check for a Shipping Zone Price
-  SELECT currToCurr(ipshead_curr_id, pCurrid, ipsprice_price, pEffective) INTO _price
-  FROM (
-  SELECT ipsitem_ipshead_id AS ipsprice_ipshead_id,
-         itemuomtouom(ipsitem_item_id, ipsitem_qty_uom_id, NULL, ipsitem_qtybreak) AS ipsprice_qtybreak,
-         (ipsitemchar_price * itemuomtouomratio(ipsitem_item_id, NULL, ipsitem_price_uom_id)) * _iteminvpricerat AS ipsprice_price
-    FROM ipsiteminfo,ipsitemchar
-   WHERE ((ipsitem_item_id=pItemid)
-    AND (ipsitemchar_char_id=pCharid)
-    AND (ipsitemchar_value=pCharValue)
-    AND (ipsitemchar_ipsitem_id=ipsitem_id))
-       ) AS
-        ipsprice, ipshead, ipsass
-  WHERE ( (ipsprice_ipshead_id=ipshead_id)
-   AND (ipsass_ipshead_id=ipshead_id)
-   AND (pAsOf BETWEEN ipshead_effective AND (ipshead_expires - 1))
-   AND (ipsprice_qtybreak <= pQty)
-   AND (COALESCE(length(ipsass_shipto_pattern), 0) = 0)
-   AND (ipsass_shipzone_id=pShipZoneid) )
-  ORDER BY ipsprice_qtybreak DESC, ipsprice_price ASC
-  LIMIT 1;
-
-  IF (_price IS NOT NULL) THEN
-    IF ((_sales IS NOT NULL) AND (_sales < _price)) THEN
-      RETURN _sales;
-    END IF;
-    RETURN _price;
-  END IF;  
-
---  Check for a Sale Type Price
-  SELECT currToCurr(ipshead_curr_id, pCurrid, ipsprice_price, pEffective) INTO _price
-  FROM (
-  SELECT ipsitem_ipshead_id AS ipsprice_ipshead_id,
-         itemuomtouom(ipsitem_item_id, ipsitem_qty_uom_id, NULL, ipsitem_qtybreak) AS ipsprice_qtybreak,
-         (ipsitemchar_price * itemuomtouomratio(ipsitem_item_id, NULL, ipsitem_price_uom_id)) * _iteminvpricerat AS ipsprice_price
-    FROM ipsiteminfo,ipsitemchar
-   WHERE ((ipsitem_item_id=pItemid)
-    AND (ipsitemchar_char_id=pCharid)
-    AND (ipsitemchar_value=pCharValue)
-    AND (ipsitemchar_ipsitem_id=ipsitem_id))
-       ) AS
-        ipsprice, ipshead, ipsass
-  WHERE ( (ipsprice_ipshead_id=ipshead_id)
-   AND (ipsass_ipshead_id=ipshead_id)
-   AND (pAsOf BETWEEN ipshead_effective AND (ipshead_expires - 1))
-   AND (ipsprice_qtybreak <= pQty)
-   AND (COALESCE(length(ipsass_shipto_pattern), 0) = 0)
-   AND (ipsass_saletype_id=pSaleTypeid) )
-  ORDER BY ipsprice_qtybreak DESC, ipsprice_price ASC
-  LIMIT 1;
-
-  IF (_price IS NOT NULL) THEN
-    IF ((_sales IS NOT NULL) AND (_sales < _price)) THEN
-      RETURN _sales;
-    END IF;
-    RETURN _price;
-  END IF;
-  
 -- If we have not found another price yet and we have a
 -- sales price we will use that.
   IF (_sales IS NOT NULL) THEN
@@ -328,16 +230,16 @@ BEGIN
 
 --  Check for a list price
   SELECT MIN(currToLocal(pCurrid,
-                       charass_price - (charass_price * COALESCE(cust_discntprcnt, 0)),
-                       pEffective)) AS price,
+                         charass_price - (charass_price * COALESCE(_cust.cust_discntprcnt, 0)),
+                         pEffective)) AS price,
          item_exclusive INTO _item
-  FROM charass,item LEFT OUTER JOIN custinfo ON (cust_id=pCustid)
-  WHERE ((item_id=pItemid)
-   AND (charass_char_id=pCharid)
-   AND (charass_value=pCharValue)
-   AND (charass_target_type='I')
-   AND (charass_target_id=item_id))
-  GROUP BY item_exclusive;
+    FROM charass
+    JOIN item ON charass_target_id = item_id
+   WHERE item_id = pItemid
+     AND charass_char_id = pCharid
+     AND charass_value = pCharValue
+     AND charass_target_type = 'I'
+   GROUP BY item_exclusive;
   IF (FOUND) THEN
     IF (NOT _item.item_exclusive) THEN
       IF (_item.price < 0) THEN
@@ -352,5 +254,6 @@ BEGIN
     RETURN 0;
   END IF;
 
-END; 
-$$ LANGUAGE plpgsql;
+END;
+$BODY$
+LANGUAGE plpgsql STABLE;

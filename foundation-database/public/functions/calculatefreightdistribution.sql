@@ -1,16 +1,20 @@
+DROP FUNCTION IF EXISTS calculatefreightdistribution(INTEGER, INTEGER, TEXT, NUMERIC, BOOLEAN);
 CREATE OR REPLACE FUNCTION calculatefreightdistribution(
     pVoheadid integer,
     pCostElement integer,
     pDistrType text,
     pFreight numeric,
-    pUpdateCosts boolean DEFAULT FALSE)
+    pUpdateCosts boolean DEFAULT FALSE,
+    pCurrId integer DEFAULT NULL,
+    pDistDate date DEFAULT NULL)
   RETURNS SETOF freightdistr AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _total   RECORD;
   _item    RECORD;
   _row     freightdistr%ROWTYPE;
+  _invhistId INTEGER;
 BEGIN
 
   SELECT SUM(voitem_qty) as qty, SUM((voitem_qty * poitem_unitprice)) as price, SUM(voitem_qty * (item_prodweight + item_packweight)) as wgt
@@ -30,7 +34,8 @@ BEGIN
   END IF;
 
   FOR _item IN
-    SELECT vohead_curr_id, vohead_distdate,
+    SELECT COALESCE(pCurrId, vohead_curr_id) AS vohead_curr_id,
+           COALESCE(pDistDate, vohead_distdate) AS vohead_distdate,
            itemsite_id, itemsite_costmethod, item_id,
            CASE WHEN itemsite_costmethod = 'A' THEN 
                      costcat_asset_accnt_id
@@ -76,6 +81,30 @@ BEGIN
     IF (pUpdateCosts) THEN
       IF (_item.itemsite_costmethod = 'A') THEN
         -- Update Item Site Average cost with freight amount
+        INSERT INTO invhist
+        (invhist_itemsite_id, invhist_transdate, invhist_transtype, invhist_invqty, invhist_invuom,
+         invhist_qoh_before, invhist_qoh_after,
+         invhist_unitcost,
+         invhist_comments, invhist_costmethod, invhist_value_before,
+         invhist_value_after,
+         invhist_series)
+        SELECT _item.itemsite_id, _item.vohead_distdate, 'VF', 0.0, uom_name,
+        itemsite_qtyonhand, itemsite_qtyonhand,
+        currToBase(_item.vohead_curr_id, _row.freightdistr_amount, _item.vohead_distdate),
+        'Voucher Freight Distribution Value Adjust', 'A', itemsite_value,
+        itemsite_value +
+        currToBase(_item.vohead_curr_id, _row.freightdistr_amount, _item.vohead_distdate),
+        NEXTVAL('itemloc_series_seq')
+          FROM itemsite
+          JOIN item ON itemsite_item_id=item_id
+          JOIN uom ON item_inv_uom_id=uom_id
+         WHERE itemsite_id=_item.itemsite_id
+        RETURNING invhist_id INTO _invhistId;
+
+        IF (fetchMetricBool('EnableAsOfQOH')) THEN
+          PERFORM postIntoInvBalance(_invhistId);
+        END IF;
+
         UPDATE itemsite 
         SET itemsite_value = itemsite_value + currToBase(_item.vohead_curr_id, _row.freightdistr_amount,
 			      _item.vohead_distdate)

@@ -1,10 +1,9 @@
-CREATE OR REPLACE FUNCTION returnWoMaterial(INTEGER, NUMERIC, TIMESTAMP WITH TIME ZONE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION returnWoMaterial(pWomatlid INTEGER,
+                                            pQty NUMERIC,
+                                            pGlDistTS TIMESTAMP WITH TIME ZONE) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pWomatlid ALIAS FOR $1;
-  pQty ALIAS FOR $2;
-  pGlDistTS ALIAS FOR $3;
   _itemlocSeries INTEGER;
 
 BEGIN
@@ -13,27 +12,31 @@ BEGIN
   RETURN returnWoMaterial(pWomatlid, pQty, _itemlocSeries, pGlDistTS);
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION returnWoMaterial(INTEGER, INTEGER, TIMESTAMP WITH TIME ZONE, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+DROP FUNCTION IF EXISTS returnWoMaterial(INTEGER, INTEGER, TIMESTAMP WITH TIME ZONE, INTEGER);
+DROP FUNCTION IF EXISTS returnWoMaterial(INTEGER, INTEGER, TIMESTAMP WITH TIME ZONE, INTEGER, BOOLEAN);
+
+CREATE OR REPLACE FUNCTION returnWoMaterial(pWomatlid INTEGER,
+                                            pItemlocSeries INTEGER,
+                                            pGlDistTS TIMESTAMP WITH TIME ZONE,
+                                            pInvhistId INTEGER)
+RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pWomatlid ALIAS FOR $1;
-  pItemlocSeries ALIAS FOR $2;
-  pGlDistTS ALIAS FOR $3;
-  pInvhistId ALIAS FOR $4;
   _woNumber TEXT;
   _invhistid INTEGER;
-  _itemlocSeries INTEGER;
+  _itemlocSeries INTEGER := COALESCE(pItemlocSeries, NEXTVAL('itemloc_series_seq'));
   _invqty NUMERIC;
   _womatlqty NUMERIC;
   _cost NUMERIC := 0;
   _rows INTEGER;
-
+  
 BEGIN
-
-  _itemlocSeries := 0;
+  IF (_itemlocSeries = 0) THEN
+    _itemlocSeries := NEXTVAL('itemloc_series_seq');
+  END IF;
 
   SELECT invhist_invqty, invhist_invqty * invhist_unitcost INTO _invqty, _cost
   FROM invhist
@@ -42,7 +45,7 @@ BEGIN
   GET DIAGNOSTICS _rows = ROW_COUNT;
   
   IF (_rows = 0) THEN
-    RAISE EXCEPTION 'No transaction found for invhist_id %', pInvhistId;
+    RAISE EXCEPTION 'No transaction found for invhist_id % [xtuple: returnWoMaterial, -2, %]', pInvhistId, pInvhistId;
   END IF;
   
   SELECT itemuomtouom(itemsite_item_id, NULL, womatl_uom_id, _invqty)
@@ -65,18 +68,12 @@ BEGIN
          END )
        FROM womatl
        WHERE ( womatl_id=pWomatlid ) ) THEN
-    RETURN pItemlocSeries;
+    RETURN 0;
   END IF;
 
   SELECT formatWoNumber(womatl_wo_id) INTO _woNumber
   FROM womatl
   WHERE (womatl_id=pWomatlid);
-
-  IF (pItemlocSeries = 0) THEN
-    SELECT NEXTVAL('itemloc_series_seq') INTO _itemlocSeries;
-  ELSE
-    _itemlocSeries = pItemlocSeries;
-  END IF;
 
   -- Post the transaction
   SELECT postInvTrans( ci.itemsite_id, 'IM', (_invqty * -1), 
@@ -84,7 +81,8 @@ BEGIN
                        ('Return ' || item_number || ' from Work Order'),
                        getPrjAccntId(wo_prj_id, pc.costcat_wip_accnt_id), cc.costcat_asset_accnt_id, _itemlocSeries, pGlDistTS,
                        -- Cost will be ignored by Standard Cost items sites
-                       _cost, pInvhistId) INTO _invhistid
+                       _cost, pInvhistId,
+                       NULL, FALSE, wo_id, womatl_id) INTO _invhistid
     FROM womatl, wo,
          itemsite AS ci, costcat AS cc,
          itemsite AS pi, costcat AS pc,
@@ -96,6 +94,11 @@ BEGIN
      AND (pi.itemsite_costcat_id=pc.costcat_id)
      AND (ci.itemsite_item_id=item_id)
      AND (womatl_id=pWomatlid) );
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Could not post inventory transaction: missing cost category or itemsite for 
+      womatl_id % [xtuple: returnWoMaterial, -3, %]', pWomatlid, pWomatlid;
+  END IF;
 
 --  Create linkage to the transaction created
   INSERT INTO womatlpost (womatlpost_womatl_id,womatlpost_invhist_id)
@@ -125,30 +128,41 @@ BEGIN
 
   RETURN _itemlocSeries;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 COMMENT ON FUNCTION returnwomaterial(integer, integer, timestamp with time zone, integer) IS 'Returns material by reversing a specific historical transaction';
 
-select dropIfExists('FUNCTION', 'returnWoMaterial(INTEGER, NUMERIC, INTEGER, TIMESTAMP WITH TIME ZONE)'); 
-CREATE OR REPLACE FUNCTION returnWoMaterial(INTEGER, NUMERIC, INTEGER, TIMESTAMP WITH TIME ZONE, BOOLEAN DEFAULT FALSE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+
+DROP FUNCTION IF EXISTS returnWoMaterial(INTEGER, NUMERIC, INTEGER, TIMESTAMP WITH TIME ZONE);
+DROP FUNCTION IF EXISTS returnWoMaterial(INTEGER, NUMERIC, INTEGER, TIMESTAMP WITH TIME ZONE, BOOLEAN);
+DROP FUNCTION IF EXISTS returnWoMaterial(INTEGER, NUMERIC, INTEGER, TIMESTAMP WITH TIME ZONE, BOOLEAN, BOOLEAN);
+
+CREATE OR REPLACE FUNCTION returnWoMaterial(pWomatlid INTEGER,
+                                            pQty NUMERIC,
+                                            pItemlocSeries INTEGER,
+                                            pGlDistTS TIMESTAMP WITH TIME ZONE,
+                                            pReqStdCost BOOLEAN DEFAULT FALSE,
+                                            pPreDistributed BOOLEAN DEFAULT FALSE,
+                                            pPostDistDetail BOOLEAN DEFAULT TRUE) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pWomatlid ALIAS FOR $1;
-  pQty ALIAS FOR $2;
-  pItemlocSeries ALIAS FOR $3;
-  pGlDistTS ALIAS FOR $4;
-  pReqStdCost ALIAS FOR $5;
   _woNumber TEXT;
   _invhistid INTEGER;
-  _itemlocSeries INTEGER;
+  _itemlocSeries INTEGER := COALESCE(pItemlocSeries, NEXTVAL('itemloc_series_seq'));
   _qty NUMERIC;
   _cost NUMERIC := 0;
+  _hasControlledItem BOOLEAN := FALSE;
 
 BEGIN
+  IF (pPreDistributed AND COALESCE(pItemlocSeries, 0) = 0) THEN 
+    RAISE EXCEPTION 'pItemlocSeries is Required when pPreDistributed [xtuple: returnWoMaterial, -5]';
+  -- TODO - find why/how passing 0 instead of null for pItemlocSeries
+  ELSIF (_itemlocSeries = 0) THEN
+    _itemlocSeries := NEXTVAL('itemloc_series_seq');
+  END IF;
 
-  _itemlocSeries := 0;
-  
+  -- Check that the womatl has eligible qty to return
   IF ( SELECT (
          CASE WHEN (womatl_qtyreq >= 0) THEN
            womatl_qtyiss < pQty
@@ -157,7 +171,9 @@ BEGIN
          END )
        FROM womatl
        WHERE ( womatl_id=pWomatlid ) ) THEN
-    RETURN pItemlocSeries;
+    -- Can't raise exception because of existing functions that don't pre-filter qty for womatl for a WO
+    RAISE WARNING 'No qty to return for womatl_id %', pWomatlid;
+    RETURN 0;
   END IF;
 
   SELECT itemuomtouom(itemsite_item_id, womatl_uom_id, NULL, pQty)
@@ -172,12 +188,6 @@ BEGIN
   SELECT formatWoNumber(womatl_wo_id) INTO _woNumber
   FROM womatl
   WHERE (womatl_id=pWomatlid);
-
-  IF (pItemlocSeries = 0) THEN
-    SELECT NEXTVAL('itemloc_series_seq') INTO _itemlocSeries;
-  ELSE
-    _itemlocSeries = pItemlocSeries;
-  END IF;
 
   -- Get the cost average
   IF (pReqStdCost) THEN
@@ -202,7 +212,9 @@ BEGIN
                        ('Return ' || item_number || ' from Work Order'),
                        getPrjAccntId(wo_prj_id, pc.costcat_wip_accnt_id), cc.costcat_asset_accnt_id, _itemlocSeries, pGlDistTS,
                        -- Cost will be ignored by Standard Cost items sites
-                       _cost) INTO _invhistid
+                       _cost, NULL, NULL, pPreDistributed,
+                       wo_id, womatl_id),
+        isControlledItemsite(ci.itemsite_id) AS controlled INTO _invhistid, _hasControlledItem
     FROM womatl, wo,
          itemsite AS ci, costcat AS cc,
          itemsite AS pi, costcat AS pc,
@@ -215,10 +227,15 @@ BEGIN
      AND (ci.itemsite_item_id=item_id)
      AND (womatl_id=pWomatlid) );
 
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Could not post inventory transaction: missing cost category or itemsite for 
+      womatl_id % [xtuple: returnWoMaterial, -3, %]', pWomatlid, pWomatlid;
+  END IF;
+
 --  Create linkage to the transaction created
   IF (_invhistid != -1) THEN
     INSERT INTO womatlpost (womatlpost_womatl_id,womatlpost_invhist_id)
-                VALUES (pWomatlid,_invhistid);
+    VALUES (pWomatlid,_invhistid);
   END IF;
 
 --  Decrease the parent W/O's WIP value by the value of the returned components
@@ -243,8 +260,16 @@ BEGIN
       womatl_lastreturn = CURRENT_DATE
   WHERE (womatl_id=pWomatlid);
 
+  -- Post distribution detail regardless of loc/control methods because postItemlocSeries is required.
+  -- If it is a controlled item and the results were 0 something is wrong.
+  IF (pPreDistributed AND pPostDistDetail) THEN 
+    IF (postDistDetail(_itemlocSeries) <= 0 AND _hasControlledItem) THEN
+      RAISE EXCEPTION 'Posting Distribution Detail Returned 0 Results, [xtuple: returnWoMaterial, -6]';
+    END IF;
+  END IF;
+
   RETURN _itemlocSeries;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 

@@ -378,7 +378,7 @@
   <name>detail</name>
   <group>
    <name>detail</name>
-   <column>whs_bin</column>
+   <column>locationname</column>
    <head>
     <height>21</height>
     <field>

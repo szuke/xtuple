@@ -1,7 +1,7 @@
 --DROP VIEW     IF EXISTS usr;
 --DROP FUNCTION IF EXISTS userCanLogin(TEXT);
 CREATE OR REPLACE FUNCTION userCanLogin(pUsername TEXT) RETURNS BOOLEAN AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _isactive  BOOLEAN;
@@ -33,5 +33,4 @@ BEGIN
 
   RETURN FALSE;
 END;
-$$ LANGUAGE 'plpgsql';
-
+$$ LANGUAGE 'plpgsql' STABLE;

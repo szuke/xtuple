@@ -501,8 +501,6 @@ strict: false*/
           {kind: "onyx.GroupboxHeader", content: "_default".loc()},
           {kind: "XV.PriorityPicker", attr: "DefaultPriority",
             label: "_priority".loc()},
-          {kind: "onyx.GroupboxHeader", content: "_workflow".loc()},
-          {kind: "XV.CheckboxWidget", attr: "TriggerWorkflow", label: "_triggerWorkflow".loc()},
           {kind: "onyx.GroupboxHeader", content: "_creditCard".loc()},
           {kind: "XV.ScrollableGroupbox", name: "mainGroup", classes: "in-panel", components: [
             {kind: "XV.CreditCardGatewayCombobox", attr: "CCCompany",
@@ -2652,18 +2650,10 @@ strict: false*/
           {kind: "XV.SalesOrderLineItemBox", name: "salesOrderLineItemBox",
             attr: "lineItems", addBefore: this.$.settingsPanel, classes: "medium-panel"},
         ], {owner: this});
-        this.$.panels.createComponents([
-          {kind: "XV.SalesOrderWorkflowBox", attr: "workflow", title: "_workflow".loc(),
-            addBefore: this.$.salesOrderCommentBox, classes: "medium-panel"}
-        ], {owner: this});
       } else {
         this.$.panels.createComponents([
           {kind: "XV.SalesOrderLineItemGridBox", name: "salesOrderLineItemBox",
             attr: "lineItems", addBefore: this.$.settingsPanel},
-        ], {owner: this});
-        this.$.panels.createComponents([
-          {kind: "XV.SalesOrderWorkflowGridBox", attr: "workflow", title: "_workflow".loc(),
-            addBefore: this.$.salesOrderCommentBox}
         ], {owner: this});
       }
     },
@@ -2698,69 +2688,9 @@ strict: false*/
   });
 
   XV.registerModelWorkspace("XM.SalesOrder", "XV.SalesOrderWorkspace");
-  XV.registerModelWorkspace("XM.SalesOrderWorkflow", "XV.SalesOrderWorkspace");
   XV.registerModelWorkspace("XM.SalesOrderRelation", "XV.SalesOrderWorkspace");
   XV.registerModelWorkspace("XM.SalesOrderListItem", "XV.SalesOrderWorkspace");
 
-  // ..........................................................
-  // SALES ORDER WORKFLOW
-  //
-
-  enyo.kind({
-    name: "XV.SalesOrderWorkflowWorkspace",
-    kind: "XV.ChildWorkspace",
-    title: "_salesOrderWorkflow".loc(),
-    model: "XM.SalesOrderWorkflow",
-    components: [
-      {kind: "Panels", arrangerKind: "CarouselArranger",
-        classes: "xv-top-panel", fit: true, components: [
-        {kind: "XV.Groupbox", name: "mainPanel", components: [
-          {kind: "onyx.GroupboxHeader", content: "_overview".loc()},
-          {kind: "XV.ScrollableGroupbox", name: "mainGroup", fit: true,
-            classes: "in-panel", components: [
-            {kind: "XV.InputWidget", attr: "name"},
-            {kind: "XV.InputWidget", attr: "description"},
-            {kind: "XV.SalesOrderWorkflowTypePicker", attr: "workflowType"},
-            {kind: "XV.WorkflowStatusPicker", attr: "status"},
-            {kind: "XV.PriorityPicker", attr: "priority", showNone: false},
-            {kind: "XV.NumberSpinnerWidget", attr: "sequence"},
-            {kind: "onyx.GroupboxHeader", content: "_schedule".loc()},
-            {kind: "XV.DateWidget", attr: "dueDate"},
-            {kind: "XV.DateWidget", attr: "startDate"},
-            {kind: "XV.DateWidget", attr: "assignDate"},
-            {kind: "XV.DateWidget", attr: "completeDate"},
-            {kind: "onyx.GroupboxHeader", content: "_userAccounts".loc()},
-            {kind: "XV.UserAccountWidget", attr: "owner"},
-            {kind: "XV.UserAccountWidget", attr: "assignedTo"},
-            {kind: "onyx.GroupboxHeader", content: "_notes".loc()},
-            {kind: "XV.TextArea", attr: "notes", fit: true}
-          ]}
-        ]},
-        {kind: "XV.Groupbox", name: "onCompletedPanel", title: "_completionActions".loc(),
-          components: [
-          {kind: "onyx.GroupboxHeader", content: "_onCompletion".loc()},
-          {kind: "XV.ScrollableGroupbox", name: "completionGroup", fit: true,
-            classes: "in-panel", components: [
-            {kind: "XV.CreditStatusPicker", attr: "completedParentStatus",
-              noneText: "_noChange".loc(), label: "_nextStatus".loc()},
-            {kind: "XV.DependenciesWidget",
-              attr: {workflow: "parent.workflow", successors: "completedSuccessors"}}
-          ]}
-        ]},
-        {kind: "XV.Groupbox", name: "onDeferredPanel", title: "_deferredActions".loc(),
-          components: [
-          {kind: "onyx.GroupboxHeader", content: "_onDeferred".loc()},
-          {kind: "XV.ScrollableGroupbox", name: "deferredGroup", fit: true,
-            classes: "in-panel", components: [
-            {kind: "XV.CreditStatusPicker", attr: "deferredParentStatus",
-              noneText: "_noChange".loc(), label: "_nextStatus".loc()},
-            {kind: "XV.DependenciesWidget",
-              attr: {workflow: "parent.workflow", successors: "deferredSuccessors"}}
-          ]}
-        ]}
-      ]}
-    ]
-  });
   // ..........................................................
   // REASON CODE
   //
@@ -2863,8 +2793,7 @@ strict: false*/
             {kind: "XV.HoldTypePicker", attr: "defaultHoldType"},
             {kind: "XV.SaleTypeCharacteristicsWidget", attr: "characteristics"}
           ]}
-        ]},
-        {kind: "XV.SaleTypeWorkflowBox", attr: "workflow"}
+        ]}
       ]}
     ]
   });

@@ -1,6 +1,6 @@
 -- Account Comment
 
-DROP VIEW api.accountcomment;
+DROP VIEW IF EXISTS api.accountcomment;
 CREATE VIEW api.accountcomment
 AS 
    SELECT 

@@ -6,6 +6,10 @@ DECLARE
   pTarget ALIAS FOR $2;
 
 BEGIN
+  CREATE TEMPORARY TABLE IF NOT EXISTS cntctsel
+    (LIKE public.cntctsel INCLUDING ALL)
+    ON COMMIT PRESERVE ROWS;
+
   -- If target, delete any other targets
   IF (pTarget) THEN
     DELETE FROM cntctsel WHERE cntctsel_target;

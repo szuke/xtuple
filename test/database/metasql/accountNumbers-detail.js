@@ -9,7 +9,6 @@ var _      = require("underscore"),
       ;
 
   describe(group + '-' + name + ' mql', function () {
-
     var datasource = dblib.datasource,
         adminCred  = dblib.generateCreds(),
         constants  = { asset:  'Ast', expense: 'Exp', liability: 'Lia',
@@ -17,7 +16,7 @@ var _      = require("underscore"),
         mql
         ;
 
-    it("needs the query", function (done) {
+    before(function (done) {
       var sql = "select metasql_query from metasql"        +
                 " where metasql_group = '" + group + "'"   +
                 "   and metasql_name  = '" + name  + "'"   +
@@ -38,12 +37,12 @@ var _      = require("underscore"),
              _.extend({}, constants, { subaccnt_type: 15  })
     ], function (p) {
         it(JSON.stringify(p), function (done) {
-          var sql = "do $$"                 +
-                    "var params = { params: " + JSON.stringify(p) + "}," +
-                    "    mql    = \""         + mql              + "\"," +
-                    "    sql    = XT.MetaSQL.parser.parse(mql, params)," +
-                    "    rows   = plv8.execute(sql);"                    +
-                    "$$ language plv8;";
+           var sql = "do $$"
+              + "var params = { params: " + JSON.stringify(p) + "},"
+              + "    mql    = \""         + mql               + "\","
+              + "    sql    = XT.MetaSQL.parser.parse(mql, params),"
+              + "    rows   = plv8.execute(sql);"
+              + "$$ language plv8;";
           datasource.query(sql, adminCred, function (err /*, res*/) {
             assert.isNull(err);
             done();

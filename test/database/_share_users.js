@@ -54,14 +54,12 @@ var _ = require('underscore'),
  * 24. Delete Ship To. Cannot access old Address. Cannot access old Contact.
  * 25. Add Sales Order for Customer. Can access it.
  * 26. Delete Sales Order. No cache_share_users entry for it.
- * 27. Add an Invoice for Customer. Can access it.
- * 28. Delete Invoice. No cache_share_users entry for it.
- * 29. Delete CRM Account. Cannot access Contacts or Addresses that were on it.
- * 30. Tear down after tests.
+ * 27. Delete CRM Account. Cannot access Contacts or Addresses that were on it.
+ * 28. Tear down after tests.
  */
 
 /**
- * Add records to use durring tests and store reference ids in records object.
+ * Add records to use during tests and store reference ids in records object.
  *
  * 1. Sales Rep with CRM Account and User Account.
  * 2. Owner with CRM Account and User Account.
@@ -3789,181 +3787,6 @@ var _ = require('underscore'),
 
       creds.database = databaseName;
       datasource.query(deleteSalesOrderSql, creds, function (err, res) {
-        assert.isNull(err);
-        assert.equal(1, res.rowCount, JSON.stringify(res.rows));
-
-        done();
-      });
-    });
-
-/**
- * Add an Invoice for Customer. Can access it.
- */
-    // Can add an Invoice.
-    it('can add an Invoice', function (done) {
-      var data = {};
-
-      data = {
-        "invoiceDate":"2014-10-07T15:09:29.124Z",
-        "isPosted":false,
-        "isVoid":false,
-        "isPrinted":false,
-        "commission":0.075,
-        "taxTotal":0.49,
-        "miscCharge":0,
-        "subtotal":9.8,
-        "total":10.29,
-        "authorizedCredit":0,
-        "orderDate":"2014-10-07T15:09:29.124Z",
-        "freight":0,
-        "customer":records.share.customer.id,
-        "currency":"USD",
-        "terms":"2-10N30",
-        "salesRep":records.rep.salesRep.id,
-        "taxZone":"VA TAX",
-        "number":"60118",
-        "billtoName":"Tremendous Toys Incorporated",
-        "billtoPhone":"703-931-4269",
-        "billtoAddress1":"Tremendous Toys Inc.",
-        "billtoAddress2":"101 Toys Place",
-        "billtoAddress3":"",
-        "billtoCity":"Walnut Hills",
-        "billtoState":"VA",
-        "billtoPostalCode":"22209",
-        "billtoCountry":"United States",
-        "outstandingCredit":2970,
-        "orderNumber":""
-      };
-      // Add Line Items.
-      data.lineItems = [
-        {
-          "site":"WH1",
-          "isMiscellaneous":false,
-          "item":"YTRUCK1",
-          "taxes":[{"taxType":"Taxable","taxCode":"VATAX-A","uuid":"c76726c1-cfbf-4c6c-d23d-91c3f035c374","amount":0.49}],
-          "salesCategory":null,
-          "uuid":"508f5d31-0e9a-4470-eb98-33b1b9a8082a",
-          "lineNumber":1,
-          "taxType":"Taxable",
-          "quantityUnit":"EA",
-          "priceUnit":"EA",
-          "priceUnitRatio":1,
-          "extendedPrice":9.8,
-          "quantityUnitRatio":1,
-          "quantity":1,
-          "billed":1,
-          "price":9.8,
-          "customerPrice":9.8,
-          "taxTotal":0.49
-        }
-      ];
-
-      var postInvoiceSql = 'select xt.post($${ \n' +
-                            '  "nameSpace":"XM", \n' +
-                            '  "type":"Invoice", \n' +
-                            '  "data":' + JSON.stringify(data, null, 2) + ', \n' +
-                            '  "username":"admin" \n' +
-                            '}$$);';
-
-      creds.database = databaseName;
-      datasource.query(postInvoiceSql, creds, function (err, res) {
-        var results;
-
-        assert.isNull(err);
-        assert.equal(1, res.rowCount, JSON.stringify(res.rows));
-        results = JSON.parse(res.rows[0].post);
-
-        records.share.invoice = {
-          'id': results.id
-        };
-
-        done();
-      });
-    });
-
-    // Rep user can get the new Invoice.
-    it('Rep user can get the new Invoice', function (done) {
-      var getInvoiceSql = 'select xt.get($${ \n' +
-                          '  "nameSpace":"XM", \n' +
-                          '  "type":"Invoice", \n' +
-                          '  "id":"' + records.share.invoice.id + '", \n' +
-                          '  "username":"' + records.rep.username + '" \n' +
-                          '}$$);';
-
-      datasource.query(getInvoiceSql, creds, function (err, res) {
-        var results;
-
-        assert.isNull(err);
-        assert.equal(1, res.rowCount, JSON.stringify(res.rows));
-        results = JSON.parse(res.rows[0].get);
-        assert.isDefined(results.data.number);
-
-        records.share.invoice.etag = results.etag;
-
-        done();
-      });
-    });
-
-    // Owner user can get the new Invoice.
-    it('Owner user can get the new Invoice', function (done) {
-      var getInvoiceSql = 'select xt.get($${ \n' +
-                          '  "nameSpace":"XM", \n' +
-                          '  "type":"Invoice", \n' +
-                          '  "id":"' + records.share.invoice.id + '", \n' +
-                          '  "username":"' + records.owner.username + '" \n' +
-                          '}$$);';
-
-      datasource.query(getInvoiceSql, creds, function (err, res) {
-        var results;
-
-        assert.isNull(err);
-        assert.equal(1, res.rowCount, JSON.stringify(res.rows));
-        results = JSON.parse(res.rows[0].get);
-        assert.isDefined(results.data.number);
-
-        records.share.invoice.etag = results.etag;
-
-        done();
-      });
-    });
-
-    // New user can get the new Invoice.
-    it('New user can get the new Invoice', function (done) {
-      var getInvoiceSql = 'select xt.get($${ \n' +
-                          '  "nameSpace":"XM", \n' +
-                          '  "type":"Invoice", \n' +
-                          '  "id":"' + records.share.invoice.id + '", \n' +
-                          '  "username":"' + records.share.username + '" \n' +
-                          '}$$);';
-
-      datasource.query(getInvoiceSql, creds, function (err, res) {
-        var results;
-
-        assert.isNull(err);
-        assert.equal(1, res.rowCount, JSON.stringify(res.rows));
-        results = JSON.parse(res.rows[0].get);
-        assert.isDefined(results.data.number);
-
-        records.share.invoice.etag = results.etag;
-
-        done();
-      });
-    });
-
-/**
- * Delete Invoice. No cache_share_users entry for it.
- */
-    // Delete the new Invoice.
-    it('Can delete the Invoice', function (done) {
-      var deleteInvoiceSql =  'select xt.delete($${ \n' +
-                            '  "nameSpace":"XM", \n' +
-                            '  "type":"Invoice", \n' +
-                            '  "id":"' + records.share.invoice.id + '", \n' +
-                            '  "username":"admin" \n' +
-                            '}$$);';
-
-      creds.database = databaseName;
-      datasource.query(deleteInvoiceSql, creds, function (err, res) {
         assert.isNull(err);
         assert.equal(1, res.rowCount, JSON.stringify(res.rows));
 

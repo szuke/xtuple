@@ -1,5 +1,10 @@
+DROP FUNCTION IF EXISTS createWoMaterial(INTEGER, INTEGER, CHAR, NUMERIC, NUMERIC);
+DROP FUNCTION IF EXISTS createWoMaterial(INTEGER, INTEGER, CHAR, INTEGER, NUMERIC, NUMERIC);
+DROP FUNCTION IF EXISTS createWoMaterial(INTEGER, INTEGER, CHAR, INTEGER, NUMERIC, NUMERIC, INTEGER);
+DROP FUNCTION IF EXISTS createWoMaterial(INTEGER, INTEGER, CHAR, INTEGER, NUMERIC, NUMERIC, INTEGER, TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION createWoMaterial(INTEGER, INTEGER, char(1), NUMERIC, NUMERIC, NUMERIC) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pWoid ALIAS FOR $1;
@@ -19,7 +24,7 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION createWoMaterial(INTEGER, INTEGER, char(1), INTEGER, NUMERIC, NUMERIC, NUMERIC) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pWoid ALIAS FOR $1;
@@ -40,7 +45,7 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION createWoMaterial(INTEGER, INTEGER, char(1), INTEGER, NUMERIC, NUMERIC, NUMERIC, INTEGER, TEXT, TEXT) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pWoid ALIAS FOR $1;
@@ -75,7 +80,7 @@ CREATE OR REPLACE FUNCTION createWoMaterial(pWoid INTEGER,
                                             pRef TEXT,
                                             pWooperId INTEGER,
                                             pPickList BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _womatlid INTEGER;
@@ -113,7 +118,7 @@ CREATE OR REPLACE FUNCTION createWoMaterial(pWoid INTEGER,
                                             pWooperId INTEGER,
                                             pPickList BOOLEAN,
                                             pPrice NUMERIC) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _womatlid INTEGER;

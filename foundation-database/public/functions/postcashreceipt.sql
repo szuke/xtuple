@@ -71,7 +71,7 @@ BEGIN
          cashrcpt_notes, cashrcpt_alt_curr_rate,
          cashrcpt_bankaccnt_id AS bankaccnt_id,
          findPrepaidAccount(_cashcust.rcptcust) AS prepaid_accnt_id,
-         cashrcpt_usecustdeposit,
+         cashrcpt_usecustdeposit, cashrcpt_ccpay_id,
          COALESCE(cashrcpt_applydate, cashrcpt_distdate) AS applydate,
 	          cashrcpt_curr_id, cashrcpt_curr_rate, cashrcpt_posted, cashrcpt_void, cashrcpt_prj_id INTO _p
 	  FROM cashrcpt
@@ -99,23 +99,12 @@ BEGIN
 
   IF (isPrePayFundsType(_p.cashrcpt_fundstype)) THEN
     SELECT ccpay_id, ccpay_type INTO _ccpayid, _cctype
-    FROM ccpay
-    WHERE ((ccpay_r_ordernum IN (CAST(pCashrcptid AS TEXT), _p.cashrcpt_docnumber))
-       AND (ccpay_status IN ('C', 'A')));
-
-    IF NOT FOUND THEN
-      -- the following select seems to work except for xikar - bug 8848. why?
-      -- raise warning so there is some visibility if people fall into this path.
-      SELECT ccpay_id, ccpay_type INTO _ccpayid, _cctype
       FROM ccpay
-      WHERE ((ccpay_order_number IN (CAST(pCashrcptid AS TEXT), _p.cashrcpt_docnumber))
-         AND (ccpay_status IN ('C', 'A')));
-      IF (NOT FOUND) THEN
-        RETURN -8;
-      ELSE
-        RAISE WARNING 'PostCashReceipt() found ccpay_id % for order number %/% (ref 8848).',
-                      _ccpayid, pCashrcptid, _p.cashrcpt_docnumber;
-      END IF;
+     WHERE ccpay_id=_p.cashrcpt_ccpay_id
+       AND ccpay_status IN ('C', 'A');
+
+    IF (NOT FOUND) THEN
+      RETURN -8;
     END IF;
 
 -- If there is a ccpay entry and the card was charged directly, use the prepaid account
@@ -244,8 +233,7 @@ BEGIN
         _p.applydate, _p.cashrcpt_distdate, pJournalNumber, getEffectiveXtUser(), _p.cashrcpt_curr_id );
     END IF;
 
-      _exchGain := arCurrGain(_r.aropen_id,_p.cashrcpt_curr_id, abs(_r.cashrcptitem_amount),
-                             _p.cashrcpt_distdate);
+      _exchGain := currGain(abs(_r.cashrcptitem_amount), _r.aropen_curr_rate, _p.cashrcpt_curr_rate);
 
        PERFORM insertIntoGLSeries( _sequence, 'A/R', 'CR',
                           (_r.aropen_doctype || '-' || _r.aropen_docnumber),

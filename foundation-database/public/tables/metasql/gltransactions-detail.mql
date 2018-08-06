@@ -1,7 +1,7 @@
 -- Group: gltransactions
 -- Name:  detail
 -- Notes: 
---        Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+--        Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 --        See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT gltrans_id, gltrans_accnt_id,gltrans_date,gltrans_created,gltrans_source,
@@ -104,7 +104,7 @@ WHERE (
 <? endif ?>
 
 <? if exists("transamt") ?>
-AND (abs(gltrans_amount)=<? value("transamt") ?>)
+AND (abs(gltrans_amount)=COALESCE(NULLIF(<? value("transamt") ?>,'')::NUMERIC, 0.00))
 <? endif ?>
 <? if exists("journalnum") ?>
 AND ((gltrans_journalnumber::text) ~* <? value("journalnum") ?>)

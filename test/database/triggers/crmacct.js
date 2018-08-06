@@ -5,6 +5,7 @@ var _       = require('underscore'),
   'use strict';
 
   describe('crmacct trigger', function () {
+    this.timeout(10 * 1000);
 
     var dblib      = require('../dblib.js'),
         adminCred  = dblib.adminCred,
@@ -16,40 +17,59 @@ var _       = require('underscore'),
         emailUser  = "TestUser",
         emailAddr  = emailUser + "@xTuple.com";
 
-    function cleanup() {
-      dblib.deleteUser(casualUser);
-      dblib.deleteUser(emailUser.toLowerCase());
-      dblib.deleteUser(emailAddr.toLowerCase());
+    function cleanup(done) {
+      var deleteCasualCredfunction = function () {
+        dblib.deleteUser(casualCred, deleteEmailUserfunction);
+      };
+      var deleteEmailUserfunction = function () {
+        dblib.deleteUser(emailUser.toLowerCase(), deleteEmailAddrfunction);
+      };
+      var deleteEmailAddrfunction = function () {
+        dblib.deleteUser(emailAddr.toLowerCase(), deleteAccountsfunction);
+      };
+      var deleteAccountsfunction = function () {
+        var accounts = [
+          'TESTY',
+          emailAddr.toUpperCase(),
+          emailUser.toUpperCase()
+        ];
+        accounts.forEach(function (acct, index) {
+            var deleteSql = [
+              "delete from vendinfo where vend_number    = $1;",
+              "delete from custinfo where cust_number    = $1;",
+              "delete from crmacct  where crmacct_number = $1;"
+            ];
+            deleteSql.forEach(function (sql, deleteIndex) {
+              var cred = _.extend({}, adminCred, { parameters: [ acct ] });
+              datasource.query(sql, cred, function (err, res) {
+                assert.isNull(err);
+                assert.isNotNull(res);
 
-      [ 'TESTY', emailAddr.toUpperCase(), emailUser.toUpperCase() ].forEach(function (acct) {
-          [ "delete from vendinfo where vend_number    = $1;",
-            "delete from custinfo where cust_number    = $1;",
-            "delete from crmacct  where crmacct_number = $1;"
-          ].forEach(function (sql) {
-            var cred = _.extend({}, adminCred, { parameters: [ acct ] });
-            datasource.query(sql, cred, function (err, res) {
-              assert.isNull(err);
-              assert.isNotNull(res);
-  //          done();
+                if (index === accounts.length - 1 && deleteIndex === deleteSql.length - 1) {
+                  done();
+                }
+              });
             });
-          });
-      });
+        });
+      };
+
+      deleteCasualCredfunction();
     }
 
     before(cleanup);
     after(cleanup);
 
-      it('needs a test user', function (done) {
-        dblib.createUser(casualCred, done);
-      });
+    it('needs a test user', function (done) {
+      dblib.createUser(casualCred, done);
+    });
 
-      it('needs test user to have MaintainCustomerMasters', function (done) {
-        dblib.grantPrivToUser(casualCred, 'MaintainCustomerMasters', done);
-      });
+    it('needs test user to have MaintainCustomerMasters', function (done) {
+      dblib.grantPrivToUser(casualCred, 'MaintainCustomerMasters', done);
+    });
 
-      it('needs test user to have MaintainAllCRMAccounts', function (done) {
-        dblib.grantPrivToUser(casualCred, 'MaintainAllCRMAccounts', done);
-      });
+    it('needs test user to have MaintainAllCRMAccounts', function (done) {
+      dblib.grantPrivToUser(casualCred, 'MaintainAllCRMAccounts', done);
+    });
 
     it('needs a test xTC user', function (done) {
       dblib.createUser(dblib.generateCreds(emailAddr.toLowerCase()), done);

@@ -953,7 +953,7 @@ ORDER BY comment_date;</sql>
     </font>
     <right/>
     <vcenter/>
-    <string>Price/Inventory UOM Ratio:</string>
+    <string>Selling/Inventory UOM Ratio:</string>
    </label>
    <field>
     <rect>
@@ -1023,7 +1023,7 @@ ORDER BY comment_date;</sql>
     </font>
     <right/>
     <vcenter/>
-    <string>Price UOM:</string>
+    <string>Selling UOM:</string>
    </label>
   </detail>
  </section>

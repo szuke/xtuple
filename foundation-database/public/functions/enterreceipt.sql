@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION enterReceipt(TEXT, INTEGER, NUMERIC, NUMERIC, TEXT, INTEGER, DATE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   RETURN enterReceipt($1, $2, $3, $4, $5, $6, $7, NULL);
@@ -7,7 +7,7 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION enterReceipt(TEXT, INTEGER, NUMERIC, NUMERIC, TEXT, INTEGER, DATE, NUMERIC) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pordertype	ALIAS FOR $1;
@@ -45,6 +45,7 @@ BEGIN
 	   CASE WHEN (poitem_itemsite_id = -1) THEN NULL
 		ELSE poitem_itemsite_id
 	   END AS itemsite_id,
+           COALESCE(itemsite_active, true) AS itemsite_active,
 	   vend_id,
 	   COALESCE(poitem_vend_item_number, '') AS vend_item_number,
 	   COALESCE(poitem_vend_item_descrip, '') AS vend_item_descrip,
@@ -57,13 +58,15 @@ BEGIN
         FROM pohead
           JOIN poitem ON (pohead_id=poitem_pohead_id)
           JOIN vendinfo ON (pohead_vend_id=vend_id)
+          LEFT OUTER JOIN itemsite ON (itemsite_id = poitem_itemsite_id)
         WHERE (poitem_id=porderitemid);
-        
+
     ELSIF (pordertype='RA') THEN
        SELECT rahead_number AS orderhead_number,
   	   raitem_id AS orderitem_id,
 	   ''::text AS orderhead_agent_username,
 	   raitem_itemsite_id AS itemsite_id,
+           itemsite_active,
 	   NULL::integer AS vend_id,
 	   ''::text AS vend_item_number,
 	   ''::text AS vend_item_descrip,
@@ -75,13 +78,15 @@ BEGIN
            raitem_scheddate AS rlsd_duedate INTO _o
         FROM rahead
           JOIN raitem ON (rahead_id=raitem_rahead_id)
+          JOIN itemsite ON (itemsite_id = raitem_itemsite_id)
         WHERE (raitem_id=porderitemid);
-        
+
     ELSIF (pordertype='TO') THEN
          SELECT tohead_number AS orderhead_number,
   	   toitem_id AS orderitem_id,
 	   tohead_agent_username AS orderhead_agent_username,
 	   itemsite_id,
+           itemsite_active,
 	   NULL::integer AS vend_id,
 	   ''::text AS vend_item_number,
 	   ''::text AS vend_item_descrip,
@@ -104,11 +109,11 @@ BEGIN
        FROM itemsite,site()
        WHERE ((itemsite_id=_o.itemsite_id)
          AND (warehous_id=itemsite_warehous_id));
-          
+
        IF (NOT FOUND) THEN
          RETURN 0;
         END IF;
-      END IF;   
+      END IF;
 
     --Make sure we aren't trying to receive a Kit
     IF ((FOUND) AND (_o.itemsite_id IS NOT NULL)) THEN
@@ -118,10 +123,14 @@ BEGIN
             AND  (item_id=itemsite_item_id))) THEN
         RETURN 0;
       END IF;
-    END IF;   
+    END IF;
 
     IF (NOT FOUND) THEN
       RETURN -1;
+    END IF;
+
+    IF (NOT _o.itemsite_active) THEN
+      RAISE EXCEPTION 'Item Site is not active and cannot be receipted against. [xtuple: enterReceipt, -2]';
     END IF;
 
     -- default to orderitem_unitcost if recv_purchcost is not specified

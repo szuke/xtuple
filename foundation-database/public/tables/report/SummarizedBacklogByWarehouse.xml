@@ -54,6 +54,7 @@
             WHEN (cohead_holdtype='S') THEN &lt;? value("ship") ?>
             WHEN (cohead_holdtype='P') THEN &lt;? value("pack") ?>
             WHEN (cohead_holdtype='R') THEN &lt;? value("return") ?>
+            WHEN (cohead_holdtype='T') THEN &lt;? value("tax") ?>
             ELSE &lt;? value("Other") ?>
        END AS f_holdtype,
        formatDate(cohead_orderdate) AS f_orderdate,

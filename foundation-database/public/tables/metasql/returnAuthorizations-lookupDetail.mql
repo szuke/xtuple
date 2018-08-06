@@ -1,0 +1,116 @@
+-- Group: returnAuthorizations
+-- Name:  lookupDetail
+-- Notes: 
+--        Notes:
+--        Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+--        See www.xtuple.com/CPAL for the full text of the software license.
+
+SELECT DISTINCT ON ( rahead_number ) rahead_id, rahead_number, cohead_number, rahead_billtoname,
+       rahead_authdate,rahead_expiredate,
+       item_number, item_descrip1, 
+       COALESCE(cust_number, 'Undefined') AS custnumber,
+       CASE
+       WHEN rahead_disposition = 'C' THEN
+         <? value("credit") ?>
+       WHEN rahead_disposition = 'R' THEN
+         <? value("return") ?>
+       WHEN rahead_disposition = 'P' THEN
+         <? value("replace") ?>
+       WHEN rahead_disposition = 'V' THEN
+         <? value("service") ?>
+       WHEN rahead_disposition = 'M' THEN
+         <? value("substitute") ?>
+       ELSE 'Invalid'
+       END AS disposition,
+       CASE 
+       WHEN raitem_status = 'C' THEN 
+        <? value("closed") ?>
+       WHEN COALESCE(rahead_expiredate, CURRENT_DATE) < CURRENT_DATE THEN 
+        <? value("expired") ?>
+       WHEN raitem_qtyauthorized = 0 THEN 
+        <? value("unauthorized") ?>
+       ELSE <? value("open") ?> END AS status,
+       raitem_qtyauthorized, uom_name,raitem_unitprice,
+       (raitem_qtyauthorized*raitem_qty_invuomratio)*(raitem_unitprice/COALESCE(raitem_price_invuomratio,1)) AS extauthorized, 
+       raitem_qtycredited, raitem_amtcredited,
+       formatQty(raitem_qtyauthorized) AS f_qty,
+       formatMoney((raitem_qtyauthorized*raitem_qty_invuomratio)*(raitem_unitprice/COALESCE(raitem_price_invuomratio,1))) AS f_ext,
+       formatMoney(raitem_amtcredited) AS f_credited,
+       CASE WHEN (rahead_expiredate < current_date) THEN
+         'error'
+       END AS rahead_expiredate_qtforegroundrole,
+       0 AS raitem_qtyauthorized_xttotalrole,
+       0 AS extauthorized_xttotalrole,
+       0 AS raitem_qtycredited_xttotalrole,
+       0 AS raitem_amtcredited_xttotalrole
+   <? foreach("char_id_text_list") ?>
+       , charass_alias<? literal("char_id_text_list") ?>.charass_value AS char<? literal("char_id_text_list") ?>
+   <? endforeach ?>
+   <? foreach("char_id_list_list") ?>
+       , charass_alias<? literal("char_id_list_list") ?>.charass_value AS char<? literal("char_id_list_list") ?>
+   <? endforeach ?>
+   <? foreach("char_id_date_list") ?>
+       , charass_alias<? literal("char_id_date_list") ?>.charass_value::date AS char<? literal("char_id_date_list") ?>
+   <? endforeach ?>
+  FROM rahead LEFT OUTER JOIN custinfo ON (rahead_cust_id=cust_id)
+               <? if exists("selectedSites") ?> 
+                   JOIN raitem ON (raitem_rahead_id=rahead_id) 
+                   JOIN itemsite ON (raitem_itemsite_id=itemsite_id) 
+                   JOIN site() ON (itemsite_warehous_id=warehous_id)
+                   JOIN item ON (itemsite_item_id=item_id)
+                   JOIN uom ON (raitem_qty_uom_id=uom_id)
+                   LEFT OUTER JOIN cohead ON (rahead_orig_cohead_id=cohead_id)
+               <? else ?> 
+                   LEFT OUTER JOIN raitem ON (raitem_rahead_id=rahead_id) 
+                   LEFT OUTER JOIN itemsite ON (raitem_itemsite_id=itemsite_id) 
+                   LEFT OUTER JOIN whsinfo ON (itemsite_warehous_id=warehous_id) 
+                   LEFT OUTER JOIN item ON (itemsite_item_id=item_id)
+                   LEFT OUTER JOIN uom ON (raitem_qty_uom_id=uom_id)
+                   LEFT OUTER JOIN cohead ON (rahead_orig_cohead_id=cohead_id)
+               <? endif ?> 
+<? foreach("char_id_text_list") ?>
+  LEFT OUTER JOIN charass charass_alias<? literal("char_id_text_list") ?> ON ((charass_alias<? literal("char_id_text_list") ?>.charass_target_type='RA') 
+                                                                    AND  (charass_alias<? literal("char_id_text_list") ?>.charass_target_id=rahead_id)
+                                                                    AND  (charass_alias<? literal("char_id_text_list") ?>.charass_char_id=<? value("char_id_text_list") ?>))
+  LEFT OUTER JOIN char char_alias<? literal("char_id_text_list") ?> ON (charass_alias<? literal("char_id_text_list") ?>.charass_char_id=char_alias<? literal("char_id_text_list") ?>.char_id)
+<? endforeach ?>
+<? foreach("char_id_list_list") ?>
+  LEFT OUTER JOIN charass charass_alias<? literal("char_id_list_list") ?> ON ((charass_alias<? literal("char_id_list_list") ?>.charass_target_type='RA') 
+                                                                    AND  (charass_alias<? literal("char_id_list_list") ?>.charass_target_id=rahead_id)
+                                                                    AND  (charass_alias<? literal("char_id_list_list") ?>.charass_char_id=<? value("char_id_list_list") ?>))
+  LEFT OUTER JOIN char char_alias<? literal("char_id_list_list") ?> ON (charass_alias<? literal("char_id_list_list") ?>.charass_char_id=char_alias<? literal("char_id_list_list") ?>.char_id)
+<? endforeach ?>
+<? foreach("char_id_date_list") ?>
+  LEFT OUTER JOIN charass charass_alias<? literal("char_id_date_list") ?> ON ((charass_alias<? literal("char_id_date_list") ?>.charass_target_type='RA') 
+                                                                    AND  (charass_alias<? literal("char_id_date_list") ?>.charass_target_id=rahead_id)
+                                                                    AND  (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=<? value("char_id_date_list") ?>))
+  LEFT OUTER JOIN char char_alias<? literal("char_id_date_list") ?> ON (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=char_alias<? literal("char_id_date_list") ?>.char_id)
+<? endforeach ?>
+ WHERE ((true)
+<? if exists("warehous_id") ?>
+   AND (itemsite_warehous_id=<? value("warehous_id") ?>)
+<? endif ?>
+<? if exists("cust_id") ?>
+   AND (rahead_cust_id=<? value("cust_id") ?>)
+<? endif ?>
+<? if exists("classcode_id") ?>
+   AND (item_classcode_id=<? value("classcode_id") ?>)
+<? endif ?>
+<? if exists("item_id") ?>
+   AND (item_id=<? value("item_id") ?>)
+<? endif ?>
+<? if exists("dateFrom") ?>
+   AND (rahead_authdate>=<? value("dateFrom") ?>)
+<? endif ?>
+<? if exists("dateTo") ?>
+   AND (rahead_authdate<=<? value("dateTo") ?>)
+<? endif ?>
+<? if exists("search_pattern") ?>
+   AND ((rahead_number ~ <? value("search_pattern") ?>)
+     OR (cohead_number ~ <? value("search_pattern") ?>)
+     OR (cust_number ~* <? value("search_pattern") ?>)
+     OR (rahead_billtoname ~* <? value("search_pattern") ?>))
+<? endif ?>
+<? literal("charClause") ?>
+      )
+;

@@ -1,6 +1,6 @@
 
 CREATE OR REPLACE FUNCTION postCreditMemo(INTEGER, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pCmheadid ALIAS FOR $1;
@@ -16,20 +16,20 @@ BEGIN
 END;
 $$ LANGUAGE 'plpgsql';
 
-
-CREATE OR REPLACE FUNCTION postCreditMemo(INTEGER, INTEGER, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple. 
+DROP FUNCTION IF EXISTS postCreditMemo(INTEGER, INTEGER, INTEGER);
+CREATE OR REPLACE FUNCTION postCreditMemo(pCmheadid INTEGER, 
+                                          pJournalNumber INTEGER, 
+                                          pItemlocSeries INTEGER,
+                                          pPreDistributed BOOLEAN DEFAULT FALSE) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pCmheadid ALIAS FOR $1;
-  pJournalNumber ALIAS FOR $2;
-  pItemlocSeries ALIAS FOR $3;
   _r RECORD;
   _p RECORD;
   _aropenid INTEGER;
   _cohistid INTEGER;
   _sequence INTEGER;
-  _itemlocSeries INTEGER;
+  _itemlocSeries INTEGER := COALESCE(pItemlocSeries, NEXTVAL('itemloc_series_seq'));
   _invhistid INTEGER;
   _test INTEGER;
   _totalAmount NUMERIC   := 0;
@@ -38,8 +38,12 @@ DECLARE
   _toClose BOOLEAN;
   _glDate	DATE;
   _taxBaseValue	NUMERIC	:= 0;
+  _hasControlledItems BOOLEAN := FALSE;
 
 BEGIN
+  IF (_itemlocSeries <= 0) THEN
+    _itemlocSeries := NEXTVAL('itemloc_series_seq');
+  END IF;
 
 --  Cache some parameters
   SELECT cmhead.*,
@@ -61,8 +65,6 @@ BEGIN
   END IF;
 
   _glDate := COALESCE(_p.cmhead_gldistdate, _p.cmhead_docdate);
-
-  _itemlocSeries = pItemlocSeries;
 
   SELECT fetchGLSequence() INTO _sequence;
 
@@ -115,9 +117,24 @@ BEGIN
 -- Always use std cost
   FOR _r IN SELECT *, stdCost(item_id) AS std_cost
             FROM creditmemoitem
+            JOIN itemsite ON cmitem_itemsite_id = itemsite_id
             WHERE ( (cmitem_cmhead_id=pCmheadid)
-              AND   (cmitem_qtycredit <> 0 )
-              AND   (cmitem_itemsite_id IS NOT NULL ) ) LOOP
+              AND   (cmitem_qtycredit <> 0 ) ) LOOP
+
+    IF (_r.itemsite_costmethod = 'A') THEN
+      -- Get cost from original shipment if it exists
+      SELECT COALESCE(SUM(shipitem_value) / SUM(shipitem_qty), _r.std_cost) INTO _r.std_cost
+        FROM cmitem
+        JOIN itemsite ON cmitem_itemsite_id = itemsite_id
+        JOIN cmhead ON cmitem_cmhead_id = cmhead_id
+        JOIN invchead ON cmhead_invcnumber = invchead_invcnumber
+        JOIN invcitem ON invchead_id = invcitem_invchead_id
+                     AND itemsite_item_id = invcitem_item_id
+                     AND itemsite_warehous_id = invcitem_warehous_id
+        JOIN shipitem ON invcitem_id = shipitem_invcitem_id
+       WHERE cmitem_id=_r.cmitem_id;
+    END IF;
+
 
 --  Calculate the Commission to be debited
     _commissionDue := (_commissionDue + (_r.extprice * _p.cmhead_commission));
@@ -516,7 +533,9 @@ BEGIN
   FOR _r IN SELECT itemsite_id, itemsite_costmethod,
                    item_number, stdCost(item_id) AS std_cost,
                    costcat_asset_accnt_id,
-                   SUM(cmitem_qtyreturned * cmitem_qty_invuomratio) AS qty
+                   SUM(cmitem_qtyreturned * cmitem_qty_invuomratio) AS qty,
+                   isControlledItemsite(itemsite_id) AS controlled,
+                   cmhead_id, cmitem_id
             FROM cmhead JOIN cmitem ON (cmitem_cmhead_id=cmhead_id)
                         JOIN itemsite ON (itemsite_id=cmitem_itemsite_id)
                         JOIN item ON (item_id=itemsite_item_id)
@@ -524,21 +543,38 @@ BEGIN
             WHERE ( (cmitem_qtyreturned <> 0)
              AND (cmitem_updateinv)
              AND (cmhead_id=pCmheadid) )
-            GROUP BY itemsite_id, itemsite_costmethod,
+            GROUP BY cmhead_id, cmitem_id, itemsite_id, itemsite_costmethod,
                      item_number, item_id,
-                     costcat_asset_accnt_id LOOP
+                     costcat_asset_accnt_id 
+            ORDER BY itemsite_id LOOP
 
 --  Return credited stock to inventory
-    IF (_itemlocSeries = 0) THEN
-      _itemlocSeries := NEXTVAL('itemloc_series_seq');
-    END IF;
     IF (_r.itemsite_costmethod != 'J') THEN
+
+      IF (_r.controlled) THEN 
+        _hasControlledItems := TRUE;
+      END IF;
+
+      IF (_r.itemsite_costmethod = 'A') THEN
+        -- Get cost from original shipment if it exists
+        SELECT COALESCE(SUM(shipitem_value) / SUM(shipitem_qty), _r.std_cost) INTO _r.std_cost
+          FROM cmitem
+          JOIN itemsite ON cmitem_itemsite_id = itemsite_id
+          JOIN cmhead ON cmitem_cmhead_id = cmhead_id
+          JOIN invchead ON cmhead_invcnumber = invchead_invcnumber
+          JOIN invcitem ON invchead_id = invcitem_invchead_id
+                       AND itemsite_item_id = invcitem_item_id
+                       AND itemsite_warehous_id = invcitem_warehous_id
+          JOIN shipitem ON invcitem_id = shipitem_invcitem_id
+         WHERE cmitem_id=_r.cmitem_id;
+      END IF;
+
       SELECT postInvTrans(_r.itemsite_id, 'RS', _r.qty,
                          'S/O', 'CM', _p.cmhead_number, '',
                          ('Credit Return ' || _r.item_number),
                          _r.costcat_asset_accnt_id,
                          getPrjAccntId(_p.cmhead_prj_id, resolveCOSAccount(_r.itemsite_id, _p.cmhead_cust_id, _p.cmhead_saletype_id, _p.cmhead_shipzone_id)), 
-                         _itemlocSeries, _glDate, (_r.std_cost * _r.qty)) INTO _invhistid;
+                         _itemlocSeries, _glDate, (_r.std_cost * _r.qty), NULL, NULL, pPreDistributed, _r.cmhead_id, _r.cmitem_id) INTO _invhistid;
     ELSE
       RAISE DEBUG 'postCreditMemo(%, %, %) tried to postInvTrans a %-costed item',
                   pCmheadid, pJournalNumber, pItemlocSeries,
@@ -615,6 +651,12 @@ BEGIN
       round(_toApply, 2), _toClose,
       CURRENT_DATE, _p.cmhead_docdate, 0, _p.cmhead_curr_id );
 
+  END IF;
+
+  IF (pPreDistributed) THEN
+    IF (postDistDetail(_itemlocSeries) <= 0 AND _hasControlledItems) THEN
+      RAISE EXCEPTION 'Posting Distribution Detail Returned 0 Results [xtuple: postCreditMemo, -6]';
+    END IF;
   END IF;
     
   RETURN _itemlocSeries;

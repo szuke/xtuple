@@ -68,6 +68,8 @@ AS
          'Packing'
        WHEN cohead_holdtype = 'R' THEN
          'Return'
+       WHEN cohead_holdtype = 'T' THEN
+         'Tax'
        ELSE
          'Error'
      END AS hold_type,
@@ -89,21 +91,20 @@ AS
      cohead_shipcomments AS shipping_notes,
      false AS add_to_packing_list_batch
    FROM cohead
-     LEFT OUTER JOIN cntct bc ON (cohead_billto_cntct_id=bc.cntct_id)
-     LEFT OUTER JOIN cntct sc ON (cohead_shipto_cntct_id=sc.cntct_id)
-     LEFT OUTER JOIN whsinfo ON (cohead_warehous_id=warehous_id)
-     LEFT OUTER JOIN prj ON (cohead_prj_id=prj_id)
-     LEFT OUTER JOIN shiptoinfo ON (cohead_shipto_id=shipto_id)
-     LEFT OUTER JOIN shipchrg ON (cohead_shipchrg_id=shipchrg_id)
-     LEFT OUTER JOIN taxzone ON (cohead_taxzone_id=taxzone_id)
-     LEFT OUTER JOIN saletype ON (cohead_saletype_id=saletype_id)
-     LEFT OUTER JOIN shipzone ON (cohead_shipzone_id=shipzone_id),
-     custinfo,shipform,salesrep,terms,curr_symbol
-   WHERE ((cohead_cust_id=cust_id)
-   AND (cohead_shipform_id=shipform_id)
-   AND (cohead_salesrep_id=salesrep_id)
-   AND (cohead_terms_id=terms_id)
-   AND (cohead_curr_id=curr_id));
+     JOIN custinfo ON cohead_cust_id=cust_id
+     JOIN salesrep ON cohead_salesrep_id=salesrep_id
+     JOIN terms ON cohead_terms_id=terms_id
+     JOIN curr_symbol ON cohead_curr_id=curr_id
+     LEFT OUTER JOIN cntct bc ON cohead_billto_cntct_id=bc.cntct_id
+     LEFT OUTER JOIN cntct sc ON cohead_shipto_cntct_id=sc.cntct_id
+     LEFT OUTER JOIN whsinfo ON cohead_warehous_id=warehous_id
+     LEFT OUTER JOIN prj ON cohead_prj_id=prj_id
+     LEFT OUTER JOIN shiptoinfo ON cohead_shipto_id=shipto_id
+     LEFT OUTER JOIN shipchrg ON cohead_shipchrg_id=shipchrg_id
+     LEFT OUTER JOIN taxzone ON cohead_taxzone_id=taxzone_id
+     LEFT OUTER JOIN saletype ON cohead_saletype_id=saletype_id
+     LEFT OUTER JOIN shipzone ON cohead_shipzone_id=shipzone_id
+     LEFT OUTER JOIN shipform ON cohead_shipform_id=shipform_id;
 
 GRANT ALL ON TABLE api.salesorder TO xtrole;
 COMMENT ON VIEW api.salesorder IS 'Sales Order';
@@ -326,6 +327,10 @@ CREATE OR REPLACE RULE "_UPDATE" AS
         'S'
       WHEN NEW.hold_type = 'Packing' THEN
         'P'
+      WHEN NEW.hold_type = 'Return' THEN
+        'R'
+      WHEN NEW.hold_type = 'Tax' THEN
+        'T'
       ELSE
         'N'
     END,

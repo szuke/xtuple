@@ -3,6 +3,12 @@
  <title>Frozen Item Sites</title>
  <name>FrozenItemSites</name>
  <description></description>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
  <size>Letter</size>
  <portrait/>
  <topmargin>50</topmargin>
@@ -39,6 +45,7 @@
             WHEN (itemsite_controlmethod='S') THEN 'Serial #'
             ELSE '?'
        END AS controlmethod,
+       costcat_code, plancode_code, 
        formatBoolYN(itemsite_loccntrl) AS locationcontrol,
        CASE WHEN (itemsite_location_id=-1) THEN 'None'
             ELSE formatLocationName(itemsite_location_id)
@@ -60,9 +67,11 @@
                    FROM invcnt
                   WHERE ((NOT invcnt_posted)
                     AND (invcnt_itemsite_id=itemsite_id))), '') AS counttagnum
-FROM itemsite, whsinfo, item
+FROM itemsite, whsinfo, item, plancode, costcat
 WHERE ((itemsite_item_id=item_id)
  AND (itemsite_warehous_id=warehous_id)
+ AND (itemsite_plancode_id=plancode_id)
+ AND (itemsite_costcat_id=costcat_id)
  AND (itemsite_freeze)
 &lt;? if exists("warehous_id") ?>
  AND (warehous_id=&lt;? value("warehous_id") ?>)
@@ -1566,6 +1575,44 @@ ORDER BY item_number;</sql>
     <data>
      <query>detail</query>
      <column>itemsite_soldranking</column>
+    </data>
+   </field>
+   <field>
+    <rect>
+     <x>50</x>
+     <y>46</y>
+     <width>210</width>
+     <height>15</height>
+    </rect>
+    <font>
+     <face>Arial</face>
+     <size>8</size>
+     <weight>bold</weight>
+    </font>
+    <left/>
+    <vcenter/>
+    <data>
+     <query>detail</query>
+     <column>plancode_code</column>
+    </data>
+   </field>
+   <field>
+    <rect>
+     <x>50</x>
+     <y>61</y>
+     <width>210</width>
+     <height>15</height>
+    </rect>
+    <font>
+     <face>Arial</face>
+     <size>8</size>
+     <weight>bold</weight>
+    </font>
+    <left/>
+    <vcenter/>
+    <data>
+     <query>detail</query>
+     <column>costcat_code</column>
     </data>
    </field>
   </detail>

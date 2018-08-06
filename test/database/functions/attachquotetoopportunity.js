@@ -28,7 +28,7 @@ var _      = require('underscore'),
     it("needs a succeeding quhead record", function(done) {
       var sql = "INSERT INTO quhead (" +
                 " quhead_number, quhead_cust_id)" +
-                " SELECT '2', quhead_cust_id" +
+                " SELECT fetchQuNumber(), quhead_cust_id" +
                 " FROM quhead " +
                 " LIMIT 1" +
                 " RETURNING quhead_id;";

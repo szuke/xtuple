@@ -204,7 +204,7 @@ INSERT INTO itemsite (
        COALESCE(NEW.maximum_order,0),
        COALESCE(NEW.order_multiple,0),
        COALESCE(NEW.enforce_on_manual_orders,FALSE),
-       COALESCE(NEW.group_mps_mrp_orders,0),
+       COALESCE(NEW.group_mps_mrp_orders,1),
        COALESCE(NEW.first_group,FALSE),
        COALESCE(NEW.mps_time_fence,0),
        COALESCE(NEW.lead_time,0),

@@ -138,7 +138,6 @@ white:true*/
       bindEvents: function () {
         XM.ProjectBase.prototype.bindEvents.apply(this, arguments);
         this.on("add:tasks remove:tasks", this.tasksDidChange);
-        this.on("change:projectType", this.projectTypeDidChange);
       },
 
       /**
@@ -152,13 +151,6 @@ white:true*/
       */
       copy: function (options) {
         return XM.Project.copy(this, options);
-      },
-
-      projectTypeDidChange: function () {
-        if (!XT.session.settings.get("TriggerWorkflow")) {
-          this.inheritWorkflowSource(this.get("projectType"), "XM.ProjectCharacteristic",
-            "XM.ProjectWorkflow");
-        }
       },
 
       /**
@@ -226,7 +218,6 @@ white:true*/
         return K.buildToString.call(this, toAddresses);
       }
     });
-    _.extend(XM.Project.prototype, XM.WorkflowMixin);
 
     // ..........................................................
     // CLASS METHODS
@@ -471,36 +462,6 @@ white:true*/
       /** @scope XM.TaskProjectRelation.prototype */
 
       recordType: "XM.TaskProjectRelation"
-
-    });
-
-    /**
-      @class
-
-      @extends XM.Workflow
-    */
-    XM.ProjectWorkflow = XM.Workflow.extend(
-      /** @scope XM.ProjectWorkflow.prototype */ {
-
-      recordType: "XM.ProjectWorkflow",
-
-      getProjectWorkflowStatusString: function () {
-        return XM.ProjectWorkflow.prototype.getWorkflowStatusString.call(this);
-      }
-
-    });
-
-    /**
-      @class
-
-      @extends XM.Workflow
-    */
-    XM.ProjectWorkflowRelation = XM.Info.extend(
-      /** @scope XM.ProjectWorkflow.prototype */ {
-
-      recordType: "XM.ProjectWorkflowRelation",
-
-      editableModel: "XM.ProjectWorkflow"
 
     });
 

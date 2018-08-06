@@ -19,6 +19,14 @@ CREATE OR REPLACE FUNCTION _pkgheadbeforeupserttrigger() RETURNS "trigger" AS $$
       NEW.pkghead_indev = FALSE;
     END IF;
 
+    IF (TG_OP = 'INSERT') THEN
+      IF (pg_trigger_depth()=1) THEN
+        PERFORM createpkgschema(NEW.pkghead_name, NEW.pkghead_notes, NEW.pkghead_version,
+                                NEW.pkghead_descrip, NEW.pkghead_developer, NEW.pkghead_indev);
+        RETURN OLD;
+      END IF;
+    END IF;
+
     RETURN NEW;
   END;
 $$ LANGUAGE plpgsql;

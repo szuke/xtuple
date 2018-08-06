@@ -1,7 +1,7 @@
 -- Group: inventoryAvailability
 -- Name:  general
 -- Notes: 
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT itemsite_id, altId,
@@ -85,28 +85,35 @@ FROM (SELECT
           <? endif ?>
           <? if exists("item_id") ?>
             AND (item_id=<? value("item_id") ?>)
-          <? elseif exists("classcode_id") ?>
+          <? endif ?>
+          <? if exists("classcode_id") ?>
             AND (item_classcode_id=<? value("classcode_id") ?>)
-          <? elseif exists("classcode_pattern") ?>
+          <? endif ?>
+          <? if exists("classcode_pattern") ?>
             AND (item_classcode_id IN (SELECT classcode_id
                                        FROM classcode
                                        WHERE (classcode_code ~ <? value("classcode_pattern") ?>)))
-          <? elseif exists("plancode_id") ?>
+          <? endif ?>
+          <? if exists("plancode_id") ?>
             AND (itemsite_plancode_id=<? value("plancode_id") ?>)
-          <? elseif exists("plancode_pattern") ?>
+          <? endif ?>
+          <? if exists("plancode_pattern") ?>
             AND (itemsite_plancode_id IN (SELECT plancode_id
                                           FROM plancode
                                           WHERE (plancode_code ~ <? value("plancode_pattern") ?>)))
-          <? elseif exists("itemgrp_id") ?>
+          <? endif ?>
+          <? if exists("itemgrp_id") ?>
             AND (item_id IN (SELECT itemgrpitem_item_id
                              FROM itemgrpitem
                              WHERE (itemgrpitem_itemgrp_id=<? value("itemgrp_id") ?>)))
-          <? elseif exists("itemgrp_pattern") ?>
+          <? endif ?>
+          <? if exists("itemgrp_pattern") ?>
             AND (item_id IN (SELECT itemgrpitem_item_id
                              FROM itemgrpitem, itemgrp
                              WHERE ( (itemgrpitem_itemgrp_id=itemgrp_id)
                                     AND (itemgrp_name ~ <? value("itemgrp_pattern") ?>) ) ))
-          <? elseif exists("itemgrp") ?>
+          <? endif ?>
+          <? if exists("itemgrp") ?>
             AND (item_id IN (SELECT DISTINCT itemgrpitem_item_id FROM itemgrpitem))
           <? endif ?>
           <? if reExists("[vV]end") ?>
@@ -114,9 +121,11 @@ FROM (SELECT
           <? endif ?>
           <? if exists("vend_id") ?>
             AND (vend_id=<? value("vend_id") ?>)
-          <? elseif exists("vendtype_id") ?>
+          <? endif ?>
+          <? if exists("vendtype_id") ?>
             AND (vend_vendtype_id=<? value("vendtype_id") ?>)
-          <? elseif exists("vendtype_pattern") ?>
+          <? endif ?>
+          <? if exists("vendtype_pattern") ?>
             AND (vend_vendtype_id IN (SELECT vendtype_id
                                       FROM vendtype
                                       WHERE (vendtype_code ~ <? value("vendtype_pattern") ?>)))

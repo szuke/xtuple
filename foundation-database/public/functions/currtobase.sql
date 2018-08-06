@@ -1,4 +1,9 @@
-DROP FUNCTION IF EXISTS currToBase(INTEGER, NUMERIC, DATE) CASCADE;
+--DROP FUNCTION IF EXISTS currToBase(INTEGER, NUMERIC, DATE) CASCADE;
+--HACK: The above line causes issue #29619, removing important views from xtdash
+--Normally functions need to be dropped in case of function signature change
+--We can skip that step in this case because the function signature has been the same up until now
+--and it is only a problem after parameters are given a name
+--This prevents dependent views from being deleted
 
 CREATE OR REPLACE FUNCTION currToBase(pId    INTEGER,
                                       pValue NUMERIC,

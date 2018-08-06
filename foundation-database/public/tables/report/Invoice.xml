@@ -84,9 +84,12 @@ ORDER BY ordernumber;</sql>
 --Sub-select updated for 3.1 to support kitting
       characteristicsToString('SI',invcitem_coitem_id, '=', ', ') 
       AS coitem_characteristics
-FROM invcitem LEFT OUTER JOIN (item JOIN uom ON (item_inv_uom_id=uom_id)) ON (invcitem_item_id=item_id) LEFT OUTER JOIN itemalias ON (itemalias_item_id=item_id AND itemalias_number=invcitem_custpn)
+FROM invcitem 
+JOIN (invchead JOIN crmacct on invchead_cust_id=crmacct_cust_id) ON invchead_id=invcitem_invchead_id
+LEFT OUTER JOIN (item JOIN uom ON (item_inv_uom_id=uom_id)) ON (invcitem_item_id=item_id)
+LEFT OUTER JOIN itemalias ON (itemalias_item_id=item_id AND itemalias_number=invcitem_custpn AND crmacct_id=itemalias_crmacct_id)
 WHERE (invcitem_invchead_id=&lt;? value("invchead_id") ?>)
-ORDER BY invcitem_linenumber;</sql>
+ORDER BY invcitem_linenumber, invcitem_subnumber;</sql>
  </querysource>
  <querysource>
   <name>foot</name>

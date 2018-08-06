@@ -44,20 +44,6 @@ white:true*/
       XM.purchaseOrderStatuses.add(purchaseOrderStatus);
     }
 
-    // Purchase Order Workflow
-    K = XM.PurchaseOrderWorkflow;
-    var purchaseOrderWorkflowTypeJson = [
-      { id: K.TYPE_OTHER, name: "_other".loc() }
-    ];
-    XM.PurchaseOrderWorkflowTypeModel = Backbone.Model.extend({});
-    XM.PurchaseOrderWorkflowTypeCollection = Backbone.Collection.extend({
-      model: XM.PurchaseOrderWorkflowTypeModel
-    });
-    XM.purchaseOrderWorkflowTypes = new XM.PurchaseOrderWorkflowTypeCollection();
-    _.each(purchaseOrderWorkflowTypeJson, function (obj) {
-      XM.purchaseOrderWorkflowTypes.add(new XM.PurchaseOrderWorkflowTypeModel(obj));
-    });
-
   };
 
 }());

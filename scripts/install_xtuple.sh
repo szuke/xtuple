@@ -90,11 +90,6 @@ while getopts ":d:ipnhmx-:" opt; do
       NODE_VERSION=$OPTARG
       varlog NODE_VERSION
       ;;
-    openrpt)
-      #install openrpt
-      RUNALL=
-      OPENRPT=true
-      ;;
     h)
       cat <<EOUsage
 Usage: install_xtuple -h
@@ -108,7 +103,6 @@ To install everything, run bash /scripts/install_xtuple.sh
   -init         replace the xtuple directory with a fresh clone
   -i            install PostgreSQL, required build tools, curl, nvm, nodejs, and run npm install
   -p            configure PostgreSQL
-  -openrpt      install OpenRPT only
   -n            configure the node-datasource and build a test database
 
   -d    VER     install PostgreSQL version VER
@@ -127,7 +121,6 @@ then
 	INSTALL=true
 	POSTGRES=true
 	INIT=true
-  OPENRPT=true
 fi
 
 if [ $USERINIT ]
@@ -135,7 +128,6 @@ then
 	INSTALL=
 	POSTGRES=
 	INIT=
-  OPENRPT=
 fi
 
 if [ -z "$NODE_VERSION" ]
@@ -150,7 +142,21 @@ install_packages() {
     # for Debian wheezy (7.x) we need some things from the wheezy-backports
     sudo add-apt-repository -y "deb http://ftp.debian.org/debian wheezy-backports main"
   fi
-  sudo add-apt-repository -y "deb http://apt.postgresql.org/pub/repos/apt/ ${DEBDIST}-pgdg main"
+
+  case "${DEBDIST}" in
+      "trusty") ;&
+      "utopic") ;&
+      "wheezy") ;&
+      "jessie") ;&
+      "xenial")
+          # check to make sure the PostgreSQL repo is already added on the system
+          if [ ! -f /etc/apt/sources.list.d/pgdg.list ] || ! grep -q "apt.postgresql.org" /etc/apt/sources.list.d/pgdg.list; then
+              sudo bash -c "wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -"
+              sudo bash -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          fi
+      ;;
+  esac
+
   sudo apt-get -qq update |& tee -a $LOG_FILE
 
   # we won't support pg 9.1 in 4.10 or later
@@ -160,13 +166,15 @@ install_packages() {
       postgresql-9.1-asn1oid postgresql-9.1-plv8 2>&1
   fi
 
-  # we had problems with a newer plv8 in mar-apr 2016
   local PLV8PKG="postgresql-${PG_VERSION}-plv8"
-  if [ ${PG_VERSION} = 9.3 ] ; then
-    PLV8PKG="postgresql-${PG_VERSION}-plv8=1.4.0.ds-2"
-  elif [ ${PG_VERSION} = 9.4 ] ; then
-    PLV8PKG="postgresql-${PG_VERSION}-plv8=1:1.4.8.ds-1.pgdg14.04+1"
-  fi
+
+# we had problems with a newer plv8 in mar-apr 2016, but it's working in Feb-2017.
+#  if [ ${PG_VERSION} = 9.3 ] ; then
+#    PLV8PKG="postgresql-${PG_VERSION}-plv8=1.4.0.ds-2"
+#  elif [ ${PG_VERSION} = 9.4 ] ; then
+#    PLV8PKG="postgresql-${PG_VERSION}-plv8=1:1.4.8.ds-2.pgdg14.04+1"
+     # Now installs (note: ds-2): postgresql-9.4-plv8 (1:1.4.8.ds-2.pgdg14.04+1) ...
+#  fi
 
   sudo apt-get -qq -y install --force-yes \
     postgresql-${PG_VERSION} postgresql-server-dev-${PG_VERSION} \
@@ -262,7 +270,7 @@ setup_postgres() {
   cdir $BASEDIR/postgres
 
   log "Setup database"
-  psql -U postgres -q -f $XT_DIR/lib/orm/source/init.sql 2>&1 | tee -a $LOG_FILE
+  psql -U postgres -q -f $XT_DIR/foundation-database/init.sql 2>&1 | tee -a $LOG_FILE
 }
 
 init_everythings() {
@@ -312,28 +320,6 @@ init_everythings() {
   fi
 }
 
-openrpt () {
-  #stolen from xtuple-server-core repository
-  log "Installing OPENRPT"
-  cd $BASEDIR
-  sudo chmod go+w .
-  git clone -q https://github.com/xtuple/openrpt.git |& \
-                                  tee -a $LOG_FILE
-  sudo chmod go-w .
-  sudo apt-get install -qq --force-yes qt4-qmake libqt4-dev libqt4-sql-psql |& \
-                                  tee -a $LOG_FILE
-  cd openrpt
-  OPENRPT_VER=master #TODO: OPENRPT_VER=`latest stable release`
-  git checkout -q $OPENRPT_VER |& tee -a $LOG_FILE
-  log "Starting OpenRPT build (this will take a few minutes)..."
-  qmake                        |& tee -a $LOG_FILE
-  make > /dev/null             |& tee -a $LOG_FILE
-  sudo mkdir -p /usr/local/bin
-  sudo mkdir -p /usr/local/lib
-  sudo tar cf - bin lib | sudo tar xf - -C /usr/local
-  ldconfig                     |& tee -a $LOG_FILE
-}
-
 if [ $USERINIT ]
 then
   user_init
@@ -358,15 +344,6 @@ then
   then
     exit 4
   fi
-fi
-if [ $OPENRPT ]
-then
-  log "openrpt()"
-	openrpt
-	if [ $? -ne 0 ]
-	then
-		log "openrpt install failed"
-	fi
 fi
 if [ $INIT ]
 then

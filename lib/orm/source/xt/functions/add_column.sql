@@ -49,15 +49,15 @@ BEGIN
 
     IF (COALESCE(pConstraint, '') ~* 'not null') THEN
       _constraintNull := TRUE;
---    Have to handle serial columns otherwise we lose the link to the sequence
-      IF (pType ~* 'serial') THEN
-        _constraintDefault = _current.defaultval;
-      ELSE
-        _constraintDefault := trim(regexp_replace(COALESCE(pConstraint, ''), 'not null', '', 'i'));
-      END IF;
+      _constraintDefault := trim(regexp_replace(COALESCE(pConstraint, ''), 'not null', '', 'i'));
     ELSE
       _constraintNull := FALSE;
       _constraintDefault := trim(regexp_replace(COALESCE(pConstraint, ''), 'null', '', 'i'));
+    END IF;
+
+--    Have to handle serial columns otherwise we lose the link to the sequence
+    IF (pType ~* 'serial') THEN
+      _constraintDefault = _current.defaultval;
     END IF;
 
 --The above does not behave correctly in most cases wherein a constraint or the default value
@@ -119,7 +119,7 @@ BEGIN
   END IF;
 
   IF (pType ~~* 'serial') THEN
-    _sequence := format('%I_%I_id_seq', pTable, pTable);
+    _sequence := format('%I_%I_id_seq', pTable, pColumn);
     IF (EXISTS(SELECT 1 FROM pg_class WHERE relname=_sequence
                AND relkind='S' AND relacl IS NULL ORDER BY relname)) THEN
       _query := format('GRANT ALL ON SEQUENCE %I.%I TO xtrole;', pSchema, _sequence);

@@ -41,6 +41,5 @@ enyo.depends(
   "user_account.js",
   "user_chart.js",
   "vendor.js",
-  "workflow.js",
   "static.js"
 );

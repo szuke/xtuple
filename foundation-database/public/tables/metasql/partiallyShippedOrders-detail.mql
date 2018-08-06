@@ -4,7 +4,7 @@
 -- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
-SELECT CASE WHEN (soHoldType(cohead_id) IN ('P', 'C', 'R')) THEN -1
+SELECT CASE WHEN (soHoldType(cohead_id) IN ('P', 'C', 'R', 'T')) THEN -1
             ELSE cohead_id
        END AS _coheadid, cohead_id,
        soHoldType(cohead_id) AS holdtype, cohead_number, cust_name, saletype_descr,
@@ -13,6 +13,7 @@ SELECT CASE WHEN (soHoldType(cohead_id) IN ('P', 'C', 'R')) THEN -1
                                   WHEN 'S' THEN <? value("ship") ?>
                                   WHEN 'P' THEN <? value("pack") ?>
                                   WHEN 'R' THEN <? value("return") ?>
+                                  WHEN 'T' THEN <? value("tax") ?>
                                   ELSE <? value("other") ?>
        END AS f_holdtype,
        cohead_orderdate,

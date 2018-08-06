@@ -1,23 +1,20 @@
 -- Group: vendorAPHistory
 -- Name: detail
 -- Notes: used by dspVendorAPHistory
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
--- See www.xtuple.com/CPAL for the full text of the software license.
+--        Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+--        See www.xtuple.com/CPAL for the full text of the software license.
 
+WITH mainQuery AS (
 SELECT apopen_id, -1 AS applyid, 0 AS type,
        apopen_docdate AS sortdate, apopen_docnumber AS sortnumber,
        apopen_docnumber AS docnumber,
        formatBoolYN(apopen_open) AS f_open,
-       CASE WHEN (apopen_doctype='V') THEN <? value("voucher") ?>
-            WHEN (apopen_doctype='C') THEN <? value("creditMemo") ?>
-            WHEN (apopen_doctype='D') THEN <? value("debitMemo") ?>
-         ELSE <? value("other") ?>
-       END AS documenttype,
+       apopen_doctype AS doctype,
        apopen_invcnumber AS invoicenumber,
        apopen_ponumber AS ponumber,
        apopen_docdate AS docdate, apopen_duedate AS duedate, apopen_amount AS amount,
        (apopen_amount - apopen_paid) AS balance,
-       currconcat(apopen_curr_id) AS currAbbr,
+       apopen_curr_id AS curr_id,
        CASE WHEN (apopen_doctype='C') THEN apopen_amount / apopen_curr_rate * -1.0
          ELSE apopen_amount / apopen_curr_rate
        END AS base_amount,
@@ -25,70 +22,95 @@ SELECT apopen_id, -1 AS applyid, 0 AS type,
        CASE WHEN (apopen_doctype='C') THEN (apopen_amount - apopen_paid) / apopen_curr_rate * -1.0
          ELSE (apopen_amount - apopen_paid) / apopen_curr_rate
        END AS base_balance,
-       'curr' AS amount_xtnumericrole,
-       'curr' AS base_amount_xtnumericrole,
-       0 AS base_amount_xttotalrole,
-       'curr' AS base_applied_xtnumericrole,
-       0 AS base_applied_xttotalrole,
-       'curr' AS balance_xtnumericrole,
-       'curr' AS base_balance_xtnumericrole,
-       0 AS base_balance_xttotalrole,
-       0 AS xtindentrole 
-FROM apopen 
-WHERE ( (apopen_vend_id=<? value("vend_id") ?>) 
-    AND (apopen_docdate BETWEEN <? value("startDate") ?> AND <? value("endDate") ?>) ) 
+       0 AS xtindentrole
+  FROM apopen
+ WHERE apopen_docdate BETWEEN <? value('startDate') ?> AND <? value('endDate') ?>
+  <? if exists('vend_id') ?>
+    AND apopen_vend_id=<? value('vend_id') ?>
+  <? elseif exists('vendtype_id') ?>
+    AND apopen_vend_id IN (SELECT vend_id FROM vendinfo
+                            WHERE vend_vendtype_id = <? value('vendtype_id') ?>)
+  <? elseif exists('vendtype_pattern') ?>
+    AND apopen_vend_id IN (SELECT vend_id
+                             FROM vendinfo
+                             JOIN vendtype ON vend_vendtype_id = vendtype_id
+                            WHERE vendtype_code ~* <? value('vendtype_pattern') ?>)
+  <? endif ?>
 
-UNION 
+UNION
 SELECT apopen_id, apapply_source_apopen_id AS applyid, 1 AS type,
        apopen_docdate AS sortdate, apopen_docnumber AS sortnumber,
        apapply_source_docnumber AS docnumber,
        '' AS f_open,
-       CASE WHEN (apapply_source_doctype='C') THEN <? value("creditMemo") ?>
-            WHEN (apapply_source_doctype='K') THEN <? value("check") ?>
-         ELSE <? value("other") ?>
-       END AS documenttype,
+       apapply_source_doctype AS doctype,
        ' ' AS invoicenumber,
        '' AS ponumber,
        apapply_postdate AS docdate, CAST(NULL AS DATE) AS duedate,
        apapply_amount AS amount,
        0 AS balance,
-       currconcat(apapply_curr_id) AS currAbbr,
+       apapply_curr_id AS curr_id,
        0 AS base_amount,
-       (apapply_amount / apopen_curr_rate) AS base_applied, 
+       (apapply_amount / apopen_curr_rate) AS base_applied,
        0 AS base_balance,
-       'curr' AS amount_xtnumericrole,
-       'curr' AS base_amount_xtnumericrole,
-       0 AS base_amount_xttotalrole,
-       'curr' AS base_applied_xtnumericrole,
-       0 AS base_applied_xttotalrole,
-       'curr' AS balance_xtnumericrole,
-       'curr' AS base_balance_xtnumericrole,
-       0 AS base_balance_xttotalrole,
-       1 AS xtindentrole 
-FROM apapply, apopen 
-WHERE ( (apapply_target_apopen_id=apopen_id)
-    AND (apapply_vend_id=<? value("vend_id") ?>)
-    AND (apopen_vend_id=<? value("vend_id") ?>)
-    AND (apopen_docdate BETWEEN <? value("startDate") ?> AND <? value("endDate") ?>) ) 
+       1 AS xtindentrole
+  FROM apapply
+  JOIN apopen ON apapply_target_apopen_id = apopen_id
+             AND apapply_vend_id          = apopen_vend_id
+ WHERE apopen_docdate BETWEEN <? value('startDate') ?> AND <? value('endDate') ?>
+  <? if exists('vend_id') ?>
+    AND apopen_vend_id=<? value('vend_id') ?>
+  <? elseif exists('vendtype_id') ?>
+    AND apopen_vend_id IN (SELECT vend_id FROM vendinfo
+                            WHERE vend_vendtype_id = <? value('vendtype_id') ?>)
+  <? elseif exists('vendtype_pattern') ?>
+    AND apopen_vend_id IN (SELECT vend_id
+                             FROM vendinfo
+                             JOIN vendtype ON vend_vendtype_id = vendtype_id
+                            WHERE vendtype_code ~* <? value('vendtype_pattern') ?>)
+  <? endif ?>
 
-UNION 
+UNION
 SELECT apopen_id, apapply_target_apopen_id AS applyid, 2 AS type,
        apopen_docdate AS sortdate, apopen_docnumber AS sortnumber,
        apapply_target_docnumber AS docnumber,
        '' AS f_open,
-       CASE WHEN (apapply_target_doctype='V') THEN <? value("voucher") ?>
-            WHEN (apapply_target_doctype='D') THEN <? value("debitMemo") ?>
-         ELSE <? value("other") ?>
-       END AS documenttype,
+       apapply_target_doctype AS doctype,
        apopen_invcnumber AS invoicenumber,
        '' AS ponumber,
        apapply_postdate AS docdate, CAST(NULL AS DATE) AS duedate,
        apapply_amount AS amount,
        0 AS balance,
-       currconcat(apapply_curr_id) AS currAbbr,
+       apapply_curr_id AS curr_id,
        0 AS base_amount,
-       (apapply_amount / apopen_curr_rate) AS base_applied, 
+       (apapply_amount / apopen_curr_rate) AS base_applied,
        0 AS base_balance,
+       1 AS xtindentrole
+  FROM apapply
+  JOIN apopen ON apapply_source_doctype   = apopen_doctype
+             AND apapply_source_docnumber = apopen_docnumber
+             AND apapply_vend_id          = apopen_vend_id
+WHERE apapply_source_doctype IN ('C', 'K')
+  AND apopen_docdate BETWEEN <? value('startDate') ?> AND <? value('endDate') ?>
+  <? if exists('vend_id') ?>
+    AND apopen_vend_id=<? value('vend_id') ?>
+  <? elseif exists('vendtype_id') ?>
+    AND apopen_vend_id IN (SELECT vend_id FROM vendinfo
+                            WHERE vend_vendtype_id = <? value('vendtype_id') ?>)
+  <? elseif exists('vendtype_pattern') ?>
+    AND apopen_vend_id IN (SELECT vend_id
+                             FROM vendinfo
+                             JOIN vendtype ON vend_vendtype_id = vendtype_id
+                            WHERE vendtype_code ~* <? value('vendtype_pattern') ?>)
+  <? endif ?>
+)
+SELECT mainQuery.*,
+       CASE doctype WHEN 'V' THEN <? value('voucher') ?>
+                    WHEN 'C' THEN <? value('creditMemo') ?>
+                    WHEN 'D' THEN <? value('debitMemo') ?>
+                    WHEN 'K' THEN <? value('check') ?>
+                    ELSE doctype
+       END AS documenttype,
+       currconcat(curr_id) AS currAbbr,
        'curr' AS amount_xtnumericrole,
        'curr' AS base_amount_xtnumericrole,
        0 AS base_amount_xttotalrole,
@@ -97,12 +119,6 @@ SELECT apopen_id, apapply_target_apopen_id AS applyid, 2 AS type,
        'curr' AS balance_xtnumericrole,
        'curr' AS base_balance_xtnumericrole,
        0 AS base_balance_xttotalrole,
-       1 AS xtindentrole 
-FROM apapply, apopen 
-WHERE ( (apapply_source_doctype IN ('C', 'K'))
-    AND (apapply_source_doctype=apopen_doctype)
-    AND (apapply_source_docnumber=apopen_docnumber)
-    AND (apapply_vend_id=<? value("vend_id") ?>)
-    AND (apopen_vend_id=<? value("vend_id") ?>)
-    AND (apopen_docdate BETWEEN <? value("startDate") ?> AND <? value("endDate") ?>) ) 
+       xtindentrole
+  FROM mainQuery
 ORDER BY sortdate, apopen_id, type;

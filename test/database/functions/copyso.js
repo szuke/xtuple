@@ -54,7 +54,6 @@ var _    = require("underscore"),
         assert.notEqual(samecust.cohead_id, oldso.cohead_id, 'id');
         assert.notEqual(samecust.cohead_number, oldso.cohead_number, 'number');
         assert.equal(samecust.cohead_cust_id, oldso.cohead_cust_id, 'cust_id');
-        assert.equal(samecust.cohead_shiptoname, oldso.cohead_shiptoname, 'shiptoname');
         assert.equal(samecust.cohead_shipvia, oldso.cohead_shipvia, 'shipvia');
         assert.equal(samecust.cohead_freight, oldso.cohead_freight, 'freight');
         assert.equal(samecust.cohead_misc, oldso.cohead_misc, 'misc');

@@ -859,31 +859,22 @@ select xt.install_js('XT','Orm','xtuple', $$
     if(!cols.length) { throw new Error('There must be at least one column defined on the map.'); }
 
     /* Build query to create the new view */
-    query = 'create view {name} as select {columns} from {tables} {where} {order};'
-            .replace('{name}', viewName)
-            .replace('{columns}', cols.join(', '))
-            .replace('{tables}', tbls.join(' '))
-            .replace('{where}', clauses.length ? 'where ' + clauses.join(' and ') : '')
-            .replace('{order}', orderBy.length ? 'order by ' + orderBy.join(' , ') : '');
+    var viewSql = 'select {columns} from {tables} {where} {order};'
+                  .replace('{columns}', cols.join(', '))
+                  .replace('{tables}', tbls.join(' '))
+                  .replace('{where}', clauses.length ? 'where ' + clauses.join(' and ') : '')
+                  .replace('{order}', orderBy.length ? 'order by ' + orderBy.join(' , ') : '');
+    query = 'SELECT xt.create_view($1, $2, false);';
 
     if (DEBUG) {
       XT.debug('createView sql = ', query);
     }
-    plv8.execute(query);
+    plv8.execute(query, [viewName, viewSql]);
 
     /* Add comment */
     query = "comment on view {name} is '{comments}'"
             .replace('{name}', viewName)
             .replace('{comments}', comments);
-    plv8.execute(query);
-
-    /* Grant access to xtrole */
-    query = 'grant all on {view} to xtrole'
-            .replace('{view}', viewName);
-
-    if (DEBUG) {
-      XT.debug('createView grant sql = ', query);
-    }
     plv8.execute(query);
 
     /* clean up triggers that we may or may not want to be there */

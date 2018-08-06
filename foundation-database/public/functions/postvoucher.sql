@@ -1,6 +1,6 @@
 CREATE OR REPLACE FUNCTION postvoucher(pVoheadid integer, pPostCosts boolean)
   RETURNS integer AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   RETURN postVoucher(pVoheadid, fetchJournalNumber('AP-VO'), pPostCosts);
@@ -12,7 +12,7 @@ CREATE OR REPLACE FUNCTION postvoucher(
     pjournalnumber integer,
     ppostcosts boolean)
   RETURNS integer AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _sequence INTEGER;
@@ -374,9 +374,11 @@ BEGIN
 			      _p.vohead_distdate) AS vodist_amount_base,
 		   vodist_amount,
 		   vodist_accnt_id, vodist_expcat_id, vodist_costelem_id,
-		   vodist_freight_vohead_id, vodist_freight_dist_method  
+		   vodist_freight_vohead_id, vodist_freight_dist_method,
+                   vohead_curr_id, vohead_distdate
             FROM vodist
-            WHERE ( (vodist_vohead_id=pVoheadid)
+            JOIN vohead ON vodist_vohead_id=vohead_id
+            WHERE ( (vohead_id=pVoheadid)
              AND (vodist_poitem_id=-1)
              AND (vodist_tax_id=-1) ) LOOP
 
@@ -393,14 +395,19 @@ BEGIN
         SELECT freightdistr_accnt_id,
                 SUM(freightdistr_amount) AS freightdistr_amount
          FROM calculatefreightdistribution(_d.vodist_freight_vohead_id, _d.vodist_costelem_id,
-                                           _d.vodist_freight_dist_method, _d.vodist_amount, true)
+                                           _d.vodist_freight_dist_method, _d.vodist_amount, true,
+                                           _d.vohead_curr_id, _d.vohead_distdate)
         GROUP BY freightdistr_accnt_id 
       LOOP
         PERFORM insertIntoGLSeries( _sequence, 'A/P', 'VO', text(_p.vohead_number),
 			  _fdist.freightdistr_accnt_id,
 			  round(_fdist.freightdistr_amount, 2) * -1,
 			  _glDate, _p.glnotes );
-      END LOOP;  			  
+      END LOOP;
+      -- Cross reference freight dist voucher with original PO Voucher
+      INSERT INTO docass (docass_source_type, docass_source_id, docass_target_type, docass_target_id,
+                          docass_purpose, docass_username)
+      VALUES ('VCH', _d.vodist_freight_vohead_id, 'VCH', pVoheadid, 'A', geteffectivextuser());
     ELSE -- G/L Account
       PERFORM insertIntoGLSeries( _sequence, 'A/P', 'VO', text(_p.vohead_number),
 			  _d.vodist_accnt_id,

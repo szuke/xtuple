@@ -425,7 +425,16 @@ app.configure(function () {
   //app.use(express.logger());
 
   app.use(express.cookieParser());
-  app.use(express.bodyParser());
+  if (X.options.datasource.useBodyParser) {
+    X.warn('Starting insecure Express.js app() server using bodyParser().');
+    X.warn('This should be avoided. Set "useBodyParser: false" in config.js');
+    X.warn('See: https://groups.google.com/forum/#!msg/express-js/iP2VyhkypHo/5AXQiYN3RPcJ');
+
+    app.use(express.bodyParser());
+  } else {
+    app.use(express.json({limit: X.options.datasource.jsonLimit || '1mb'}));
+    app.use(express.urlencoded({limit: X.options.datasource.urlencodeLimit || '1mb'}));
+  }
 
   // Conditionally load session packages. Based off these examples:
   // http://stackoverflow.com/questions/9348505/avoiding-image-logging-in-express-js/9351428#9351428

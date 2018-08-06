@@ -1,15 +1,9 @@
-
-CREATE OR REPLACE FUNCTION postARCreditMemoApplication(pAropenid INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
--- See www.xtuple.com/CPAL for the full text of the software license.
-BEGIN
-  RETURN postARCreditMemoApplication(pAropenid, CURRENT_DATE);
-END;
-$$ LANGUAGE plpgsql;
+DROP FUNCTION IF EXISTS postARCreditMemoApplication(INTEGER);
 
 CREATE OR REPLACE FUNCTION postARCreditMemoApplication(pAropenid INTEGER,
-                                                       pApplyDate DATE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+                                                       pApplyDate DATE DEFAULT NULL)
+  RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _applyDate DATE;
@@ -23,9 +17,15 @@ DECLARE
 
 BEGIN
 
-  _applyDate := COALESCE(pApplyDate, CURRENT_DATE);
+  SELECT COALESCE(pApplyDate, GREATEST(s.aropen_distdate, MAX(t.aropen_distdate)), CURRENT_DATE)
+    INTO _applyDate
+    FROM aropen s
+    LEFT OUTER JOIN arcreditapply ON s.aropen_id = arcreditapply_source_aropen_id
+    LEFT OUTER JOIN aropen t ON arcreditapply_target_aropen_id = t.aropen_id
+   WHERE s.aropen_id = pAropenid
+   GROUP BY s.aropen_distdate;
 
--- find source CM and calc total amount to apply in CM currency
+  -- find source CM and calc total amount to apply in CM currency
   SELECT ROUND(aropen_amount - aropen_paid, 2) AS balance,
          ROUND(SUM(currToCurr(arcreditapply_curr_id, aropen_curr_id,
                COALESCE(arcreditapply_amount, 0), _applyDate)), 2) AS toApply INTO _p

@@ -29,8 +29,8 @@ BEGIN
 -- Bad Card Length Card Type
       RETURN -2;
     END IF;
-    starting_digits := substr(pCcardnum, 1, 2);
-    IF (starting_digits < ''51'' OR starting_digits > ''55'') THEN
+    starting_digits := substr(pCcardnum, 1, 6);
+    IF NOT((starting_digits >= ''222100'' and starting_digits <= ''272099'') OR (starting_digits >= ''510000'' and starting_digits <= ''559999'')) THEN
 -- Bad Starting digits
       RETURN -6;
     END IF;

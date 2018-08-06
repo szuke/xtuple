@@ -64,6 +64,7 @@
     "_salaried": "Salaried",
     "_shippingHoldType": "Shipping Hold",
     "_systemConfiguration": "System Configuration",
+    "_taxHoldType": "Tax Hold",
     "_weekly": "Weekly",
 
     // ********

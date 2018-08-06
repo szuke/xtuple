@@ -1,6 +1,8 @@
+DROP FUNCTION IF EXISTS public.postcounttaglocation(INTEGER, BOOLEAN, TEXT);
+
 CREATE OR REPLACE FUNCTION postCountTagLocation(pInvcntid INTEGER,
                                                 pThaw BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _avgCostingMethod TEXT;
@@ -141,14 +143,14 @@ BEGIN
     IF (_runningQty > _p.invcnt_qoh_after) THEN
 --  The total Count Slip Qty is greater than the Count Tag Qty,
 --  Don't post the Count.
-      _errorCode = -1;
+      RAISE EXCEPTION 'Cannot post this Count Tag because The total Count Slip quantity is greater than the Count Tag quantity. [xtuple: postCountTagLocation, -1]';
 
     ELSIF ( (_runningQty < _p.invcnt_qoh_after) AND
             (_p.itemsite_controlmethod IN ('L', 'S')) ) THEN
 --  The total Count Slip Qty is less than the Count Tag Qty,
 --  and the Item Site is Lot/Serial controlled.
 --  Don't post the Count.
-      _errorCode = -2;
+      RAISE EXCEPTION 'Cannot post this Count Tag because the total Count Slip quantity is less than the Count Tag quantity for a Lot/Serial-controlled Item Site. [xtuple: postCountTagLocation, -2]';
 
     ELSIF (_runningQty < _p.invcnt_qoh_after) THEN
       IF ( (NOT _p.itemsite_loccntrl) OR
@@ -156,7 +158,7 @@ BEGIN
 --  The total Count Slip Qty is less than the Count Tag Qty,
 --  and there isn't a default location to post into.
 --  Don't post the Count.
-        _errorCode = -3;
+        RAISE EXCEPTION 'Cannot post this Count Tag because the total Count Slip quantity is less than the Count Tag quantity and there is no default location. [xtuple: postCountTag, -3]';
 
       ELSIF ( SELECT (metric_value='f')
               FROM metric
@@ -164,7 +166,7 @@ BEGIN
 --  The total Count Slip Qty is less than the Count Tag Qty,
 --  and we don't post Count Tags to default Locations
 --  Don't post the Count.
-        _errorCode = -4;
+        RAISE EXCEPTION 'Cannot post this Count Tag because the total Count Slip quantity is less than the Count Tag quantity and we don''t post to default locations. [xtuple: postCountTag, -4]';
 
       ELSE
 --  Distribute the remaining qty into the default location.
@@ -181,20 +183,7 @@ BEGIN
         _hasDetail = TRUE;
         _errorCode = 0;
       END IF;
-    ELSE
---  The Count Slip Qty. must equal the Count Tag Qty.
-      _errorCode = 0;
     END IF;
-
---  If we shouldn't post the count then delete the itemlocdist records,
---  and return with the error.
-    IF (_errorCode <> 0) THEN
-      DELETE FROM itemlocdist
-      WHERE (itemlocdist_series=_itemlocSeries);
-  
-      RETURN _errorCode;
-    END IF;
-
   END IF;
 
 --  Mod. the Count Tag.
@@ -229,6 +218,10 @@ BEGIN
    AND (item_inv_uom_id=uom_id)
    AND (itemsite_controlmethod <> 'N')
    AND (invcnt_id=pInvcntid) );
+
+   IF (fetchMetricBool('EnableAsOfQOH')) THEN
+     PERFORM postIntoInvBalance(_invhistid);
+   END IF;
 
 --  Update the QOH
   UPDATE itemsite

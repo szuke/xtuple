@@ -1,7 +1,7 @@
 -- Group: salesOrders
 -- Name: detail
 -- Notes: used by dspSalesOrders, dspSalesOrdersByCustomer, dspSalesOrdersByCustomerPO, dspSalesOrdersByParameterList
---        Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+--        Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 --        See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT cohead_id, cust_id,
@@ -70,6 +70,11 @@ WHERE ( (cohead_warehous_id=warehous_id OR cohead_warehous_id IS NULL)
 <? endif ?>
 <? if exists("endDate") ?>
     AND (cohead_orderdate <= <? value("endDate") ?>)
+<? endif ?>
+<? if exists("search_pattern") ?>
+  AND (cohead_number ~ <? value("search_pattern") ?>
+  OR  cust_number ~* <? value("search_pattern") ?>
+  OR  cust_name ~* <? value("search_pattern") ?>)
 <? endif ?>
 
     AND NOT EXISTS(SELECT 1

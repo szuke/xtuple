@@ -22,8 +22,6 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
       name,
       notes = "",
       grade = script.grade ? script.grade : 0,
-      deleteSql,
-      insertSql,
       hasBOM = (lines[0].charCodeAt(0) === 0xFEFF || lines[0].charCodeAt(0) === 0xFFFE) ;
 
 
@@ -40,24 +38,18 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
     }
     notes = notes.substring(" Notes:".length);
 
-    insertSql = "select saveMetasql (" +
-      "'" + group + "'," +
-      "'" + name + "'," +
-      "$notes$" + notes + "$notes$," +
-      "$content$" + content + "$content$," +
-      "true, " + schema + ", " + grade + ");";
-
-    return insertSql;
+    return "select saveExtensionObject('metasql'," + "'" + group + "'," + "'" + name + "'," + grade +
+                ",$content$" + content + "$content$," + "$notes$" + notes + "$notes$,TRUE," +
+                schema + ");";
   };
 
   var convertFromReport = function (content, filename, defaultSchema, script) {
     var lines = content.split("\n"),
+      schema = defaultSchema ? "'" + defaultSchema + "'" : "NULL",
       script = script || {},
       name,
       grade = script.grade ? script.grade.toString() : "0",
-      tableName = defaultSchema ? defaultSchema + ".pkgreport" : "report",
-      description,
-      upsertSql;
+      description;
 
     if (lines[3].indexOf(" <name>") !== 0 ||
         lines[4].indexOf(" <description>") !== 0) {
@@ -72,84 +64,31 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
       grade = grade.substring(0, grade.indexOf("<"));
     }
 
-    upsertSql = "do language plpgsql $do$" +
-                "declare _grade integer := null;" +
-                " begin" +
-                "  select min(report_grade) into _grade" +
-                "    from " + tableName +
-                "   where report_name = '" + name + "';" +
-                "  if _grade is null then" +
-                "    insert into " + tableName + " (report_name, report_descrip," +
-                "        report_source, report_loaddate, report_grade)" +
-                "      select '" + name + "', $description$" + description + "$description$," +
-                "        $content$" + content + "$content$, now(), min(sequence_value)" +
-                "        from sequence" +
-                "       where sequence_value >= " + grade + "" +
-                "         and sequence_value not in (" +
-                "        select report_grade from report" +
-                "         where report_name = '" + name + "'" +
-                "       );" +
-                "  else " +
-                "    update " + tableName + " set" +
-                "      report_descrip = $description$" + description + "$description$," +
-                "      report_source = $content$" + content + "$content$," +
-                "      report_loaddate = now() " +
-                "     where report_name = '" + name + "'" +
-                "      and report_grade = _grade;" +
-                "  end if;" +
-                " end $do$;";
-    return upsertSql;
+    return "select saveExtensionObject('report', NULL,'" + name + "'," + parseInt(grade) +
+                ",$content$" + content + "$content$," + "$description$" + description + "$description$,TRUE," +
+                schema + ");";
+
   };
 
   var convertFromScript = function (content, filename, defaultSchema, script) {
     var name = path.basename(filename, '.js'),
-      tableName = defaultSchema ? defaultSchema + ".pkgscript" : "unknown",
+      schema = defaultSchema ? "'" + defaultSchema + "'" : "NULL",
       script = script || {},
-      order = script.order ? script.order : 0,
-      notes = "", //"xtMfg package",
-      insertSql,
-      updateSql;
+      order = script.order ? script.order : 0;
 
-    insertSql = "insert into " + tableName + " (script_name, script_order, script_enabled, " +
-      "script_source, script_notes) select " +
-      "'" + name + "', " + order + ", TRUE, " +
-      "$content$" + content + "$content$," +
-      "'" + notes + "'" +
-      " where not exists (select c.script_id from " + tableName + " c " +
-      "where script_name = '" + name + "' and script_order = " + order + ");";
-
-    updateSql = "update " + tableName + " set " +
-      "script_name = '" + name + "', script_order = " + order + ", script_enabled = TRUE, " +
-      "script_source = $content$" + content +
-      "$content$, script_notes = '" + notes + "' " +
-      "where script_name = '" + name + "' and script_order = " + order + ";";
-
-    return insertSql + updateSql;
+    return "select saveExtensionObject('script'," + "NULL,'" + name + "'," + order +
+                ",$content$" + content + "$content$,'',TRUE," +
+                schema + ");";
   };
 
   var convertFromUiform = function (content, filename, defaultSchema, script) {
     var name = path.basename(filename, '.ui'),
-      tableName = defaultSchema ? defaultSchema + ".pkguiform" : "unknown",
+      schema = defaultSchema ? "'" + defaultSchema + "'" : "NULL",
       script = script || {},
-      order = script.order ? script.order : 0,
-      notes = "", //"xtMfg package",
-      insertSql,
-      updateSql;
-
-    insertSql = "insert into " + tableName + " (uiform_name, uiform_order, uiform_enabled, " +
-      "uiform_source, uiform_notes) select " +
-      "'" + name + "', " + order + ", TRUE, " +
-      "$content$" + content + "$content$," +
-      "'" + notes + "' " +
-      " where not exists (select c.uiform_id from " + tableName + " c " +
-      "where uiform_name = '" + name + "' and uiform_order = " + order + ");";
-
-    updateSql = "update " + tableName + " set uiform_name = '" +
-      name + "', uiform_order = " + order + ", uiform_enabled = TRUE, " +
-      "uiform_source = $content$" + content + "$content$, uiform_notes = '" + notes + "' " +
-      "where uiform_name = '" + name + "' and uiform_order = " + order + ";";
-
-    return insertSql + updateSql;
+      order = script.order ? script.order : 0;
+    return "select saveExtensionObject('uiform'," + "NULL,'" + name + "'," + order + 
+                ",$content$" + content + "$content$,'',TRUE," +
+                schema + ");";
   };
 
   // handier than a switch statement

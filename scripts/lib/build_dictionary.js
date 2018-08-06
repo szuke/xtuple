@@ -175,7 +175,7 @@ if (typeof XT === 'undefined') {
   exports.exportEnglish = function (options, masterCallback) {
     var creds = require("../../node-datasource/config").databaseServer,
       sql = "select dict_strings, dict_is_database, dict_is_framework, " +
-        "dict_language_name, ext_name from xt.dict " +
+        "dict_language_name, ext_name from xt.dictobsolete " +
         "left join xt.ext on dict_ext_id = ext_id " +
         "where dict_language_name = 'en_US'",
       database = options.database,

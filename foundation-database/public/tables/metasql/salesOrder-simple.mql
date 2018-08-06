@@ -1,7 +1,7 @@
 -- Group: salesOrder
 -- Name: simple
 -- Notes: simple sales order maintain cohead table
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 <? if exists("NewMode") ?>
@@ -10,7 +10,6 @@
     cohead_number,
     cohead_cust_id,
     cohead_custponumber,
-    cohead_type,
     cohead_orderdate,
     cohead_warehous_id,
     cohead_shipto_id,
@@ -90,7 +89,6 @@
     <? value("number") ?>,
     cust_id,
     <? value("custponumber") ?>,
-    NULL,
     CURRENT_DATE,
     warehous_id,
     shipto_id,
@@ -185,7 +183,6 @@
   UPDATE cohead SET
     cohead_cust_id=cust_id,
     cohead_custponumber=<? value("custponumber") ?>,
-    cohead_type=NULL,
     cohead_orderdate=CURRENT_DATE,
     cohead_warehous_id=warehous_id,
     cohead_shipto_id=shipto_id,

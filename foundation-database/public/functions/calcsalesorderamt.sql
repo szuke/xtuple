@@ -73,22 +73,40 @@ BEGIN
   IF (pQuick) THEN
     IF (pType IN ('T', 'B', 'C')) THEN
       SELECT COALESCE(pFreight, 0), COALESCE(pMisc, 0),
-             COALESCE(SUM(currToCurr(aropenalloc_curr_id, pCurrId,
-                                     aropenalloc_amount, CURRENT_DATE)),0)
-             INTO _freight, _misc, _credit
-      FROM aropenalloc
-      WHERE (aropenalloc_doctype='S' AND aropenalloc_doc_id=pCoheadid);
+             COALESCE((SELECT SUM(currToCurr(aropenalloc_curr_id, pCurrId,
+                                             aropenalloc_amount, pOrderDate))
+                         FROM aropenalloc
+                        WHERE (aropenalloc_doctype='S' AND aropenalloc_doc_id=pCoheadid)), 0) +
+             COALESCE((SELECT SUM(currToCurr(invchead_curr_id, pCurrId,
+                                             calcInvoiceAmt(invchead_id), pOrderDate))
+                         FROM invchead
+                        WHERE invchead_id IN (SELECT invchead_id
+                                                FROM coitem
+                                                JOIN invcitem ON invcitem_coitem_id=coitem_id
+                                                JOIN invchead ON invcitem_invchead_id=invchead_id
+                                               WHERE coitem_cohead_id=pCoheadid
+                                                 AND invchead_posted)), 0)
+             INTO _freight, _misc, _credit;
     END IF;
   ELSE
     IF (pType IN ('T', 'B', 'C')) THEN
       SELECT COALESCE(cohead_freight, 0), COALESCE(cohead_misc, 0),
-             COALESCE(SUM(currToCurr(aropenalloc_curr_id, cohead_curr_id,
-                                     aropenalloc_amount, CURRENT_DATE)),0)
+             COALESCE((SELECT SUM(currToCurr(aropenalloc_curr_id, cohead_curr_id,
+                                             aropenalloc_amount, cohead_orderdate))
+                         FROM aropenalloc
+                        WHERE (aropenalloc_doctype='S' AND aropenalloc_doc_id=cohead_id)), 0) +
+             COALESCE((SELECT SUM(currToCurr(invchead_curr_id, cohead_curr_id,
+                                             calcInvoiceAmt(invchead_id), cohead_orderdate))
+                         FROM invchead
+                        WHERE invchead_id IN (SELECT invchead_id
+                                                FROM coitem
+                                                JOIN invcitem ON invcitem_coitem_id=coitem_id
+                                                JOIN invchead ON invcitem_invchead_id=invchead_id
+                                               WHERE coitem_cohead_id=cohead_id
+                                                 AND invchead_posted)), 0)
              INTO _freight, _misc, _credit
       FROM cohead
-           LEFT OUTER JOIN aropenalloc ON (aropenalloc_doctype='S' AND aropenalloc_doc_id=cohead_id)
-      WHERE (cohead_id=pCoheadid)
-      GROUP BY cohead_freight, cohead_misc, cohead_curr_id;
+      WHERE (cohead_id=pCoheadid);
     END IF;
   END IF;
 

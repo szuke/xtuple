@@ -1,7 +1,7 @@
 -- Group: slowMovingInventoryByClassCode
 -- Name: detail
 -- Notes: used by dspSlowMovingInventoryByClassCode
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT itemsite_id, warehous_code, item_number,
@@ -40,6 +40,7 @@ FROM ( SELECT itemsite_id, warehous_code, item_number,
 		AND invhist_transdate > <? value("cutoffDate") ?>
 		GROUP BY itemsite_qtyonhand)
             <? endif ?>)
+         AND (itemsite_qtyonhand <> 0)
         <? if exists("warehous_id") ?>
           AND (itemsite_warehous_id=<? value("warehous_id") ?>)
         <? endif ?>

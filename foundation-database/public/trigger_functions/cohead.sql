@@ -65,11 +65,17 @@ BEGIN
              addr.addr_line1, addr.addr_line2, addr.addr_line3, addr.addr_city,
              addr.addr_state, addr.addr_postalcode, addr.addr_country,
 	     shipto_id,shipto_addr_id,shipto_name,shipto_salesrep_id,shipto_shipvia,
-	     shipto_shipchrg_id,shipto_shipform_id,shipto_commission,shipto_taxzone_id INTO _p
+	     shipto_shipchrg_id,shipto_shipform_id,shipto_commission,shipto_taxzone_id,
+             shiptoaddr.addr_line1 AS shiptoaddr_line1, shiptoaddr.addr_line2 AS shiptoaddr_line2,
+             shiptoaddr.addr_line3 AS shiptoaddr_line3, shiptoaddr.addr_city AS shiptoaddr_city,
+             shiptoaddr.addr_state AS shiptoaddr_state,
+             shiptoaddr.addr_postalcode AS shiptoaddr_postalcode,
+             shiptoaddr.addr_country AS shiptoaddr_country INTO _p
       FROM custinfo
         LEFT OUTER JOIN cntct ON (cust_cntct_id=cntct_id)
         LEFT OUTER JOIN addr ON (cntct_addr_id=addr_id)
         LEFT OUTER JOIN shiptoinfo ON ((cust_id=shipto_cust_id) AND shipto_default)
+        LEFT OUTER JOIN addr shiptoaddr ON shipto_addr_id=shiptoaddr.addr_id
       WHERE (cust_id=NEW.cohead_cust_id);
     ELSE
       SELECT cust_creditstatus,cust_number,cust_usespos,cust_blanketpos,cust_ffbillto,
@@ -79,10 +85,17 @@ BEGIN
              addr.addr_line1, addr.addr_line2, addr.addr_line3, addr.addr_city,
              addr.addr_state, addr.addr_postalcode, addr.addr_country,
 	     shipto_id,shipto_addr_id,shipto_name,shipto_salesrep_id,shipto_shipvia,
-	     shipto_shipchrg_id,shipto_shipform_id,shipto_commission,shipto_taxzone_id INTO _p
-      FROM shiptoinfo,custinfo
+	     shipto_shipchrg_id,shipto_shipform_id,shipto_commission,shipto_taxzone_id,
+             shiptoaddr.addr_line1 AS shiptoaddr_line1, shiptoaddr.addr_line2 AS shiptoaddr_line2,
+             shiptoaddr.addr_line3 AS shiptoaddr_line3, shiptoaddr.addr_city AS shiptoaddr_city,
+             shiptoaddr.addr_state AS shiptoaddr_state,
+             shiptoaddr.addr_postalcode AS shiptoaddr_postalcode,
+             shiptoaddr.addr_country AS shiptoaddr_country INTO _p
+      FROM custinfo
+        CROSS JOIN shiptoinfo
         LEFT OUTER JOIN cntct ON (cust_cntct_id=cntct_id)
         LEFT OUTER JOIN addr ON (cntct_addr_id=addr_id)
+        LEFT OUTER JOIN addr shiptoaddr ON shipto_addr_id=shiptoaddr.addr_id
       WHERE ((cust_id=NEW.cohead_cust_id)
         AND  (shipto_id=NEW.cohead_shipto_id));
     END IF;
@@ -122,7 +135,18 @@ BEGIN
           END IF;
 
           -- Set to defaults if values not provided
-          NEW.cohead_shipto_id 	:= COALESCE(NEW.cohead_shipto_id,_p.shipto_id);
+          IF (NEW.cohead_shipto_id IS NULL) THEN
+            NEW.cohead_shipto_id := _p.shipto_id;
+            NEW.cohead_shiptoname := _p.shipto_name;
+            NEW.cohead_shiptoaddress1 := _p.shiptoaddr_line1;
+            NEW.cohead_shiptoaddress2 := _p.shiptoaddr_line2;
+            NEW.cohead_shiptoaddress3 := _p.shiptoaddr_line3;
+            NEW.cohead_shiptocity := _p.shiptoaddr_city;
+            NEW.cohead_shiptostate := _p.shiptoaddr_state;
+            NEW.cohead_shiptozipcode := _p.shiptoaddr_postalcode;
+            NEW.cohead_shiptocountry := _p.shiptoaddr_country;
+          END IF;
+
           NEW.cohead_terms_id		:= COALESCE(NEW.cohead_terms_id,_p.cust_terms_id);
           NEW.cohead_orderdate		:= COALESCE(NEW.cohead_orderdate,current_date);
           NEW.cohead_packdate		:= COALESCE(NEW.cohead_packdate,NEW.cohead_orderdate);
@@ -380,9 +404,19 @@ BEGIN
             NEW.cohead_shiptocountry,
             'CHANGEONE') INTO _addrId;
           SELECT shipto_addr_id INTO _shiptoid FROM shiptoinfo WHERE (shipto_id=NEW.cohead_shipto_id);
-          -- If the address passed doesn't match shipto address, then it's something else
-          IF (_shiptoid <> _addrId) THEN
-            NEW.cohead_shipto_id := NULL;
+          -- If the address passed doesn't match shipto address, then something is wrong
+          IF (SELECT NOT
+                     (UPPER(addr1.addr_line1)      = UPPER(COALESCE(addr2.addr_line1, ''))      AND
+                      UPPER(addr1.addr_line2)      = UPPER(COALESCE(addr2.addr_line2, ''))      AND
+                      UPPER(addr1.addr_line3)      = UPPER(COALESCE(addr2.addr_line3, ''))      AND
+                      UPPER(addr1.addr_city)       = UPPER(COALESCE(addr2.addr_city, ''))       AND
+                      UPPER(addr1.addr_state)      = UPPER(COALESCE(addr2.addr_state, ''))      AND
+                      UPPER(addr1.addr_postalcode) = UPPER(COALESCE(addr2.addr_postalcode, '')) AND
+                      UPPER(addr1.addr_country)    = UPPER(COALESCE(addr2.addr_country, '')))
+                FROM addr addr1, addr addr2
+               WHERE addr1.addr_id=_addrId
+                 AND addr2.addr_id=_shiptoid) THEN
+            RAISE WARNING 'Shipto does not match Shipto address information';
           END IF;
         ELSE
           SELECT cohead_shipto_id INTO _shiptoid FROM cohead WHERE (cohead_id=NEW.cohead_id);
@@ -469,12 +503,16 @@ BEGIN
                              (CASE OLD.cohead_holdtype WHEN('N') THEN 'No Hold'
                                                        WHEN('C') THEN 'Credit Hold'
                                                        WHEN('P') THEN 'Packing Hold'
+                                                       WHEN('R') THEN 'Return Hold'
                                                        WHEN('S') THEN 'Shipping Hold'
+                                                       WHEN('T') THEN 'Tax Hold'
                                                        ELSE 'Unknown/Error' END),
                              (CASE NEW.cohead_holdtype WHEN('N') THEN 'No Hold'
                                                        WHEN('C') THEN 'Credit Hold'
                                                        WHEN('P') THEN 'Packing Hold'
+                                                       WHEN('R') THEN 'Return Hold'
                                                        WHEN('S') THEN 'Shipping Hold'
+                                                       WHEN('T') THEN 'Tax Hold'
                                                        ELSE 'Unknown/Error' END) );
       END IF;
     END IF;

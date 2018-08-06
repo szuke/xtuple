@@ -2,7 +2,7 @@ SELECT dropifexists('FUNCTION', 'createardebitmemo(integer, integer, integer, te
 
 CREATE OR REPLACE FUNCTION createARDebitMemo(INTEGER, INTEGER, INTEGER, TEXT, TEXT, DATE, NUMERIC, TEXT, INTEGER, INTEGER, INTEGER, DATE, INTEGER, INTEGER, NUMERIC, INTEGER, INTEGER DEFAULT NULL) 
 RETURNS INTEGER AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pId			ALIAS FOR $1;
@@ -92,6 +92,7 @@ BEGIN
       aropen_applyto='', aropen_ponumber='', aropen_cobmisc_id=-1,
       aropen_open=TRUE, aropen_notes=pNotes, aropen_rsncode_id=pRsncodeid,
       aropen_salescat_id=_salescatid, aropen_accnt_id=_accntid, aropen_curr_id=pCurrId,
+      aropen_curr_rate=currrate(pCurrId, pDocDate),
       aropen_taxzone_id=pTaxZoneid
     WHERE aropen_id = pId;
   ELSE
@@ -103,7 +104,7 @@ BEGIN
       aropen_amount, aropen_paid, aropen_commission_due, aropen_commission_paid,
       aropen_applyto, aropen_ponumber, aropen_cobmisc_id,
       aropen_open, aropen_notes, aropen_rsncode_id,
-      aropen_salescat_id, aropen_accnt_id, aropen_curr_id, aropen_taxzone_id )
+      aropen_salescat_id, aropen_accnt_id, aropen_curr_id, aropen_curr_rate, aropen_taxzone_id )
     VALUES
     ( _aropenid, getEffectiveXtUser(), _journalNumber,
       pCustid, pDocNumber, 'D', pOrderNumber,
@@ -111,7 +112,7 @@ BEGIN
       round(pAmount, 2), 0, pCommissiondue, FALSE,
       '', '', -1,
       TRUE, pNotes, pRsncodeid,
-      _salescatid, _accntid, pCurrId, pTaxZoneid );
+      _salescatid, _accntid, pCurrId, currrate(pCurrId, pDocDate), pTaxZoneid );
   END IF;
 
   -- Debit the A/R account for the full amount
