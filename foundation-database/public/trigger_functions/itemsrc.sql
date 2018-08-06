@@ -5,7 +5,21 @@ BEGIN
 
 -- Privilege Checks
    IF (NOT checkPrivilege('MaintainItemSources')) THEN
-     RAISE EXCEPTION 'You do not have privileges to maintain Item Sources.';
+     RAISE EXCEPTION 'You do not have privileges to maintain Item Sources. [xtuple: _itemsrcTrigger, -1';
+   END IF;
+
+-- Duplicate check
+   IF EXISTS(SELECT 1
+             FROM itemsrc
+             WHERE itemsrc_item_id=NEW.itemsrc_item_id
+             AND itemsrc_vend_id=NEW.itemsrc_vend_id
+             AND ((itemsrc_contrct_id=NEW.itemsrc_contrct_id)
+                   OR (itemsrc_contrct_id IS NULL AND NEW.itemsrc_contrct_id IS NULL))
+             AND ((NEW.itemsrc_effective between itemsrc_effective and itemsrc_expires)
+                   OR (NEW.itemsrc_expires between itemsrc_effective and itemsrc_expires) )
+             AND itemsrc_active
+             AND itemsrc_id != NEW.itemsrc_id ) THEN
+     RAISE EXCEPTION 'An Item Source already exists for this Vendor/Item combination [xtuple: _itemsrcTrigger, -2]';
    END IF;
 
 -- Set defaults
@@ -31,11 +45,6 @@ CREATE OR REPLACE FUNCTION _itemsrcAfterTrigger () RETURNS TRIGGER AS $$
 -- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
-
--- Privilege Checks
-  IF (NOT checkPrivilege('MaintainItemSources')) THEN
-    RAISE EXCEPTION 'You do not have privileges to maintain Item Sources.';
-  END IF;
 
 -- Set default to false for other item sources of this item
   IF (COALESCE(NEW.itemsrc_default, FALSE) = TRUE) THEN
