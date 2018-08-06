@@ -45,7 +45,10 @@ SELECT
   xt.add_column('asohist', 'asohist_taxtype_id',       'INTEGER', NULL, 'public'),
   xt.add_column('asohist', 'asohist_taxzone_id',       'INTEGER', NULL, 'public'),
   xt.add_column('asohist', 'asohist_billtocountry',       'TEXT', NULL, 'public'),
-  xt.add_column('asohist', 'asohist_shiptocountry',       'TEXT', NULL, 'public');
+  xt.add_column('asohist', 'asohist_shiptocountry',       'TEXT', NULL, 'public'),
+  xt.add_column('asohist', 'asohist_coitem_id',        'INTEGER', NULL, 'public'),
+  xt.add_column('asohist', 'asohist_invchead_id',      'INTEGER', NULL, 'public'),
+  xt.add_column('asohist', 'asohist_invcitem_id',      'INTEGER', NULL, 'public');
 
 SELECT
   xt.add_constraint('asohist', 'asohist_pkey', 'PRIMARY KEY (asohist_id)', 'public'),

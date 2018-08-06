@@ -75,6 +75,6 @@ COMMENT ON COLUMN cohist.cohist_cohead_ccpay_id IS 'Credit card payments made at
 COMMENT ON COLUMN cohist.cohist_saletype_id IS 'Associated sale type for sales history.';
 COMMENT ON COLUMN cohist.cohist_shipzone_id IS 'Associated shipping zone for sales history.';
 COMMENT ON COLUMN public.cohist.cohist_listprice IS 'List price of Item.';
-COMMENT ON COLUMN public.cohist.cohist_coitem_id   IS 'Sales Order line ID that generated this history record.';
-COMMENT ON COLUMN public.cohist.cohist_invchead_id IS 'Invoice ID that generated this history record.';
-COMMENT ON COLUMN public.cohist.cohist_invcitem_id IS 'Invoice line ID that generated this history record.';
+COMMENT ON COLUMN public.cohist.cohist_coitem_id   IS 'Sales Order line ID that generated this history record, if applicable.';
+COMMENT ON COLUMN public.cohist.cohist_invchead_id IS 'Invoice ID that generated this history record, if applicable.';
+COMMENT ON COLUMN public.cohist.cohist_invcitem_id IS 'Invoice line ID that generated this history record, if applicable.';
