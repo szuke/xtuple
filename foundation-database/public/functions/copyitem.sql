@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION copyItem(INTEGER, TEXT) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSItemid ALIAS FOR $1;
@@ -10,16 +10,15 @@ DECLARE
 
 BEGIN
 
-  SELECT NEXTVAL('item_item_id_seq') INTO _itemid;
   INSERT INTO item
-  ( item_id, item_number, item_descrip1, item_descrip2,
+  ( item_number, item_descrip1, item_descrip2,
     item_classcode_id, item_type,
     item_active, item_picklist, item_sold, item_fractional,
     item_maxcost, item_prodweight, item_packweight,
     item_prodcat_id,item_exclusive, item_listprice, item_listcost,
     item_config, item_comments, item_extdescrip, item_warrdays,
     item_upccode, item_inv_uom_id, item_price_uom_id )
-  SELECT _itemid, pTItemNumber, item_descrip1, item_descrip2,
+  SELECT pTItemNumber, item_descrip1, item_descrip2,
          item_classcode_id, item_type,
          item_active, item_picklist, item_sold, item_fractional,
          item_maxcost, item_prodweight, item_packweight,
@@ -28,7 +27,18 @@ BEGIN
          CASE WHEN fetchmetricbool('EnforceUniqueBarcodes') THEN NULL::TEXT ELSE item_upccode END,
          item_inv_uom_id, item_price_uom_id
   FROM item
-  WHERE (item_id=pSItemid);
+  WHERE (item_id=pSItemid)
+  RETURNING item_id INTO _itemid;
+
+  INSERT INTO itemcost
+  ( itemcost_item_id, itemcost_costelem_id, itemcost_lowlevel,
+    itemcost_stdcost, itemcost_posted,
+    itemcost_actcost, itemcost_curr_id, itemcost_updated )
+  SELECT _itemid, itemcost_costelem_id, itemcost_lowlevel,
+    itemcost_stdcost, CURRENT_DATE,
+    itemcost_actcost, itemcost_curr_id, CURRENT_DATE
+  FROM itemcost
+  WHERE (itemcost_item_id=pSItemid);
 
   INSERT INTO itemgrpitem
   (itemgrpitem_itemgrp_id, itemgrpitem_item_id, itemgrpitem_item_type)
@@ -103,7 +113,7 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION copyItem(INTEGER, TEXT, BOOLEAN, BOOLEAN, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSItemid ALIAS FOR $1;
@@ -118,7 +128,7 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION copyItem(INTEGER, TEXT, BOOLEAN, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSItemid      ALIAS FOR $1;
@@ -153,7 +163,7 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION copyItem(INTEGER, TEXT, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSItemid ALIAS FOR $1;
