@@ -343,7 +343,8 @@ BEGIN
     END IF;
   END IF;
 
-  -- Create work order and process if flagged to do so
+  -- SUPPLY ORDER PROCESSING
+  -- Create Work Orders and process if flagged to do so
   IF ((NEW.coitem_order_type='W') AND (NEW.coitem_order_id=-1)) THEN
     SELECT createwo(CAST(cohead_number AS INTEGER),
                     NEW.coitem_itemsite_id,
@@ -542,54 +543,54 @@ BEGIN
     END IF;
   END IF;
 
-  IF (TG_OP = 'INSERT') THEN
-    -- Create Purchase Request if flagged to do so
-    IF ((NEW.coitem_order_type='R') AND (NEW.coitem_order_id=-1)) THEN
-      SELECT createPR(CAST(_r.cohead_number AS INTEGER), 'S', NEW.coitem_id) INTO _orderid;
-      IF (_orderid > 0) THEN
-        UPDATE coitem SET coitem_order_id=_orderid
-        WHERE (coitem_id=NEW.coitem_id);
+  -- Create Purchase Request if flagged to do so
+  IF ((NEW.coitem_order_type='R') AND (NEW.coitem_order_id=-1)) THEN
+    SELECT createPR(CAST(_r.cohead_number AS INTEGER), 'S', NEW.coitem_id) INTO _orderid;
+    IF (_orderid > 0) THEN
+      UPDATE coitem SET coitem_order_id=_orderid
+       WHERE (coitem_id=NEW.coitem_id);
 
-        INSERT INTO charass
+      INSERT INTO charass
         (charass_target_type, charass_target_id,
          charass_char_id, charass_value)
          SELECT 'R', NEW.coitem_order_id, charass_char_id, charass_value
          FROM charass
          WHERE ((charass_target_type='SI')
          AND  (charass_target_id=NEW.coitem_id));
-      ELSE
-        RAISE EXCEPTION 'CreatePR failed, result=%', _orderid;
-      END IF;
+    ELSE
+      RAISE EXCEPTION 'CreatePR failed, result=%', _orderid;
     END IF;
+  END IF;
 
-    -- Create Purchase Order if flagged to do so
-    IF ((NEW.coitem_order_type='P') AND (NEW.coitem_order_id=-1)) THEN
-      SELECT itemsrc_id INTO _itemsrcid
-      FROM itemsite JOIN itemsrc ON (itemsrc_item_id=itemsite_item_id AND itemsrc_default AND itemsrc_active)
-      WHERE (itemsite_id=NEW.coitem_itemsite_id)
-      AND NOT EXISTS(SELECT 1
+  -- Create Purchase Order if flagged to do so
+  IF ((NEW.coitem_order_type='P') AND (NEW.coitem_order_id=-1)) THEN
+    SELECT itemsrc_id INTO _itemsrcid
+    FROM itemsite JOIN itemsrc ON (itemsrc_item_id=itemsite_item_id AND itemsrc_default AND itemsrc_active)
+    WHERE (itemsite_id=NEW.coitem_itemsite_id)
+    AND NOT EXISTS(SELECT 1
                      FROM pohead
-                     WHERE pohead_vend_id=itemsrc_vend_id
-                     AND pohead_status='U'
-                     AND pohead_dropship=NEW.coitem_dropship
-                     AND (NOT pohead_dropship OR pohead_cohead_id=NEW.coitem_cohead_id));
-      IF (FOUND) THEN
-        SELECT createPurchaseToSale(NEW.coitem_id,
-                                    _itemsrcid,
-                                    NEW.coitem_dropship,
-                                    validateOrderQty(NEW.coitem_itemsite_id, NEW.coitem_qtyord * NEW.coitem_qty_invuomratio, TRUE),
-                                    NEW.coitem_scheddate,
-                                    CASE WHEN (NEW.coitem_prcost=0.0) THEN NULL
-                                         ELSE NEW.coitem_prcost
-                                    END) INTO _orderid
-        FROM itemsite
-        WHERE (itemsite_id=NEW.coitem_itemsite_id);
-        IF (_orderid <= 0) THEN
-          RAISE EXCEPTION 'CreatePurchaseToSale failed, result=%', _orderid;
-        END IF;
+                    WHERE pohead_vend_id=itemsrc_vend_id
+                      AND pohead_status='U'
+                      AND pohead_dropship=NEW.coitem_dropship
+                      AND (NOT pohead_dropship OR pohead_cohead_id=NEW.coitem_cohead_id));
+    IF (FOUND) THEN
+      SELECT createPurchaseToSale(NEW.coitem_id,
+                                  _itemsrcid,
+                                  NEW.coitem_dropship,
+                                  validateOrderQty(NEW.coitem_itemsite_id, NEW.coitem_qtyord * NEW.coitem_qty_invuomratio, TRUE),
+                                  NEW.coitem_scheddate,
+                                  CASE WHEN (NEW.coitem_prcost=0.0) THEN NULL
+                                       ELSE NEW.coitem_prcost
+                                  END) INTO _orderid
+      FROM itemsite
+      WHERE (itemsite_id=NEW.coitem_itemsite_id);
+      IF (_orderid <= 0) THEN
+        RAISE EXCEPTION 'CreatePurchaseToSale failed, result=%', _orderid;
       END IF;
     END IF;
+  END IF;
 
+  IF (TG_OP = 'INSERT') THEN
     -- Update Purchase Order comments
     IF (NEW.coitem_order_type='P') THEN
       UPDATE poitem SET poitem_comments=NEW.coitem_memo
@@ -727,7 +728,7 @@ BEGIN
 
   -- Check Priv
   IF NOT (checkPrivilege('MaintainSalesOrders')) THEN
-    RAISE EXCEPTION 'You do not have privileges to alter a Sales Order.';
+    RAISE EXCEPTION 'You do not have privileges to delete a Sales Order. [xtuple: _soitemBeforeDeleteTrigger, -1]';
   END IF;
 
   -- Cache some information
@@ -755,7 +756,7 @@ BEGIN
   END IF;
 
   IF(_kit AND _shipped) THEN
-    RAISE EXCEPTION 'You can not delete this Sales Order Line as it has several sub components that have already been shipped.';
+    RAISE EXCEPTION 'You can not delete this Sales Order Line as it has several sub components that have already been shipped.  [xtuple: _soitemBeforeDeleteTrigger, -2]';
   END IF;
 
   DELETE FROM comment
@@ -778,7 +779,7 @@ BEGIN
       SELECT deleteSoItem(_coitemid) INTO _result;
       IF (_result < 0) THEN
         IF NOT (_r.itemsite_createsopo AND (_result = -10 OR _result = -20)) THEN
-          RAISE EXCEPTION 'Error deleting kit components: deleteSoItem(integer) Error:%', _result;
+          RAISE EXCEPTION 'Error deleting kit components [xtuple: _soitemBeforeDeleteTrigger, -3, %]', _result;
         END IF;
       END IF;
     END LOOP;
