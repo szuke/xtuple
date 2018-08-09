@@ -1,7 +1,7 @@
 -- Group: addresses
 -- Name:  detail
 -- Notes: 
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT DISTINCT ON (addr_country, addr_state, addr_city, addr_line1, addr_number) 
@@ -36,8 +36,26 @@ FROM addr
   LEFT OUTER JOIN char char_alias<? literal("char_id_date_list") ?> ON (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=char_alias<? literal("char_id_date_list") ?>.char_id)
 <? endforeach ?>
 WHERE true
+<? if exists("address") ?>
+ AND concat(addr_line1, addr_line2, addr_line3) ~* <? value("address") ?>
+<? endif ?>
+<? if exists("city") ?>
+ AND addr_city ~* <? value("city") ?>
+<? endif ?>
+<? if exists("state") ?>
+ AND addr_state ~* <? value("state") ?>
+<? endif ?>
+<? if exists("country") ?>
+ AND addr_country = (SELECT country_name FROM country WHERE country_id=<? value("country") ?>)
+<? endif ?>
+<? if exists("postalcode") ?>
+ AND addr_postalcode ~* <? value("postalcode") ?>
+<? endif ?>
 <? if not exists("showInactive") ?> 
  AND addr_active 
+<? endif ?>
+<? if exists("search_pattern") ?>
+  AND concat(addr_line1, addr_line2, addr_line3, addr_city, addr_state, addr_postalcode, addr_country) ~* <? value("search_pattern") ?>
 <? endif ?>
 <? literal("charClause") ?>
 ORDER BY addr_country, addr_state, addr_city, addr_line1, addr_number;
