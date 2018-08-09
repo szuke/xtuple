@@ -50,7 +50,10 @@ SELECT
   xt.add_column('cohist', 'cohist_shipzone_id',     'INTEGER', NULL, 'public'),
   xt.add_column('cohist', 'cohist_listprice', 'NUMERIC(16,4)', NULL, 'public'),
   xt.add_column('cohist', 'cohist_billtocountry',      'TEXT', NULL, 'public'),
-  xt.add_column('cohist', 'cohist_shiptocountry',      'TEXT', NULL, 'public');
+  xt.add_column('cohist', 'cohist_shiptocountry',      'TEXT', NULL, 'public'),
+  xt.add_column('cohist', 'cohist_coitem_id',       'INTEGER', NULL, 'public'),
+  xt.add_column('cohist', 'cohist_invchead_id',     'INTEGER', NULL, 'public'),
+  xt.add_column('cohist', 'cohist_invcitem_id',     'INTEGER', NULL, 'public');
 
 SELECT
   xt.add_constraint('cohist', 'cohist_pkey', 'PRIMARY KEY (cohist_id)', 'public'),
@@ -59,7 +62,10 @@ SELECT
   xt.add_constraint('cohist', 'cohist_cohist_salesrep_id_fkey', 'FOREIGN KEY (cohist_salesrep_id) REFERENCES salesrep(salesrep_id)', 'public'),
   xt.add_constraint('cohist', 'cohist_cohist_taxtype_id_fkey', 'FOREIGN KEY (cohist_taxtype_id) REFERENCES taxtype(taxtype_id)', 'public'),
   xt.add_constraint('cohist', 'cohist_cohist_taxzone_id_fkey', 'FOREIGN KEY (cohist_taxzone_id) REFERENCES taxzone(taxzone_id)', 'public'),
-  xt.add_constraint('cohist', 'cohist_to_curr_symbol', 'FOREIGN KEY (cohist_curr_id) REFERENCES curr_symbol(curr_id)', 'public');
+  xt.add_constraint('cohist', 'cohist_to_curr_symbol', 'FOREIGN KEY (cohist_curr_id) REFERENCES curr_symbol(curr_id)', 'public'),
+  xt.add_constraint('cohist', 'cohist_cohist_coitem_id_fkey', 'FOREIGN KEY (cohist_coitem_id) REFERENCES public.coitem (coitem_id) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION', 'public'),
+  xt.add_constraint('cohist', 'cohist_cohist_invchead_id_fkey', 'FOREIGN KEY (cohist_invchead_id) REFERENCES public.invchead (invchead_id) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION', 'public'),
+  xt.add_constraint('cohist', 'cohist_cohist_invcitem_id_fkey', 'FOREIGN KEY (cohist_invcitem_id) REFERENCES public.invcitem (invcitem_id) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION', 'public');
 
 ALTER TABLE public.cohist ENABLE TRIGGER ALL;
 
@@ -69,3 +75,6 @@ COMMENT ON COLUMN cohist.cohist_cohead_ccpay_id IS 'Credit card payments made at
 COMMENT ON COLUMN cohist.cohist_saletype_id IS 'Associated sale type for sales history.';
 COMMENT ON COLUMN cohist.cohist_shipzone_id IS 'Associated shipping zone for sales history.';
 COMMENT ON COLUMN public.cohist.cohist_listprice IS 'List price of Item.';
+COMMENT ON COLUMN public.cohist.cohist_coitem_id   IS 'Sales Order line ID that generated this history record, if applicable.';
+COMMENT ON COLUMN public.cohist.cohist_invchead_id IS 'Invoice ID that generated this history record, if applicable.';
+COMMENT ON COLUMN public.cohist.cohist_invcitem_id IS 'Invoice line ID that generated this history record, if applicable.';

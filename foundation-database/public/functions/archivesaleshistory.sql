@@ -1,9 +1,6 @@
-CREATE OR REPLACE FUNCTION archiveSalesHistory(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+CREATE OR REPLACE FUNCTION archiveSalesHistory(pSohistid INTEGER) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  pSohistid ALIAS FOR $1;
-
 BEGIN
 
   INSERT INTO asohist ( asohist_id,
@@ -45,10 +42,13 @@ BEGIN
                         asohist_doctype,
                         asohist_orderdate,
                         asohist_imported,
-			asohist_ponumber,
+                        asohist_ponumber,
                         asohist_curr_id,
                         asohist_taxtype_id,
-                        asohist_taxzone_id )
+                        asohist_taxzone_id,
+                        asohist_coitem_id,
+                        asohist_invchead_id,
+                        asohist_invcitem_id )
   SELECT cohist_id,
          cohist_cust_id,
          cohist_itemsite_id,
@@ -89,9 +89,12 @@ BEGIN
          cohist_orderdate,
          cohist_imported,
          cohist_ponumber,
-	 cohist_curr_id,
+         cohist_curr_id,
          cohist_taxtype_id,
-         cohist_taxzone_id
+         cohist_taxzone_id,
+         cohist_coitem_id,
+         cohist_invchead_id,
+         cohist_invcitem_id
   FROM cohist
   WHERE (cohist_id=pSohistid);
 
