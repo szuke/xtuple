@@ -34,10 +34,11 @@ SELECT gltrans_id, gltrans_date, formatDate(gltrans_date) AS f_date,
   FROM gltrans, bankrecitem 
     JOIN bankrec ON (bankrecitem_bankrec_id=bankrec_id)
     JOIN bankaccnt ON (bankaccnt_id=bankrec_bankaccnt_id)
- WHERE ((bankrecitem_bankrec_id=<? value("bankrec_id") ?>)
-   AND (bankrecitem_source='GL')
-   AND (bankrecitem_source_id=gltrans_id)
-   AND (NOT gltrans_deleted) ) 
+ WHERE (bankrecitem_bankrec_id=<? value("bankrec_id") ?>
+   AND bankrecitem_source='GL'
+   AND bankrecitem_source_id=gltrans_id
+   AND (NOT gltrans_deleted)
+   AND gltrans_doctype != 'JP' )
 
 UNION
 
