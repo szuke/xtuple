@@ -38,7 +38,7 @@ SELECT
   xt.add_constraint('itemsrc', 'itemsrc_itemsrc_contrct_id_fkey',
                     'FOREIGN KEY (itemsrc_contrct_id) REFERENCES contrct(contrct_id)',    'public'),
   xt.add_constraint('itemsrc', 'itemsrc_vend_item_unq',
-                    'UNIQUE (itemsrc_vend_id, itemsrc_item_id, itemsrc_effective, itemsrc_expires, itemsrc_contrct_id)',    'public');
+                    'UNIQUE (itemsrc_vend_id, itemsrc_item_id, itemsrc_vend_item_number, itemsrc_effective, itemsrc_expires, itemsrc_contrct_id)',    'public');
 
 ALTER TABLE public.itemsrc ENABLE TRIGGER ALL;
 

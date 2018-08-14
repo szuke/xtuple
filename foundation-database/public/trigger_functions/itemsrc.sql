@@ -13,6 +13,7 @@ BEGIN
              FROM itemsrc
              WHERE itemsrc_item_id=NEW.itemsrc_item_id
              AND itemsrc_vend_id=NEW.itemsrc_vend_id
+             AND itemsrc_vend_item_number=NEW.itemsrc_vend_item_number
              AND ((itemsrc_contrct_id=NEW.itemsrc_contrct_id)
                    OR (itemsrc_contrct_id IS NULL AND NEW.itemsrc_contrct_id IS NULL))
              AND ((NEW.itemsrc_effective between itemsrc_effective and itemsrc_expires)
