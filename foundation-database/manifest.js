@@ -581,6 +581,7 @@
     "public/functions/getvendaddrid.sql",
     "public/functions/getvendid.sql",
     "public/functions/getvendtypeid.sql",
+    "public/functions/getvoidcheckdate.sql",
     "public/functions/getwarehousid.sql",
     "public/functions/getwhsezoneid.sql",
     "public/functions/getwoid.sql",
