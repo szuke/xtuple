@@ -1,7 +1,7 @@
 -- Group: opportunities
 -- Name: detail
 -- Notes: used by opportunityList
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT DISTINCT ON (incdtpriority_order, ophead_target_date, ophead_name, ophead_id) 
@@ -82,6 +82,9 @@ WHERE((true)
 <? if exists("endCreateDate") ?>
    AND ((ophead_created::DATE <= <? value("endCreateDate") ?>)
     OR (<? value("endCreateDate") ?> >= endOfTime()) AND (ophead_created::DATE IS NULL))
+<? endif ?>
+<? if exists("name_pattern") ?>
+   AND (ophead_name ~* <? value("name_pattern") ?>)
 <? endif ?>
 <? if exists("opsource_id") ?>
    AND (ophead_opsource_id=<? value("opsource_id") ?>)
