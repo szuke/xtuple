@@ -4,7 +4,7 @@ SELECT dropIfExists('FUNCTION', 'createPurchaseToSale(integer, integer, boolean,
 SELECT dropIfExists('FUNCTION', 'createPurchaseToSale(integer, integer, boolean, numeric, date, numeric, integer)');
 
 CREATE OR REPLACE FUNCTION createPurchaseToSale(INTEGER, INTEGER, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pCoitemId ALIAS FOR $1;
@@ -20,7 +20,7 @@ $$ LANGUAGE plpgsql;
 
 
 CREATE OR REPLACE FUNCTION createPurchaseToSale(INTEGER, INTEGER, BOOLEAN, NUMERIC) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pCoitemId ALIAS FOR $1;
@@ -37,7 +37,7 @@ $$ LANGUAGE plpgsql;
 
 
 CREATE OR REPLACE FUNCTION createPurchaseToSale(INTEGER, INTEGER, BOOLEAN, NUMERIC, DATE, NUMERIC) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pCoitemId ALIAS FOR $1;
@@ -62,7 +62,7 @@ CREATE OR REPLACE FUNCTION createPurchaseToSale(pCoitemId INTEGER,
                                                 pDueDate DATE,
                                                 pPrice NUMERIC,
                                                 pPoheadId INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _s RECORD;
@@ -217,7 +217,10 @@ BEGIN
           COALESCE(_i.cntct_email, TEXT('')), COALESCE(_i.addr_line1, TEXT('')),
           COALESCE(_i.addr_line2, TEXT('')), COALESCE(_i.addr_line3, TEXT('')),
           COALESCE(_i.addr_city, TEXT('')), COALESCE(_i.addr_state, TEXT('')),
-          COALESCE(_i.addr_postalcode, TEXT('')), COALESCE(_i.addr_country, TEXT('')), COALESCE(_s.cohead_shipcomments, TEXT('')) );
+          COALESCE(_i.addr_postalcode, TEXT('')), COALESCE(_i.addr_country, TEXT('')),
+          CASE WHEN fetchmetricbool('CopySOShippingNotestoPO')
+               THEN COALESCE(_s.cohead_shipcomments, TEXT(''))
+               ELSE TEXT('') END );
     ELSE
       INSERT INTO pohead
         ( pohead_id, pohead_number, pohead_status, pohead_dropship,
