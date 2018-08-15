@@ -3,12 +3,18 @@
  <title>Uninvoiced Receipts</title>
  <name>UninvoicedReceipts</name>
  <description></description>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
  <size>Letter</size>
  <portrait/>
  <topmargin>50</topmargin>
  <bottommargin>50</bottommargin>
- <rightmargin>50</rightmargin>
- <leftmargin>50</leftmargin>
+ <rightmargin>25</rightmargin>
+ <leftmargin>25</leftmargin>
  <querysource>
   <name>head</name>
   <sql>SELECT &lt;? if exists("warehous_id") ?>&#xd;
@@ -27,64 +33,10 @@
        AS agentUsername;&#xd;
 </sql>
  </querysource>
- <querysource>
+ <querysource loadFromDb="true">
   <name>detail</name>
-  <sql>SELECT recv_id,
-       formatDate(recv_date) as f_date,
-       recv_trans_usr_name as f_user,
-       recv_order_number AS f_ponumber, poitem_linenumber,
-       vend_name, 
-       COALESCE(item_number, ('Misc. - ' || recv_vend_item_number)) AS item_number,
-       formatQty(recv_qty) as f_qty,
-       'Receipt' AS f_type,
-       recv_value AS value,
-       formatMoney(recv_value) AS f_value
-  FROM recv
-    LEFT OUTER JOIN itemsite ON (recv_itemsite_id=itemsite_id)
-    LEFT OUTER JOIN item ON (itemsite_item_id=item_id),
-    poitem, vendinfo
- WHERE ((recv_orderitem_id=poitem_id)
-   AND  (recv_order_type='PO')
-   AND  (recv_vend_id=vend_id)
-   AND  (recv_posted)
-   AND  (recv_vohead_id IS NULL)
-   AND  (NOT recv_invoiced)
-&lt;? if exists("warehous_id") ?>
-   AND  (itemsite_warehous_id=&lt;? value("warehous_id") ?>)
-&lt;? endif ?>
-&lt;? if exists("agentUsername") ?>
-   AND  (recv_agent_username=&lt;? value("agentUsername") ?>)
-&lt;? endif ?>
-)
-UNION
-SELECT poreject_id,
-       formatDate(poreject_date) as f_date,
-       poreject_trans_username as f_user,
-       poreject_ponumber AS f_ponumber, poitem_linenumber,
-       vend_name, 
-       COALESCE(item_number, ('Misc. - ' || poreject_vend_item_number)) AS item_number,
-       formatQty(poreject_qty) as f_qty,
-       'Return' AS f_type,
-       poreject_value *-1 AS value,
-       formatMoney(poreject_value*-1) AS f_value
-  FROM poreject
-    LEFT OUTER JOIN itemsite ON (poreject_itemsite_id=itemsite_id)
-    LEFT OUTER JOIN item ON (itemsite_item_id=item_id),
-    poitem, vendinfo
- WHERE ((poreject_poitem_id=poitem_id)
---   AND  (poreject_itemsite_id=itemsite_id)
---   AND  (itemsite_item_id=item_id)
-   AND  (poreject_vend_id=vend_id)
-   AND  (poreject_posted)
-   AND  (NOT poreject_invoiced)
-&lt;? if exists("warehous_id") ?>
-   AND  (itemsite_warehous_id=&lt;? value("warehous_id") ?>)
-&lt;? endif ?>
-&lt;? if exists("agentUsername") ?>
-   AND  (poreject_agent_username=&lt;? value("agentUsername") ?>)
-&lt;? endif ?>
-)
-ORDER BY f_ponumber, poitem_linenumber;</sql>
+  <mqlgroup>uninvoicedReceivings</mqlgroup>
+  <mqlname>detail</mqlname>
  </querysource>
  <rpthead>
   <height>221</height>
@@ -125,7 +77,7 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
   </field>
   <label>
    <rect>
-    <x>400</x>
+    <x>380</x>
     <y>200</y>
     <width>80</width>
     <height>15</height>
@@ -157,7 +109,7 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
   </label>
   <label>
    <rect>
-    <x>590</x>
+    <x>575</x>
     <y>200</y>
     <width>60</width>
     <height>15</height>
@@ -189,7 +141,7 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
   </label>
   <label>
    <rect>
-    <x>665</x>
+    <x>625</x>
     <y>200</y>
     <width>80</width>
     <height>15</height>
@@ -201,11 +153,11 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
    </font>
    <hcenter/>
    <vcenter/>
-   <string>Value</string>
+   <string>Cost Value</string>
   </label>
   <label>
    <rect>
-    <x>520</x>
+    <x>515</x>
     <y>200</y>
     <width>60</width>
     <height>15</height>
@@ -221,7 +173,7 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
   </label>
   <label>
    <rect>
-    <x>290</x>
+    <x>265</x>
     <y>200</y>
     <width>80</width>
     <height>15</height>
@@ -238,7 +190,7 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
   <line>
    <xstart>5</xstart>
    <ystart>215</ystart>
-   <xend>745</xend>
+   <xend>775</xend>
    <yend>215</yend>
    <weight>2</weight>
   </line>
@@ -276,7 +228,7 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
   </label>
   <label>
    <rect>
-    <x>245</x>
+    <x>220</x>
     <y>200</y>
     <width>35</width>
     <height>15</height>
@@ -325,18 +277,11 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
     <column>agentUsername</column>
    </data>
   </field>
- </rpthead>
- <pghead>
-  <firstpage/>
-  <height>6</height>
- </pghead>
- <pghead>
-  <height>29</height>
   <label>
    <rect>
-    <x>585</x>
-    <y>5</y>
-    <width>60</width>
+    <x>710</x>
+    <y>200</y>
+    <width>80</width>
     <height>15</height>
    </rect>
    <font>
@@ -346,19 +291,42 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
    </font>
    <hcenter/>
    <vcenter/>
-   <string>Type</string>
+   <string>P/O Value</string>
   </label>
+ </rpthead>
+ <pghead>
+  <firstpage/>
+  <height>6</height>
+ </pghead>
+ <pghead>
+  <height>29</height>
   <line>
    <xstart>5</xstart>
    <ystart>20</ystart>
-   <xend>745</xend>
+   <xend>770</xend>
    <yend>20</yend>
    <weight>2</weight>
   </line>
   <label>
    <rect>
-    <x>245</x>
-    <y>5</y>
+    <x>85</x>
+    <y>4</y>
+    <width>80</width>
+    <height>15</height>
+   </rect>
+   <font>
+    <face>Arial</face>
+    <size>8</size>
+    <weight>normal</weight>
+   </font>
+   <hcenter/>
+   <vcenter/>
+   <string>By</string>
+  </label>
+  <label>
+   <rect>
+    <x>220</x>
+    <y>4</y>
     <width>35</width>
     <height>15</height>
    </rect>
@@ -373,24 +341,8 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
   </label>
   <label>
    <rect>
-    <x>85</x>
-    <y>5</y>
-    <width>75</width>
-    <height>15</height>
-   </rect>
-   <font>
-    <face>Arial</face>
-    <size>8</size>
-    <weight>normal</weight>
-   </font>
-   <hcenter/>
-   <vcenter/>
-   <string>By</string>
-  </label>
-  <label>
-   <rect>
-    <x>280</x>
-    <y>5</y>
+    <x>380</x>
+    <y>4</y>
     <width>80</width>
     <height>15</height>
    </rect>
@@ -401,28 +353,12 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
    </font>
    <left/>
    <vcenter/>
-   <string>Vendor</string>
+   <string>Item Number</string>
   </label>
   <label>
    <rect>
-    <x>10</x>
-    <y>5</y>
-    <width>70</width>
-    <height>15</height>
-   </rect>
-   <font>
-    <face>Arial</face>
-    <size>8</size>
-    <weight>normal</weight>
-   </font>
-   <hcenter/>
-   <vcenter/>
-   <string>Date</string>
-  </label>
-  <label>
-   <rect>
-    <x>520</x>
-    <y>5</y>
+    <x>515</x>
+    <y>4</y>
     <width>60</width>
     <height>15</height>
    </rect>
@@ -437,25 +373,9 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
   </label>
   <label>
    <rect>
-    <x>665</x>
-    <y>5</y>
-    <width>80</width>
-    <height>15</height>
-   </rect>
-   <font>
-    <face>Arial</face>
-    <size>8</size>
-    <weight>normal</weight>
-   </font>
-   <hcenter/>
-   <vcenter/>
-   <string>Value</string>
-  </label>
-  <label>
-   <rect>
-    <x>170</x>
-    <y>5</y>
-    <width>80</width>
+    <x>175</x>
+    <y>4</y>
+    <width>65</width>
     <height>15</height>
    </rect>
    <font>
@@ -469,8 +389,8 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
   </label>
   <label>
    <rect>
-    <x>405</x>
-    <y>5</y>
+    <x>265</x>
+    <y>4</y>
     <width>80</width>
     <height>15</height>
    </rect>
@@ -481,7 +401,71 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
    </font>
    <left/>
    <vcenter/>
-   <string>Item Number</string>
+   <string>Vendor</string>
+  </label>
+  <label>
+   <rect>
+    <x>625</x>
+    <y>4</y>
+    <width>80</width>
+    <height>15</height>
+   </rect>
+   <font>
+    <face>Arial</face>
+    <size>8</size>
+    <weight>normal</weight>
+   </font>
+   <hcenter/>
+   <vcenter/>
+   <string>Cost Value</string>
+  </label>
+  <label>
+   <rect>
+    <x>710</x>
+    <y>4</y>
+    <width>80</width>
+    <height>15</height>
+   </rect>
+   <font>
+    <face>Arial</face>
+    <size>8</size>
+    <weight>normal</weight>
+   </font>
+   <hcenter/>
+   <vcenter/>
+   <string>P/O Value</string>
+  </label>
+  <label>
+   <rect>
+    <x>15</x>
+    <y>4</y>
+    <width>70</width>
+    <height>15</height>
+   </rect>
+   <font>
+    <face>Arial</face>
+    <size>8</size>
+    <weight>normal</weight>
+   </font>
+   <hcenter/>
+   <vcenter/>
+   <string>Date</string>
+  </label>
+  <label>
+   <rect>
+    <x>575</x>
+    <y>4</y>
+    <width>60</width>
+    <height>15</height>
+   </rect>
+   <font>
+    <face>Arial</face>
+    <size>8</size>
+    <weight>normal</weight>
+   </font>
+   <hcenter/>
+   <vcenter/>
+   <string>Type</string>
   </label>
  </pghead>
  <section>
@@ -514,7 +498,7 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
     <rect>
      <x>520</x>
      <y>0</y>
-     <width>60</width>
+     <width>55</width>
      <height>15</height>
     </rect>
     <font>
@@ -526,14 +510,15 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
     <vcenter/>
     <data>
      <query>detail</query>
-     <column>f_qty</column>
+     <column>qty</column>
     </data>
+    <format builtin="true">qty</format>
    </field>
    <field>
     <rect>
      <x>170</x>
      <y>0</y>
-     <width>65</width>
+     <width>60</width>
      <height>15</height>
     </rect>
     <font>
@@ -545,12 +530,12 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
     <vcenter/>
     <data>
      <query>detail</query>
-     <column>f_ponumber</column>
+     <column>ponumber</column>
     </data>
    </field>
    <field>
     <rect>
-     <x>285</x>
+     <x>265</x>
      <y>0</y>
      <width>150</width>
      <height>15</height>
@@ -569,9 +554,9 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
    </field>
    <field>
     <rect>
-     <x>400</x>
+     <x>380</x>
      <y>0</y>
-     <width>150</width>
+     <width>140</width>
      <height>15</height>
     </rect>
     <font>
@@ -583,7 +568,7 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
     <vcenter/>
     <data>
      <query>detail</query>
-     <column>item_number</column>
+     <column>itemnumber</column>
     </data>
    </field>
    <field>
@@ -602,12 +587,12 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
     <vcenter/>
     <data>
      <query>detail</query>
-     <column>f_date</column>
+     <column>thedate</column>
     </data>
    </field>
    <field>
     <rect>
-     <x>245</x>
+     <x>225</x>
      <y>0</y>
      <width>35</width>
      <height>15</height>
@@ -626,7 +611,7 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
    </field>
    <field>
     <rect>
-     <x>590</x>
+     <x>580</x>
      <y>0</y>
      <width>60</width>
      <height>15</height>
@@ -640,12 +625,12 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
     <vcenter/>
     <data>
      <query>detail</query>
-     <column>f_type</column>
+     <column>type</column>
     </data>
    </field>
    <field>
     <rect>
-     <x>665</x>
+     <x>640</x>
      <y>0</y>
      <width>75</width>
      <height>15</height>
@@ -659,8 +644,29 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
     <vcenter/>
     <data>
      <query>detail</query>
-     <column>f_value</column>
+     <column>stdvalue</column>
     </data>
+    <format builtin="true">salesprice</format>
+   </field>
+   <field>
+    <rect>
+     <x>700</x>
+     <y>-1</y>
+     <width>75</width>
+     <height>15</height>
+    </rect>
+    <font>
+     <face>Arial</face>
+     <size>8</size>
+     <weight>bold</weight>
+    </font>
+    <right/>
+    <vcenter/>
+    <data>
+     <query>detail</query>
+     <column>purchvalue</column>
+    </data>
+    <format builtin="true">purchprice</format>
    </field>
   </detail>
  </section>
@@ -669,7 +675,7 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
   <field>
    <rect>
     <x>705</x>
-    <y>0</y>
+    <y>1</y>
     <width>40</width>
     <height>15</height>
    </rect>
@@ -704,7 +710,7 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
   <label>
    <rect>
     <x>615</x>
-    <y>0</y>
+    <y>1</y>
     <width>85</width>
     <height>15</height>
    </rect>
@@ -720,7 +726,7 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
   <field>
    <rect>
     <x>90</x>
-    <y>0</y>
+    <y>1</y>
     <width>100</width>
     <height>15</height>
    </rect>
@@ -741,8 +747,8 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
   <height>104</height>
   <label>
    <rect>
-    <x>615</x>
-    <y>0</y>
+    <x>555</x>
+    <y>1</y>
     <width>37</width>
     <height>15</height>
    </rect>
@@ -757,8 +763,8 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
   </label>
   <field>
    <rect>
-    <x>665</x>
-    <y>0</y>
+    <x>630</x>
+    <y>1</y>
     <width>75</width>
     <height>15</height>
    </rect>
@@ -771,9 +777,31 @@ ORDER BY f_ponumber, poitem_linenumber;</sql>
    <vcenter/>
    <data>
     <query>detail</query>
-    <column>value</column>
+    <column>stdvalue</column>
    </data>
-   <tracktotal builtin="true" >qty</tracktotal>
+   <format builtin="true">salesprice</format>
+   <tracktotal/>
+  </field>
+  <field>
+   <rect>
+    <x>705</x>
+    <y>1</y>
+    <width>75</width>
+    <height>15</height>
+   </rect>
+   <font>
+    <face>Arial</face>
+    <size>8</size>
+    <weight>bold</weight>
+   </font>
+   <right/>
+   <vcenter/>
+   <data>
+    <query>detail</query>
+    <column>purchvalue</column>
+   </data>
+   <format builtin="true">purchprice</format>
+   <tracktotal/>
   </field>
  </rptfoot>
 </report>

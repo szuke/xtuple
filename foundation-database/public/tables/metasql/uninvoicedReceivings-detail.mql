@@ -1,7 +1,7 @@
 -- Group: uninvoicedReceivings
 -- Name: detail
 -- Notes: used by dspUninvoicedReceivings
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT recv_id AS id,
@@ -16,8 +16,11 @@ SELECT recv_id AS id,
        ('Misc. - ' || recv_vend_item_number)) AS itemnumber,
        recv_qty AS qty, 'qty' AS qty_xtnumericrole,
        'Receipt' AS type,
-       recv_value AS value,
-       'curr' AS value_xtnumericrole, 0 AS value_xttotalrole
+       (recv_qty * recv_purchcost) AS purchvalue,
+       recv_value AS stdvalue,
+       'curr' AS value_xtnumericrole, 
+       0 AS purchvalue_xttotalrole,
+       0 AS stdvalue_xttotalrole
 FROM recv, vendinfo,
      poitem LEFT OUTER JOIN (itemsite JOIN item ON (itemsite_item_id=item_id))
             ON (poitem_itemsite_id=itemsite_id)
@@ -47,8 +50,11 @@ SELECT poreject_id AS id,
        ('Misc. - ' || poreject_vend_item_number)) AS itemnumber,
        poreject_qty, 'qty' AS qty_xtnumericrole,
        'Return' AS type,
+       (poreject_qty*poitem_unitprice) * -1 AS purchvalue,
        poreject_value * -1 AS value,
-       'curr' AS value_xtnumericrole, 0 AS value_xtotalrole
+       'curr' AS value_xtnumericrole,
+       0 AS purchvalue_xttotalrole,
+       0 AS stdvalue_xttotalrole
 FROM poreject, vendinfo,
      poitem LEFT OUTER JOIN (itemsite JOIN item ON (itemsite_item_id=item_id))
             ON (poitem_itemsite_id=itemsite_id)
