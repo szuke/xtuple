@@ -208,7 +208,7 @@ BEGIN
       JOIN coitem ON cobill_coitem_id = coitem_id
       JOIN itemsite ON coitem_itemsite_id = itemsite_id 
      WHERE wo_ordtype='S'
-       AND wo_qtyrcv >= wo_qtyor
+       AND wo_qtyrcv >= wo_qtyord
        AND wo_ordid=cobill_coitem_id
        AND itemsite_costmethod = 'J'
        AND cobill_toclose
