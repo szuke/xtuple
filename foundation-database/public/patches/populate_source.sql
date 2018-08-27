@@ -717,7 +717,7 @@ select createDoctype(41, --pDocAssNum
                      'core', --pWidget
                      'join itemsite on wo_itemsite_id=itemsite_id join item on itemsite_item_id=item_id', --pJoin
                      'wo_id', --pParam
-                     '', --pUi
+                     'workOrder', --pUi
                      '', --pPriv
                      'Manufacture' --pModule
 );
@@ -910,3 +910,21 @@ SELECT createDoctype(NULL,
                      'itemgrp_id',
                      'itemGroup',
                      '');
+
+SELECT createDoctype(NULL, --pDocAssNum
+                     'FILE', --pType
+                     '', --pDocAss
+                     'FILE', --pCharAss
+                     'Document', --pFull
+                     'file', --pTable
+                     'file_id', --pKey
+                     'file_title', --pNumber
+                     'file_title', --pName
+                     'file_descrip', --pDesc
+                     '', --pWidget
+                     '', --pJoin
+                     'file_id', --pParam
+                     '', --pUi
+                     '', --pPriv
+                     'CRM' --pModule
+);

@@ -7,6 +7,7 @@ SELECT
   xt.add_column('docass', 'docass_source_id',   'INTEGER',      'NOT NULL', 'public'),
   xt.add_column('docass', 'docass_source_type', 'TEXT',         'NOT NULL', 'public'),
   xt.add_column('docass', 'docass_target_id',   'INTEGER',      'NOT NULL', 'public'),
+  xt.add_column('docass', 'docass_notes',       'TEXT',               NULL, 'public'),
   xt.add_column('docass', 'docass_target_type', 'TEXT',         $$DEFAULT 'URL' NOT NULL$$, 'public'),
   xt.add_column('docass', 'docass_purpose',     'CHARACTER(1)', $$DEFAULT 'S'   NOT NULL$$, 'public'),
   xt.add_column('docass', 'docass_username',    'TEXT',                     NULL, 'public'),

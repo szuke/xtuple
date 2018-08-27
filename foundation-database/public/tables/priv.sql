@@ -21,7 +21,8 @@ declare
       ['Purchase', 'MaintainPurchaseTypes', 'Can Maintain Purchase Types'],
       ['Purchase', 'ViewPurchaseTypes', 'Can View Purchase Types'],
       ['Accounting', 'ReverseARApplication', 'Allows A/R Applications to be reversed'],
-      ['Accounting', 'ReverseAPApplication', 'Allows A/P Applications to be reversed']
+      ['Accounting', 'ReverseAPApplication', 'Allows A/P Applications to be reversed'],
+      ['CRM', 'ViewDocuments', 'Allows viewing Document list']
     ];
   _p TEXT[];
 begin

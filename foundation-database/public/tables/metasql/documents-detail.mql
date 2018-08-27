@@ -1,0 +1,200 @@
+-- Group: documents
+-- Name:  detail
+-- Notes: used by dspDocuments
+
+-- Imported Files
+SELECT docass_id AS id, file_id AS altid, 1 AS lvl, 'FILE' as doctype, file_title AS title,
+       file_descrip as descrip, NULL::TEXT as username, NULL::DATE as assigned
+       <? foreach("char_id_text_list") ?>
+           ,charass_alias<? literal("char_id_text_list") ?>.charass_value AS char<? literal("char_id_text_list") ?>
+       <? endforeach ?>
+       <? foreach("char_id_list_list") ?>
+           ,charass_alias<? literal("char_id_list_list") ?>.charass_value AS char<? literal("char_id_list_list") ?>
+       <? endforeach ?>
+       <? foreach("char_id_date_list") ?>
+           ,charass_alias<? literal("char_id_date_list") ?>.charass_value::date AS char<? literal("char_id_date_list") ?>
+       <? endforeach ?>
+       , 0 AS xtindentrole
+       , hasPrivOnObject('view', docass_source_type, docass_source_id) AS canview
+       , hasPrivOnObject('edit', docass_source_type, docass_source_id) AS canedit
+FROM "file"
+JOIN (select DISTINCT ON (docass_target_type, docass_target_id) *
+        FROM docass 
+       WHERE docass_target_type LIKE 'FILE'
+       <? if exists("importDateStart") ?>
+         AND docass_created >= <? value("importDateStart") ?>
+       <? endif ?>
+       <? if exists("importDateEnd") ?>
+         AND docass_created <= <? value("importDateEnd") ?>
+       <? endif ?>
+       <? if exists("owner") ?>
+         AND docass_username = <? value("owner") ?>
+       <? endif ?>
+       <? if exists("assignedTo") ?>
+         AND ( docass_source_type = 'XX'
+       <? foreach("assignedTo") ?>
+          OR docass_source_type = <? value("assignedTo") ?>
+       <? endforeach ?>
+         )
+       <? endif ?>
+       <? if exists("search_pattern") ?>
+         AND formatdocumenttarget(docass_source_type, docass_source_id) ~* <? value("search_pattern") ?>
+       <? endif ?>
+       ORDER BY docass_target_type, docass_target_id, docass_created) filemin
+   ON "file".file_id=filemin.docass_target_id
+<? foreach("char_id_text_list") ?>
+     LEFT OUTER JOIN charass charass_alias<? literal("char_id_text_list") ?> 
+                  ON ((charass_alias<? literal("char_id_text_list") ?>.charass_target_type='FILE') 
+                 AND  (charass_alias<? literal("char_id_text_list") ?>.charass_target_id=file_id)
+                 AND  (charass_alias<? literal("char_id_text_list") ?>.charass_char_id=<? value("char_id_text_list") ?>))
+     LEFT OUTER JOIN char char_alias<? literal("char_id_text_list") ?> 
+                 ON (charass_alias<? literal("char_id_text_list") ?>.charass_char_id=char_alias<? literal("char_id_text_list") ?>.char_id)
+   <? endforeach ?>
+   <? foreach("char_id_list_list") ?>
+     LEFT OUTER JOIN charass charass_alias<? literal("char_id_list_list") ?> 
+                  ON ((charass_alias<? literal("char_id_list_list") ?>.charass_target_type='FILE') 
+                 AND  (charass_alias<? literal("char_id_list_list") ?>.charass_target_id=file_id)
+                 AND  (charass_alias<? literal("char_id_list_list") ?>.charass_char_id=<? value("char_id_list_list") ?>))
+     LEFT OUTER JOIN char char_alias<? literal("char_id_list_list") ?> 
+                  ON (charass_alias<? literal("char_id_list_list") ?>.charass_char_id=char_alias<? literal("char_id_list_list") ?>.char_id)
+   <? endforeach ?>
+   <? foreach("char_id_date_list") ?>
+     LEFT OUTER JOIN charass charass_alias<? literal("char_id_date_list") ?> 
+                  ON ((charass_alias<? literal("char_id_date_list") ?>.charass_target_type='FILE') 
+                 AND  (charass_alias<? literal("char_id_date_list") ?>.charass_target_id=file_id)
+                 AND  (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=<? value("char_id_date_list") ?>))
+     LEFT OUTER JOIN char char_alias<? literal("char_id_date_list") ?> 
+                  ON (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=char_alias<? literal("char_id_date_list") ?>.char_id)
+   <? endforeach ?>
+WHERE true
+<? literal("charClause") ?>
+UNION
+-- URL links (includes non-imported File links)  
+SELECT docass_id AS id, url_id AS altid, 1 AS lvl, 'URL' as doctype, url_title AS title,
+       url_url as descrip, NULL::TEXT as username, NULL::DATE as assigned
+       <? foreach("char_id_text_list") ?>
+           ,charass_alias<? literal("char_id_text_list") ?>.charass_value AS char<? literal("char_id_text_list") ?>
+       <? endforeach ?>
+       <? foreach("char_id_list_list") ?>
+           ,charass_alias<? literal("char_id_list_list") ?>.charass_value AS char<? literal("char_id_list_list") ?>
+       <? endforeach ?>
+       <? foreach("char_id_date_list") ?>
+           ,charass_alias<? literal("char_id_date_list") ?>.charass_value::date AS char<? literal("char_id_date_list") ?>
+       <? endforeach ?>
+       , 0 AS xtindentrole
+       , hasPrivOnObject('view', docass_source_type, docass_source_id) AS canview
+       , hasPrivOnObject('edit', docass_source_type, docass_source_id) AS canedit
+FROM urlinfo
+JOIN (select DISTINCT ON (docass_target_type, docass_target_id) *
+        FROM docass 
+       WHERE docass_target_type SIMILAR TO '(XFILE|URL)'
+       <? if exists("importDateStart") ?>
+         AND docass_created >= <? value("importDateStart") ?>
+       <? endif ?>
+       <? if exists("importDateEnd") ?>
+         AND docass_created <= <? value("importDateEnd") ?>
+       <? endif ?>
+       <? if exists("owner") ?>
+         AND docass_username = <? value("owner") ?>
+       <? endif ?>
+       <? if exists("assignedTo") ?>
+         AND ( docass_source_type = 'XX'
+       <? foreach("assignedTo") ?>
+          OR docass_source_type = <? value("assignedTo") ?>
+       <? endforeach ?>
+         )
+       <? endif ?>
+       <? if exists("search_pattern") ?>
+         AND formatdocumenttarget(docass_source_type, docass_source_id) ~* <? value("search_pattern") ?>
+       <? endif ?>
+       ORDER BY docass_target_type, docass_target_id, docass_created) urlmin
+   ON urlinfo.url_id=urlmin.docass_target_id
+<? foreach("char_id_text_list") ?>
+     LEFT OUTER JOIN charass charass_alias<? literal("char_id_text_list") ?> 
+                  ON ((charass_alias<? literal("char_id_text_list") ?>.charass_target_type='FILE') 
+                 AND  (charass_alias<? literal("char_id_text_list") ?>.charass_target_id=url_id)
+                 AND  (charass_alias<? literal("char_id_text_list") ?>.charass_char_id=<? value("char_id_text_list") ?>))
+     LEFT OUTER JOIN char char_alias<? literal("char_id_text_list") ?> 
+                 ON (charass_alias<? literal("char_id_text_list") ?>.charass_char_id=char_alias<? literal("char_id_text_list") ?>.char_id)
+   <? endforeach ?>
+   <? foreach("char_id_list_list") ?>
+     LEFT OUTER JOIN charass charass_alias<? literal("char_id_list_list") ?> 
+                  ON ((charass_alias<? literal("char_id_list_list") ?>.charass_target_type='FILE') 
+                 AND  (charass_alias<? literal("char_id_list_list") ?>.charass_target_id=url_id)
+                 AND  (charass_alias<? literal("char_id_list_list") ?>.charass_char_id=<? value("char_id_list_list") ?>))
+     LEFT OUTER JOIN char char_alias<? literal("char_id_list_list") ?> 
+                  ON (charass_alias<? literal("char_id_list_list") ?>.charass_char_id=char_alias<? literal("char_id_list_list") ?>.char_id)
+   <? endforeach ?>
+   <? foreach("char_id_date_list") ?>
+     LEFT OUTER JOIN charass charass_alias<? literal("char_id_date_list") ?> 
+                  ON ((charass_alias<? literal("char_id_date_list") ?>.charass_target_type='FILE') 
+                 AND  (charass_alias<? literal("char_id_date_list") ?>.charass_target_id=url_id)
+                 AND  (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=<? value("char_id_date_list") ?>))
+     LEFT OUTER JOIN char char_alias<? literal("char_id_date_list") ?> 
+                  ON (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=char_alias<? literal("char_id_date_list") ?>.char_id)
+   <? endforeach ?>
+WHERE true
+<? literal("charClause") ?>
+UNION
+-- Document assignments
+SELECT docass_id, docass_target_id, 2 AS lvl, REPLACE(docass_target_type, 'X', '') AS doctype, formatdocumenttarget(docass_source_type, docass_source_id), 
+       docass_notes, docass_username, docass_created
+       <? foreach("char_id_text_list") ?>
+           ,NULL::TEXT AS char<? literal("char_id_text_list") ?>
+       <? endforeach ?>
+       <? foreach("char_id_list_list") ?>
+           ,NULL::TEXT AS char<? literal("char_id_list_list") ?>
+       <? endforeach ?>
+       <? foreach("char_id_date_list") ?>
+           ,NULL::DATE AS char<? literal("char_id_date_list") ?>
+       <? endforeach ?>
+       , 1 AS xtindentrole
+       , hasPrivOnObject('view', docass_source_type, docass_source_id) AS canview
+       , hasPrivOnObject('edit', docass_source_type, docass_source_id) AS canedit
+FROM docass
+<? foreach("char_id_text_list") ?>
+     LEFT OUTER JOIN charass charass_alias<? literal("char_id_text_list") ?> 
+                  ON ((charass_alias<? literal("char_id_text_list") ?>.charass_target_type='FILE') 
+                 AND  (charass_alias<? literal("char_id_text_list") ?>.charass_target_id=docass_target_id)
+                 AND  (charass_alias<? literal("char_id_text_list") ?>.charass_char_id=<? value("char_id_text_list") ?>))
+     LEFT OUTER JOIN char char_alias<? literal("char_id_text_list") ?> 
+                 ON (charass_alias<? literal("char_id_text_list") ?>.charass_char_id=char_alias<? literal("char_id_text_list") ?>.char_id)
+   <? endforeach ?>
+   <? foreach("char_id_list_list") ?>
+     LEFT OUTER JOIN charass charass_alias<? literal("char_id_list_list") ?> 
+                  ON ((charass_alias<? literal("char_id_list_list") ?>.charass_target_type='FILE') 
+                 AND  (charass_alias<? literal("char_id_list_list") ?>.charass_target_id=docass_target_id)
+                 AND  (charass_alias<? literal("char_id_list_list") ?>.charass_char_id=<? value("char_id_list_list") ?>))
+     LEFT OUTER JOIN char char_alias<? literal("char_id_list_list") ?> 
+                  ON (charass_alias<? literal("char_id_list_list") ?>.charass_char_id=char_alias<? literal("char_id_list_list") ?>.char_id)
+   <? endforeach ?>
+   <? foreach("char_id_date_list") ?>
+     LEFT OUTER JOIN charass charass_alias<? literal("char_id_date_list") ?> 
+                  ON ((charass_alias<? literal("char_id_date_list") ?>.charass_target_type='FILE') 
+                 AND  (charass_alias<? literal("char_id_date_list") ?>.charass_target_id=docass_target_id)
+                 AND  (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=<? value("char_id_date_list") ?>))
+     LEFT OUTER JOIN char char_alias<? literal("char_id_date_list") ?> 
+                  ON (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=char_alias<? literal("char_id_date_list") ?>.char_id)
+   <? endforeach ?>
+WHERE docass_target_type SIMILAR TO '(%FILE|URL)'
+<? if exists("importDateStart") ?>
+  AND docass_created >= <? value("importDateStart") ?>
+<? endif ?>
+<? if exists("importDateEnd") ?>
+  AND docass_created <= <? value("importDateEnd") ?>
+<? endif ?>
+<? if exists("owner") ?>
+  AND docass_username = <? value("owner") ?>
+<? endif ?>
+<? if exists("assignedTo") ?>
+    AND ( docass_source_type = 'XX'
+    <? foreach("assignedTo") ?>
+      OR docass_source_type = <? value("assignedTo") ?>
+    <? endforeach ?>
+        )
+<? endif ?>
+       <? if exists("search_pattern") ?>
+         AND formatdocumenttarget(docass_source_type, docass_source_id) ~* <? value("search_pattern") ?>
+       <? endif ?>
+<? literal("charClause") ?>
+ORDER BY altid, lvl;
