@@ -1,12 +1,11 @@
 CREATE OR REPLACE FUNCTION voidPostedCheck(INTEGER, INTEGER, DATE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pCheckid		ALIAS FOR $1;
   pJournalNumber	ALIAS FOR $2;
   pVoidDate		ALIAS FOR $3;
   _amount_base		NUMERIC := 0;
-  _result               INTEGER;
   _apopenid		INTEGER;
   _credit_glaccnt	INTEGER;
   _docnumber		TEXT;
@@ -17,21 +16,27 @@ DECLARE
   _r			RECORD;
   _sequence		INTEGER;
   _amount_check         NUMERIC := 0;
-
+  _tax			NUMERIC := 0;
+  _t			RECORD;
 BEGIN
 
   SELECT fetchGLSequence() INTO _sequence;
 
-  SELECT checkhead.*,
+  SELECT checkhead_id, checkhead_number, checkhead_misc,
+         checkhead_posted, checkhead_recip_id, checkhead_recip_type,
+         checkhead_amount, checkhead_notes, checkhead_curr_id,
+         checkhead_expcat_id, checkhead_checkdate, checkhead_curr_rate,
          checkhead_amount / checkhead_curr_rate AS checkhead_amount_base,
          bankaccnt_accnt_id AS bankaccntid,
          findPrepaidAccount(checkhead_recip_id) AS prepaidaccntid,
-	 checkrecip.* INTO _p
-  FROM bankaccnt, checkhead LEFT OUTER JOIN
-       checkrecip ON ((checkrecip_type=checkhead_recip_type)
+	 checkrecip_id, checkrecip_number, checkrecip_name, checkrecip_accnt_id,
+         checkrecip_gltrans_source
+    INTO _p
+    FROM bankaccnt
+    JOIN checkhead ON (checkhead_bankaccnt_id=bankaccnt_id)
+    LEFT OUTER JOIN checkrecip ON ((checkrecip_type=checkhead_recip_type)
 		  AND (checkrecip_id=checkhead_recip_id))
-  WHERE ((checkhead_bankaccnt_id=bankaccnt_id)
-    AND  (checkhead_id=pCheckid));
+  WHERE (checkhead_id=pCheckid);
 
   IF (NOT _p.checkhead_posted) THEN
     RETURN -10;
@@ -42,22 +47,20 @@ BEGIN
   END IF;
 
   -- Cannot void if already reconciled
-  SELECT trans_id INTO _result
-  FROM ( SELECT gltrans_id AS trans_id
+  IF EXISTS ( SELECT 1
          FROM gltrans
               LEFT OUTER JOIN bankrecitem ON (bankrecitem_source='GL' AND bankrecitem_source_id=gltrans_id)
          WHERE ( (gltrans_doctype='CK')
            AND   (gltrans_misc_id=_p.checkhead_id)
            AND   ((gltrans_rec) OR (bankrecitem_id IS NOT NULL)) )
-         UNION ALL
-         SELECT sltrans_id AS trans_id
+        ) OR EXISTS (
+         SELECT 1
          FROM sltrans
               LEFT OUTER JOIN bankrecitem ON (bankrecitem_source='GL' AND bankrecitem_source_id=sltrans_id)
          WHERE ( (sltrans_doctype='CK')
            AND   (sltrans_misc_id=_p.checkhead_id)
            AND   ((sltrans_rec) OR (bankrecitem_id IS NOT NULL)) )
-       ) AS data;
-  IF (FOUND) THEN
+       ) THEN
     RETURN -14;
   END IF;
 
@@ -102,11 +105,35 @@ BEGIN
       RETURN -13;
     END IF;
 
+    -- Check for tax records
+    _tax = COALESCE((SELECT sum(taxhist_tax) FROM checkheadtax WHERE taxhist_parent_id=_p.checkhead_id), 0.00);
+
     PERFORM insertIntoGLSeries( _sequence, _p.checkrecip_gltrans_source, 'CK',
 				text(_p.checkhead_number),
 				_credit_glaccnt,
-				round(_p.checkhead_amount_base, 2),
+				round(_p.checkhead_amount_base - ABS(_tax), 2),
 				pVoidDate, _gltransNote, pCheckid);
+
+    -- Process Tax reversal (if applicable)
+    IF (_tax <> 0) THEN
+      FOR _t IN 
+        SELECT * FROM checkheadtax 
+        JOIN tax ON (taxhist_tax_id = tax_id)
+        WHERE (taxhist_parent_id = pCheckid)
+      LOOP  
+        INSERT INTO checkheadtax (taxhist_basis,taxhist_percent,taxhist_amount,taxhist_docdate, taxhist_tax_id, taxhist_tax, 
+                                taxhist_taxtype_id, taxhist_parent_id, taxhist_distdate,
+                                taxhist_curr_id, taxhist_curr_rate, taxhist_journalnumber ) 
+          SELECT 0, 0, 0, pVoidDate, _t.taxhist_tax_id, (_t.taxhist_tax * -1), _p.checkhead_taxtype_id,
+              pCheckid, pVoidDate, _t.taxhist_curr_id, _t.taxhist_curr_rate, pJournalNumber;
+        PERFORM insertIntoGLSeries( _sequence, _p.checkrecip_gltrans_source, 'CK',
+				text(_p.checkhead_number),
+				_t.tax_sales_accnt_id,
+				round((_t.taxhist_tax * -1) / _t.taxhist_curr_rate, 2),
+				pVoidDate, _gltransNote, pCheckid);              
+      END LOOP;                      
+ 
+    END IF;				
 
     _amount_base := _p.checkhead_amount_base;
 
@@ -126,9 +153,9 @@ BEGIN
                                           checkitem_amount * -1.0
                                      ELSE checkitem_amount END,
                                   _p.checkhead_checkdate) AS amount_check,
-                     apopen_id, apopen_doctype, apopen_docnumber, apopen_curr_rate, apopen_docdate,
-                     aropen_id, aropen_doctype, aropen_docnumber,
-                     checkitem_curr_id, checkitem_curr_rate,
+                     apopen_id, apopen_doctype, apopen_docnumber, apopen_curr_id, apopen_curr_rate,
+                     apopen_docdate, aropen_id, aropen_doctype, aropen_docnumber,
+                     checkitem_curr_id,
                      COALESCE(checkitem_docdate, _p.checkhead_checkdate) AS docdate
               FROM (checkitem LEFT OUTER JOIN
 		    apopen ON (checkitem_apopen_id=apopen_id)) LEFT OUTER JOIN
@@ -232,23 +259,10 @@ BEGIN
 
 --  calculate currency gain/loss
       IF (_r.apopen_id IS NOT NULL) THEN
-        IF (_p.checkhead_curr_id = _r.checkitem_curr_id) THEN
-          IF (_r.apopen_docdate > _p.checkhead_checkdate) THEN
-            _exchGainTmp := ((_r.checkitem_amount/_p.checkhead_curr_rate) - (_r.checkitem_amount / _r.apopen_curr_rate)) * -1;
-          ELSE
-            _exchGainTmp := ((_r.checkitem_amount / _r.apopen_curr_rate) - (_r.checkitem_amount/_p.checkhead_curr_rate));
-          END IF;
-        ELSE
-          -- unusual condition where bank overridden and different currency from voucher
-          -- this does not work for all situations
-          --IF (_r.apopen_docdate > _p.checkhead_checkdate) THEN
-          --  _exchGainTmp := ((_r.checkitem_amount/_r.checkitem_curr_rate) - (_r.checkitem_amount / _r.apopen_curr_rate)) * -1;
-          --ELSE
-          --  _exchGainTmp := ((_r.checkitem_amount / _r.apopen_curr_rate) - (_r.checkitem_amount/_r.checkitem_curr_rate));
-          --END IF;
-          _exchGainTmp := 0.0;
-        END IF;
-      ELSE
+        SELECT apCurrGain(_r.apopen_id,_r.checkitem_curr_id, _r.checkitem_amount,
+                        _p.checkhead_checkdate)
+              INTO _exchGainTmp;
+      ELSIF (_r.aropen_id IS NOT NULL) THEN
         SELECT arCurrGain(_r.aropen_id,_r.checkitem_curr_id, _r.checkitem_amount,
                         _p.checkhead_checkdate)
               INTO _exchGainTmp;
@@ -316,4 +330,4 @@ BEGIN
   RETURN pJournalNumber;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

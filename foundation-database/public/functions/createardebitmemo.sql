@@ -1,6 +1,8 @@
+SELECT dropifexists('FUNCTION', 'createardebitmemo(integer, integer, integer, text, text, date, numeric, text, integer, integer, integer, date, integer, integer, numeric, integer)');
 
-CREATE OR REPLACE FUNCTION createARDebitMemo(INTEGER, INTEGER, INTEGER, TEXT, TEXT, DATE, NUMERIC, TEXT, INTEGER, INTEGER, INTEGER, DATE, INTEGER, INTEGER, NUMERIC, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION createARDebitMemo(INTEGER, INTEGER, INTEGER, TEXT, TEXT, DATE, NUMERIC, TEXT, INTEGER, INTEGER, INTEGER, DATE, INTEGER, INTEGER, NUMERIC, INTEGER, INTEGER DEFAULT NULL) 
+RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pId			ALIAS FOR $1;
@@ -19,6 +21,7 @@ DECLARE
   pSalesrepid		ALIAS FOR $14;
   pCommissiondue	ALIAS FOR $15;
   pCurrId		ALIAS FOR $16;
+  pTaxZoneid		ALIAS FOR $17;
   _custName TEXT;
   _journalNumber INTEGER;
   _arAccntid INTEGER;
@@ -88,7 +91,9 @@ BEGIN
       aropen_commission_due=pCommissiondue, aropen_commission_paid=FALSE,
       aropen_applyto='', aropen_ponumber='', aropen_cobmisc_id=-1,
       aropen_open=TRUE, aropen_notes=pNotes, aropen_rsncode_id=pRsncodeid,
-      aropen_salescat_id=_salescatid, aropen_accnt_id=_accntid, aropen_curr_id=pCurrId
+      aropen_salescat_id=_salescatid, aropen_accnt_id=_accntid, aropen_curr_id=pCurrId,
+      aropen_curr_rate=currrate(pCurrId, pDocDate),
+      aropen_taxzone_id=pTaxZoneid
     WHERE aropen_id = pId;
   ELSE
     SELECT NEXTVAL('aropen_aropen_id_seq') INTO _aropenid;
@@ -99,7 +104,7 @@ BEGIN
       aropen_amount, aropen_paid, aropen_commission_due, aropen_commission_paid,
       aropen_applyto, aropen_ponumber, aropen_cobmisc_id,
       aropen_open, aropen_notes, aropen_rsncode_id,
-      aropen_salescat_id, aropen_accnt_id, aropen_curr_id )
+      aropen_salescat_id, aropen_accnt_id, aropen_curr_id, aropen_curr_rate, aropen_taxzone_id )
     VALUES
     ( _aropenid, getEffectiveXtUser(), _journalNumber,
       pCustid, pDocNumber, 'D', pOrderNumber,
@@ -107,7 +112,7 @@ BEGIN
       round(pAmount, 2), 0, pCommissiondue, FALSE,
       '', '', -1,
       TRUE, pNotes, pRsncodeid,
-      _salescatid, _accntid, pCurrId );
+      _salescatid, _accntid, pCurrId, currrate(pCurrId, pDocDate), pTaxZoneid );
   END IF;
 
   -- Debit the A/R account for the full amount

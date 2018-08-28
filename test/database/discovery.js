@@ -1,24 +1,25 @@
-/*jshint node:true, indent:2, curly:false, eqeqeq:true, immed:true, latedef:true, newcap:true, noarg:true,
-regexp:true, undef:true, strict:true, trailing:true, white:true */
-/*global XT:true, XM:true, XV:true, XZ:true, describe:true, it:true */
-
 (function () {
   "use strict";
 
   var zombie = require("zombie"),
-    mocha = require("mocha"),
     assert = require("chai").assert;
+
+  // Allow self signed cert for our test.
+  // @See: https://github.com/assaf/zombie/issues/605
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
   var loginData = require('../lib/login_data'),
     database = loginData.data.org,
     host = loginData.data.webaddress || "https://localhost",
     delimiter = host.charAt(host.length - 1) === "/" ? "" : "/",
-    discoveryPath = host + delimiter + database + "/discovery/v1alpha1/apis/v1alpha1/rest";
+    discoveryPath = host + delimiter + database +
+                    "/discovery/v1alpha1/apis/v1alpha1/rest",
+    maxWait = 100000;
 
-  describe('The REST discovery document', function (done) {
+  describe('The REST discovery document', function () {
     it('should load', function (done) {
-      this.timeout(60000);
-      zombie.visit(discoveryPath, {maxWait: 60000}, function (e, browser) {
+      this.timeout(maxWait);
+      zombie.visit(discoveryPath, {maxWait: maxWait}, function (e, browser) {
         var doc;
 
         assert.ok(browser.success);

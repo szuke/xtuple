@@ -1,14 +1,14 @@
 -- Group: bookings
 -- Name: detail
 -- Notes: 
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT   coitem_id AS id, coitem_cohead_id AS altId,
          formatSoLineNumber(coitem_id) AS f_linenumber,
          getSoSchedDate(cohead_id) AS sort_scheddate,
          coitem.*, cohead.*,
-         cust_number, cust_name,
+         cust_number, cust_name, saletype_descr,
          item_number, item_descrip1, (item_descrip1 || ' ' || item_descrip2) AS itemdescription,
          uom_name,
          warehous_code,
@@ -29,7 +29,24 @@ SELECT   coitem_id AS id, coitem_cohead_id AS altId,
                      (coitem_price / coitem_price_invuomratio), 2) AS extpricebalance,
          round((noNeg(coitem_qtyord - coitem_qtyshipped + coitem_qtyreturned) * coitem_qty_invuomratio) *
                      (currtobase(cohead_curr_id, coitem_price, cohead_orderdate) / coitem_price_invuomratio), 2) AS baseextpricebalance,
+         round((coitem_qtyord * coitem_qty_invuomratio) *
+                     (coitem_unitcost / coitem_price_invuomratio), 2) AS extcost,
+         CASE WHEN (coitem_price = 0.0) THEN 0.0
+              ELSE ROUND(coitem_qtyord * coitem_qty_invuomratio * (coitem_price - coitem_unitcost) / coitem_price_invuomratio,2)
+         END AS margin,
+         CASE WHEN (coitem_price = 0.0) THEN 0.0
+              ELSE ((coitem_price - coitem_unitcost) / coitem_price)
+         END AS marginpercent,
          curr_abbr AS currAbbr,
+<? foreach("char_id_text_list") ?>
+         charass_alias<? literal("char_id_text_list") ?>.charass_value AS char<? literal("char_id_text_list") ?>,
+<? endforeach ?>
+<? foreach("char_id_list_list") ?>
+         charass_alias<? literal("char_id_list_list") ?>.charass_value AS char<? literal("char_id_list_list") ?>,
+<? endforeach ?>
+<? foreach("char_id_date_list") ?>
+         charass_alias<? literal("char_id_date_list") ?>.charass_value::date AS char<? literal("char_id_date_list") ?>,
+<? endforeach ?>
 -- TODO - not needed, remove? (very slow)
 --         CASE WHEN (qtyAvailable(itemsite_id, coitem_scheddate) < 0.0) THEN 'error'
 --              WHEN itemsite_useparams AND (qtyAvailable(itemsite_id, coitem_scheddate) <= itemsite_reorderlevel) THEN 'warning'
@@ -43,7 +60,11 @@ SELECT   coitem_id AS id, coitem_cohead_id AS altId,
        'qty' AS qtyavailable_xtnumericrole,
        'salesprice' AS coitem_price_xtnumericrole,
        'salesprice' AS baseunitprice_xtnumericrole,
+       'cost' AS coitem_unitcost_xtnumericrole,
        'curr' AS extprice_xtnumericrole,
+       'curr' AS extcost_xtnumericrole,
+       'curr' AS margin_xtnumericrole,
+       'percent' AS marginpercent_xtnumericrole,
        'curr' AS baseextprice_xtnumericrole,
        'curr' AS extpricebalance_xtnumericrole,
        'curr' AS baseextpricebalance_xtnumericrole,
@@ -60,6 +81,7 @@ SELECT   coitem_id AS id, coitem_cohead_id AS altId,
               JOIN item ON (item_id=itemsite_item_id)
               JOIN uom ON (uom_id=coitem_qty_uom_id)
               JOIN curr_symbol ON (curr_id=cohead_curr_id)
+              LEFT OUTER JOIN saletype ON (saletype_id=cohead_saletype_id)
 <? foreach("char_id_text_list") ?>
      LEFT OUTER JOIN charass charass_alias<? literal("char_id_text_list") ?> 
           ON ((charass_alias<? literal("char_id_text_list") ?>.charass_target_type='SO') 
@@ -94,12 +116,17 @@ SELECT   coitem_id AS id, coitem_cohead_id AS altId,
   <? if exists("startDate") ?>
     AND  (cohead_orderdate BETWEEN <? value("startDate") ?> AND <? value("endDate") ?>)
   <? endif ?>
-
+  <? if exists("saletype_id") ?>
+    AND  (cohead_saletype_id = <? value("saletype_id") ?>)
+  <? endif ?>
   <? if exists("salesrep_id") ?>
     AND  (cohead_salesrep_id=<? value("salesrep_id") ?>)
   <? endif ?>
   <? if exists("shipto_id") ?>
     AND  (cohead_shipto_id=<? value("shipto_id") ?>)
+  <? endif ?>
+  <? if exists("poNumber") ?>
+    AND  (cohead_custponumber ~* <? value("poNumber") ?>)
   <? endif ?>
   <? if exists("cust_id") ?>
     AND  (cohead_cust_id=<? value("cust_id") ?>)

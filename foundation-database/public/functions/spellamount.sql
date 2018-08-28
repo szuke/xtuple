@@ -187,7 +187,8 @@ BEGIN
     _word := trim(_curr.curr_name);
   END IF;
 
-  IF _curr.curr_abbr = 'USD' OR _curr.curr_abbr = 'CAD' THEN
+  IF _curr.curr_abbr = 'USD' OR _curr.curr_abbr = 'CAD'
+     OR _curr.curr_abbr = 'NZD' OR _curr.curr_abbr = 'AUD' THEN
       IF (_cents = '1') THEN
         _fractionalPartName = ' cent';
       ELSE
@@ -197,7 +198,7 @@ BEGIN
     _fractionalPartName = ' / 100 ';
   END IF;
 
-  RETURN _words || ' ' || _word || ' and ' || _cents || _fractionalPartName;
+  RETURN INITCAP(_words) || ' ' || _word || ' and ' || _cents || _fractionalPartName;
 END;
 $$ LANGUAGE 'plpgsql' VOLATILE;
 

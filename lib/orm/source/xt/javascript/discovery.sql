@@ -61,7 +61,7 @@ select xt.install_js('XT','Discovery','xtuple', $$
         "x16": rootUrl + org + "/assets/api/" + ormTypeHyphen + "-16.png",
         "x32": rootUrl + org + "/assets/api/" + ormTypeHyphen + "-32.png"
       };
-      item.documentationLink = "https://dev.xtuple.com/api/" + ormTypeHyphen; /* TODO - What should this be? */
+      item.documentationLink = "https://github.com/xtuple/xtuple/wiki/xTuple's-APIs-Discovery-Service";
       item.preferred = true; /* TODO - Change this as we add new versions. */
 
       list.items[i] = item;

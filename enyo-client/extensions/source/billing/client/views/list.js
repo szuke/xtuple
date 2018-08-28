@@ -52,7 +52,6 @@ XT.extensions.billing.initLists = function () {
     label: "_receivables".loc(),
     collection: "XM.ReceivableListItemCollection",
     parameterWidget: "XV.ReceivableListParameters",
-    allowPrint: true,
     multiSelect: true,
     showDeleteAction: false,
     query: {orderBy: [

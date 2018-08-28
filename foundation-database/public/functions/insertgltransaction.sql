@@ -1,6 +1,6 @@
 
 CREATE OR REPLACE FUNCTION insertGLTransaction(TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, INTEGER, NUMERIC(12,2), DATE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSource ALIAS FOR $1;
@@ -26,7 +26,7 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION insertGLTransaction(TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, INTEGER, NUMERIC(12,2), DATE, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSource ALIAS FOR $1;
@@ -54,7 +54,7 @@ $$ LANGUAGE 'plpgsql';
 
 
 CREATE OR REPLACE FUNCTION insertGLTransaction(INTEGER, TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, INTEGER, NUMERIC(12,2), DATE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pJournalNumber ALIAS FOR $1;
@@ -80,7 +80,7 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION insertGLTransaction(INTEGER, TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, INTEGER, NUMERIC(12,2), DATE, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pJournalNumber ALIAS FOR $1;
@@ -94,7 +94,7 @@ DECLARE
   pAmount ALIAS FOR $9;
   pDistDate ALIAS FOR $10;
   pPostTrialBal ALIAS FOR $11;
-  
+
   _return INTEGER;
 
 BEGIN
@@ -108,7 +108,7 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION insertGLTransaction(INTEGER, TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, INTEGER, NUMERIC(12,2), DATE, BOOLEAN, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pJournalNumber ALIAS FOR $1;
@@ -131,7 +131,7 @@ DECLARE
 BEGIN
 
 --  Check GL Interface metric
-  IF (fetchMetricBool('InterfaceToGL') = false AND pSource IN ('I/M', 'P/D', 'S/R', 'W/O')) THEN
+  IF (fetchMetricBool('InterfaceToGL') = false AND pSource IN ('I/M', 'P/D', 'S/O', 'S/R', 'W/O')) THEN
     RETURN 0;
   END IF;
   IF (fetchMetricBool('InterfaceAPToGL') = false AND pSource = 'A/P') THEN
@@ -151,19 +151,19 @@ BEGIN
     The 'IgnoreCompanyBalance' metric is a back door mechanism to
     allow legacy users to create transactions accross companies if
     they have been using the company segment for something else
-    and they MUST continue to be able to do so.  It can only be 
-    implemented by direct sql update to the metric table and should 
+    and they MUST continue to be able to do so.  It can only be
+    implemented by direct sql update to the metric table and should
     otherwise be discouraged.
-*/ 
-  IF (COALESCE(fetchMetricValue('GLCompanySize'),0) > 0 
+*/
+  IF (COALESCE(fetchMetricValue('GLCompanySize'),0) > 0
     AND fetchMetricBool('IgnoreCompany') = false)  THEN
 
     IF (SELECT (COALESCE(d.accnt_company,'') != COALESCE(c.accnt_company,''))
        FROM accnt d, accnt c
        WHERE ((d.accnt_id=pDebitid)
         AND (c.accnt_id=pCreditid))) THEN
-      RAISE EXCEPTION 'G/L Transaction can not be posted because accounts % and % reference two differnt companies.',
-        formatGlaccount(pDebitid), formatGlaccount(pCreditid);
+      RAISE EXCEPTION 'G/L Transaction can not be posted because accounts % and % reference two different companies. [xtuple: insertGLTransaction, -1, %, %]',
+        formatGlaccount(pDebitid), formatGlaccount(pCreditid), formatGlaccount(pDebitid), formatGlaccount(pCreditid);
     END IF;
   END IF;
 
@@ -171,14 +171,16 @@ BEGIN
   IF (pDebitid IN (SELECT accnt_id FROM accnt)) THEN
     _debitid := pDebitid;
   ELSE
-    SELECT getUnassignedAccntId() INTO _debitid;
+    -- Try and work out the unassigned accnt from the credit accnt
+    SELECT getUnassignedAccntId(getcompanyid(pCreditid)) INTO _debitid;
   END IF;
 
 --  Validate pCreditid
   IF (pCreditid IN (SELECT accnt_id FROM accnt)) THEN
     _creditid := pCreditid;
   ELSE
-    SELECT getUnassignedAccntId() INTO _creditid;
+    -- Try and work out the unassigned accnt from the debit accnt
+    SELECT getUnassignedAccntId(getcompanyid(pDebitid)) INTO _creditid;
   END IF;
 
 -- refuse to accept postings into closed periods
@@ -186,8 +188,7 @@ BEGIN
       FROM accnt LEFT OUTER JOIN
            period ON (pDistDate BETWEEN period_start AND period_end)
       WHERE (accnt_id IN (_creditid, _debitid))) THEN
-    RAISE EXCEPTION 'Cannot post to closed period (%).', pDistDate;
-    RETURN -4;  -- remove raise exception when all callers check return code
+    RAISE EXCEPTION 'Cannot post to closed period (%). [xtuple: insertGLTransaction, -4, %]', pDistDate, pDistDate;
   END IF;
 
 -- refuse to accept postings into frozen periods without proper priv
@@ -196,22 +197,21 @@ BEGIN
       FROM accnt LEFT OUTER JOIN
            period ON (pDistDate BETWEEN period_start AND period_end)
       WHERE (accnt_id IN (_creditid, _debitid))) THEN
-    RAISE EXCEPTION 'Cannot post to frozen period (%).', pDistDate;
-    RETURN -4;  -- remove raise exception when all callers check return code
+    RAISE EXCEPTION 'Cannot post to frozen period (%). [xtuple: insertGLTransaction, -5, %]', pDistDate, pDistDate;
   END IF;
 
 -- refuse to accept postings into nonexistent periods
   IF NOT EXISTS(SELECT period_id
                 FROM period
                 WHERE (pDistDate BETWEEN period_start AND period_end)) THEN
-    RAISE EXCEPTION 'Cannot post to nonexistent period (%).', pDistDate;
+    RAISE EXCEPTION 'Cannot post to nonexistent period (%). [xtuple: insertGLTransaction, -2, %]', pDistDate, pDistDate;
   END IF;
 
 --  Grab a sequence for the pair
   SELECT fetchGLSequence() INTO _sequence;
 
   IF (NOT pOnlyGL AND fetchMetricBool('UseJournals')) THEN
-  --  First the credit	
+  --  First the credit
     INSERT INTO sltrans
     ( sltrans_journalnumber, sltrans_posted, sltrans_created, sltrans_date,
       sltrans_sequence, sltrans_accnt_id, sltrans_source,

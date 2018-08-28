@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION moveScript(INTEGER, INTEGER, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pscriptid ALIAS FOR $1;
@@ -47,11 +47,11 @@ BEGIN
                 ' WHERE script_id = ' || pscriptid;
   EXECUTE _selectstr INTO _record;
 
-  _deletestr := 'DELETE FROM ONLY ' || _source || 
+  _deletestr := 'DELETE FROM ONLY ' || _source ||
                 ' WHERE script_id = ' || pscriptid;
   EXECUTE _deletestr;
   GET DIAGNOSTICS _rows = ROW_COUNT;
-  RAISE NOTICE '% rows from %', _rows, _deletestr;
+  --RAISE NOTICE '% rows from %', _rows, _deletestr;
   IF (_rows < 1) THEN
     RETURN -3;
   ELSIF (_rows > 1) THEN
@@ -71,7 +71,7 @@ BEGIN
                 ;
   EXECUTE _insertstr;
   GET DIAGNOSTICS _rows = ROW_COUNT;
-  RAISE NOTICE '% rows from %', _rows, _insertstr;
+  --RAISE NOTICE '% rows from %', _rows, _insertstr;
   IF (_rows < 1) THEN
     RETURN -4;
   ELSIF (_rows > 1) THEN

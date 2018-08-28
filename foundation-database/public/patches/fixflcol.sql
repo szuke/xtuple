@@ -1,7 +1,7 @@
 -- 4.4.1 and 4.5.0 fix - synchronize flcol_report_id
 do $$
 begin
-if fetchMetricText('ServerVersion') < '4.6.0' then
+if (compareVersion(fetchMetricText('ServerVersion'), '4.6.0') = -1) then
 
 update flcol set flcol_report_id = (select report_id from report
                                     where report_name = 'FinancialReport'

@@ -11,7 +11,7 @@ SELECT id, altid, cohead_id,
        atshipping,
        CASE WHEN (xtindentrole=1) THEN
 <? if exists("useReservationNetting") ?>
-                  coitem_qtyreserved
+                  soreserved
 <? else ?>
                   (qoh + ordered - sobalance)
 <? endif ?>
@@ -35,7 +35,7 @@ SELECT id, altid, cohead_id,
        END AS qoh_qtforegroundrole,
        CASE WHEN (
 <? if exists("useReservationNetting") ?>
-                  coitem_qtyreserved < 0
+                  soreserved < 0
 <? else ?>
                   (qoh + ordered - sobalance) < 0
 <? endif ?>
@@ -53,10 +53,10 @@ SELECT id, altid, cohead_id,
        CASE WHEN (xtindentrole = 2 AND duedate<=CURRENT_DATE) THEN 'error'
        END AS duedate_qtforegroundrole,
 <? if exists("useReservationNetting") ?>
-       CASE WHEN (coitem_qtyreserved > 0
-              AND sobalance > coitem_qtyreserved) THEN 'emphasis'
+       CASE WHEN (soreserved > 0
+              AND sobalance > soreserved) THEN 'emphasis'
             WHEN ((sobalance <> 0)
-              AND ((sobalance - coitem_qtyreserved) = 0)) THEN 'altemphasis'
+              AND ((sobalance - soreserved) = 0)) THEN 'altemphasis'
        END AS qtforegroundrole,
 <? endif ?>
        CASE WHEN (xtindentrole = 2) THEN ''
@@ -72,7 +72,7 @@ FROM (
            CAST(NULL AS NUMERIC) AS allocated,
            CAST(NULL AS NUMERIC) AS ordered,
            CAST(NULL AS NUMERIC) AS atshipping,
-           CAST(NULL AS NUMERIC) AS coitem_qtyreserved,
+           CAST(NULL AS NUMERIC) AS soreserved,
            cohead_orderdate AS orderdate, MIN(coitem_scheddate) AS duedate,
            pack_id,
            CAST(NULL AS NUMERIC) AS reorderlevel,
@@ -94,10 +94,10 @@ FROM (
       GROUP BY cohead_id, item_number, cust_number,
                cust_name, cohead_orderdate, pack_id, coitem_scheddate
   <? if exists("onlyShowShortages") ?>
-      HAVING (MIN(noNeg(itemsite_qtyonhand) +
+      HAVING (MIN(noNeg(qtyAvailable(itemsite_id)) +
                   qtyOrdered(itemsite_id, coitem_scheddate) -
                   qtyAllocated(itemsite_id, coitem_scheddate)) < 0
-              OR MIN(noNeg(itemsite_qtyonhand) +
+              OR MIN(noNeg(qtyAvailable(itemsite_id)) +
                   qtyOrdered(itemsite_id, coitem_scheddate) -
                   noNeg(coitem_qtyord - coitem_qtyshipped + coitem_qtyreturned)) < 0
            )
@@ -108,12 +108,12 @@ FROM (
             item_number,
             item_number AS trueitem_number,
             (item_descrip1 || ' ' || item_descrip2) AS descrip,
-            uom_name, noNeg(itemsite_qtyonhand) AS qoh,
-            noNeg(coitem_qtyord - coitem_qtyshipped + coitem_qtyreturned) AS sobalance,
+            uom_name, noNeg(qtyAvailable(itemsite_id)) AS qoh,
+            (noNeg(coitem_qtyord - coitem_qtyshipped + coitem_qtyreturned) * coitem_qty_invuomratio) AS sobalance,
             qtyAllocated(itemsite_id, coitem_scheddate) AS allocated,
             qtyOrdered(itemsite_id, coitem_scheddate) AS ordered,
-            qtyatshipping(coitem_id) AS atshipping,
-            itemuomtouom(item_id, coitem_qty_uom_id, null, coitem_qtyreserved) AS coitem_qtyreserved,
+            (qtyatshipping(coitem_id) * coitem_qty_invuomratio) AS atshipping,
+            coitem_qtyreserved AS soreserved,
             CAST(NULL AS DATE) AS orderdate, coitem_scheddate AS duedate,
             CAST(NULL AS INTEGER) AS pack_id,
             CASE WHEN(itemsite_useparams) THEN itemsite_reorderlevel
@@ -138,8 +138,8 @@ FROM (
                                   WHERE(custtype_code ~ <? value("custtype_pattern") ?>)))
 <? endif ?>
 <? if exists("onlyShowShortages") ?>
-        AND ((noNeg(itemsite_qtyonhand) + qtyOrdered(itemsite_id, coitem_scheddate) - qtyAllocated(itemsite_id, coitem_scheddate) < 0)
-          OR (noNeg(itemsite_qtyonhand) + qtyOrdered(itemsite_id, coitem_scheddate) - noNeg(coitem_qtyord - coitem_qtyshipped + coitem_qtyreturned) < 0))
+        AND ((noNeg(qtyAvailable(itemsite_id)) + qtyOrdered(itemsite_id, coitem_scheddate) - qtyAllocated(itemsite_id, coitem_scheddate) < 0)
+          OR (noNeg(qtyAvailable(itemsite_id)) + qtyOrdered(itemsite_id, coitem_scheddate) - (noNeg(coitem_qtyord - coitem_qtyshipped + coitem_qtyreturned) * coitem_qty_invuomratio) < 0))
 <? endif ?>
     )
 <? if exists("showWoSupply") ?>
@@ -149,7 +149,7 @@ FROM (
             item_number AS trueitem_number,
             wo_status,
             NULL, NULL,
-            noNeg(coitem_qtyord - coitem_qtyshipped + coitem_qtyreturned) AS sobalance,
+            (noNeg(coitem_qtyord - coitem_qtyshipped + coitem_qtyreturned) * coitem_qty_invuomratio) AS sobalance,
             NULL,
             noNeg((wo_qtyord-wo_qtyrcv)) AS ordered,
             NULL,
@@ -166,8 +166,8 @@ FROM (
            ON ((coitem_itemsite_id=wo_itemsite_id)
            AND (wo_status IN ('E','R','I'))
            AND (wo_qtyord-wo_qtyrcv > 0)
-           AND (noNeg(coitem_qtyord - coitem_qtyshipped + coitem_qtyreturned-qtyatshipping(coitem_id)) >
-            (SELECT itemsite_qtyonhand FROM itemsite WHERE (itemsite_id=coitem_itemsite_id))))
+           AND ((noNeg(coitem_qtyord - coitem_qtyshipped + coitem_qtyreturned-qtyatshipping(coitem_id)) * coitem_qty_invuomratio) >
+            (SELECT qtyAvailable(itemsite_id) FROM itemsite WHERE (itemsite_id=coitem_itemsite_id))))
      WHERE ((coitem_cohead_id=cohead_id)
         AND (coitem_itemsite_id=itemsite_id)
         AND (itemsite_warehous_id=warehous_id)
@@ -184,8 +184,8 @@ FROM (
                                   WHERE(custtype_code ~ <? value("custtype_pattern") ?>)))
   <? endif ?>
   <? if exists("onlyShowShortages") ?>
-        AND ((noNeg(itemsite_qtyonhand) + qtyOrdered(itemsite_id, coitem_scheddate) - qtyAllocated(itemsite_id, coitem_scheddate) < 0)
-          OR (noNeg(itemsite_qtyonhand) + qtyOrdered(itemsite_id, coitem_scheddate) - noNeg(coitem_qtyord - coitem_qtyshipped + coitem_qtyreturned) < 0))
+        AND ((noNeg(qtyAvailable(itemsite_id)) + qtyOrdered(itemsite_id, coitem_scheddate) - qtyAllocated(itemsite_id, coitem_scheddate) < 0)
+          OR (noNeg(qtyAvailable(itemsite_id)) + qtyOrdered(itemsite_id, coitem_scheddate) - (noNeg(coitem_qtyord - coitem_qtyshipped + coitem_qtyreturned) * coitem_qty_invuomratio) < 0))
   <? endif ?>
   )
 <? endif ?>

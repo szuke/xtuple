@@ -1,12 +1,11 @@
-CREATE OR REPLACE FUNCTION _cashRcptItemTrigger () RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION _cashrcptitemtrigger() RETURNS trigger AS $$
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _check      BOOLEAN;
   _openAmount NUMERIC;
 
 BEGIN
-
   -- Checks
   -- Start with Privileges
   IF (TG_OP = 'INSERT') THEN
@@ -38,17 +37,21 @@ BEGIN
     RAISE EXCEPTION 'You may not apply more than the balance of this item.';
   END IF;
 
+-- Add Customer number to the Cash Receipt Item  
+  SELECT aropen_cust_id INTO NEW.cashrcptitem_cust_id
+    FROM aropen WHERE aropen_id = NEW.cashrcptitem_aropen_id;	
 
   RETURN NEW;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
+ALTER FUNCTION public._cashRcptItemTrigger() OWNER TO admin;
 
 SELECT dropIfExists('TRIGGER', 'cashRcptItemTrigger');
 CREATE TRIGGER cashRcptItemTrigger BEFORE INSERT OR UPDATE ON cashrcptitem FOR EACH ROW EXECUTE PROCEDURE _cashRcptItemTrigger();
 
 CREATE OR REPLACE FUNCTION _cashRcptItemAfterTrigger () RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _total      NUMERIC;
@@ -68,7 +71,8 @@ BEGIN
   RETURN NEW;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
+ALTER FUNCTION public._cashRcptItemAfterTrigger() OWNER TO admin;
 
 SELECT dropIfExists('TRIGGER', 'cashRcptItemAfterTrigger');
 CREATE TRIGGER cashRcptItemAfterTrigger AFTER INSERT OR UPDATE ON cashrcptitem FOR EACH ROW EXECUTE PROCEDURE _cashRcptItemAfterTrigger();

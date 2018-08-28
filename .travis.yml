@@ -1,21 +1,30 @@
 language: node_js
+sudo:     required
+dist:     trusty
 node_js:
-  - "0.8"
+  - "0.10"
+addons:
+  postgresql: 9.3
 
 install:
-  - "bash scripts/install_xtuple.sh -ipn"
+  - git merge origin/$TRAVIS_BRANCH
+  - pg_lsclusters
+  - bash scripts/install_xtuple.sh -ipn -d 9.3
+  - scripts/build_app.js
 
 before_script:
-  - "cd node-datasource"
-  - "node main.js &"
-  - "sleep 10"
-  - "cd .."
+  - cd node-datasource
+  - node main.js > thelog.txt 2>&1 &
+  - sleep 10
+  - cd ..
 
 script:
-  - "npm run-script test-datasource"
-  - "npm run-script test"
-  - "npm run-script jshint"
+  - /usr/local/bin/npm run-script test-datasource
+  - /usr/local/bin/npm run-script test
+  - /usr/local/bin/npm run-script test-database
+  - /usr/local/bin/npm run-script jshint
 
-  # test an upgrade from 4.4.0
-  - "wget http://sourceforge.net/projects/postbooks/files/03%20PostBooks-databases/4.4.0/postbooks_demo-4.4.0.backup"
-  - "./scripts/build_app.js -d upgrade_test -i -b ./postbooks_demo-4.4.0.backup"
+after_failure:
+  - sudo tail -n 10000 thelog.txt
+  - for LOGF in `sudo ls /var/log/postgresql` ; do echo == $LOGF ============= ; sudo tail -n 10000 /var/log/postgresql/$LOGF ; done
+  - sudo grep -r oom /var/log

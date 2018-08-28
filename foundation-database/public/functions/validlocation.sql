@@ -1,5 +1,5 @@
-CREATE OR REPLACE FUNCTION validLocation(INTEGER, INTEGER) RETURNS BOOLEAN AS '
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION validLocation(INTEGER, INTEGER) RETURNS BOOLEAN AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pLocationid ALIAS FOR $1;
@@ -12,7 +12,8 @@ BEGIN
   FROM location, itemsite
   WHERE ( (location_warehous_id=itemsite_warehous_id)
     AND (itemsite_id=pItemsiteid)
-    AND (location_id=pLocationid) );
+    AND (location_id=pLocationid) 
+    AND (location_active));
 
   IF (FOUND) THEN
     IF (_p.location_restrict) THEN
@@ -38,7 +39,7 @@ BEGIN
   RETURN FALSE;
 
 END;
-' LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 -- i found the following in a different batch script than the version above.
 -- i like the second version better but the 1st is the one that was in dev

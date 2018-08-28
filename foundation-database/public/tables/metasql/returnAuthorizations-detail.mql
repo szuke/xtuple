@@ -2,7 +2,7 @@
 -- Name: detail
 -- Notes:
 -- Notes:
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT DISTINCT rahead_id, rahead_number, rahead_billtoname,
@@ -19,6 +19,7 @@ SELECT DISTINCT rahead_id, rahead_number, rahead_billtoname,
          <? value("service") ?>
        WHEN rahead_disposition = 'M' THEN
          <? value("substitute") ?>
+       ELSE 'Invalid'
        END AS disposition,
        formatDate(rahead_authdate) AS f_authorized,
        formatDate(rahead_expiredate) AS f_expires,

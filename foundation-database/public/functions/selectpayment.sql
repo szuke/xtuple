@@ -1,14 +1,13 @@
 
-CREATE OR REPLACE FUNCTION selectPayment(INTEGER, INTEGER) RETURNS INTEGER AS $$
+CREATE OR REPLACE FUNCTION selectPayment(pApopenid INTEGER,
+                                         pBankaccntid INTEGER) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pApopenid ALIAS FOR $1;
-  pBankaccntid ALIAS FOR $2;
   _p RECORD;
-  _apselectid INTEGER;
   _amount NUMERIC;
   _discount NUMERIC;
+
 BEGIN
 
   SELECT apopen_amount, apopen_paid,
@@ -26,41 +25,105 @@ BEGIN
              AND (apapply_source_apopen_id=apopen_id)
              AND (apopen_discount)) ) AS data
    WHERE(apopen_id=pApopenid);
+
   IF(NOT FOUND OR (NOT _p.apopen_doctype IN ('V','D','C'))) THEN
-    RETURN -1;
+    RAISE EXCEPTION 'Apopen not found or invalid document type [xtuple: selectPayment, -1]';
   END IF;
 
   _discount := round(_p.discount_available, 2);
   _amount := noNeg(round(_p.balance, 2) - _discount);
 
-  IF (round(_p.balance,2) < (_discount + _amount)) THEN
-    RETURN -2;
+  RETURN selectPayment(pApopenid, pBankaccntid, _p.apopen_docdate,
+                       _p.apopen_curr_id, _amount, _discount);
+
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION selectPayment(pApopenid INTEGER,
+                                         pBankaccntid INTEGER,
+                                         pDocDate DATE,
+                                         pCurrid INTEGER,
+                                         pAmount NUMERIC,
+                                         pDiscount NUMERIC) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- See www.xtuple.com/CPAL for the full text of the software license.
+DECLARE
+  _p RECORD;
+  _bankcompany TEXT;
+  _distcompany TEXT;
+  _apselectid INTEGER;
+  _amount NUMERIC;
+  _discount NUMERIC;
+
+BEGIN
+
+  SELECT apopen_amount, apopen_paid,
+         apopen_doctype, apopen_docdate,
+         apopen_docnumber, apopen_curr_id,
+         apopen_amount - apopen_paid - apCheckPending(apopen_id) AS balance
+    INTO _p
+    FROM apopen
+   WHERE(apopen_id=pApopenid);
+
+  IF(NOT FOUND OR (NOT _p.apopen_doctype IN ('V','D','C'))) THEN
+    RAISE EXCEPTION 'Apopen not found or invalid document type [xtuple: selectPayment, -1]';
   END IF;
 
-  IF (_amount > 0) THEN
+  IF (round(_p.balance,2) < round(pDiscount + pAmount, 2)) THEN
+    RAISE EXCEPTION 'Apopen balance less than amount plus discount [xtuple: selectPayment, -2]';
+  END IF;
+
+  IF (_p.apopen_doctype = 'V') THEN
+    SELECT COALESCE(accnt_company, '') INTO _bankcompany
+    FROM bankaccnt JOIN accnt ON (accnt_id=bankaccnt_accnt_id)
+    WHERE (bankaccnt_id=pBankaccntid);
+
+    SELECT COALESCE(accnt_company, '') INTO _distcompany
+    FROM vohead JOIN vodist ON (vodist_vohead_id=vohead_id)
+                JOIN accnt ON (accnt_id=vodist_accnt_id)
+    WHERE (vohead_number=_p.apopen_docnumber)
+      AND (COALESCE(accnt_company, '') != _bankcompany);
+
+    IF (FOUND) THEN
+      RAISE EXCEPTION 'Bank account company does not match Voucher distribution company [xtuple: selectPayment, -3]';
+    END IF;
+
+    SELECT COALESCE(accnt_company, '') INTO _distcompany
+    FROM vohead JOIN vodist ON (vodist_vohead_id=vohead_id)
+                JOIN expcat ON (expcat_id=vodist_expcat_id)
+                JOIN accnt ON (accnt_id=expcat_exp_accnt_id)
+    WHERE (vohead_number=_p.apopen_docnumber)
+      AND (COALESCE(accnt_company, '') != _bankcompany);
+
+    IF (FOUND) THEN
+      RAISE EXCEPTION 'Bank account company does not match Voucher distribution company [xtuple: selectPayment, -3]';
+    END IF;
+
+  END IF;
+
+  IF (pAmount > 0.0) THEN
     SELECT apselect_id INTO _apselectid
     FROM apselect
     WHERE (apselect_apopen_id=pApopenid);
 
     IF (FOUND) THEN
       UPDATE apselect
-         SET apselect_amount=_amount,
-             apselect_discount=_discount,
-             apselect_curr_id = _p.apopen_curr_id
+         SET apselect_amount=pAmount,
+             apselect_discount=pDiscount,
+             apselect_curr_id=pCurrid
        WHERE(apselect_id=_apselectid);
     ELSE
-      SELECT NEXTVAL('apselect_apselect_id_seq') INTO _apselectid;
-
       INSERT INTO apselect
-      ( apselect_id, apselect_apopen_id,
+      ( apselect_apopen_id,
         apselect_amount, apselect_discount,
         apselect_bankaccnt_id,
         apselect_curr_id, apselect_date )
       VALUES
-      ( _apselectid, pApopenid,
-        _amount, _discount,
+      ( pApopenid,
+        pAmount, pDiscount,
         pBankaccntid,
-        _p.apopen_curr_id, _p.apopen_docdate );
+        pCurrid, pDocdate )
+      RETURNING apselect_id INTO _apselectid;
     END IF;
   ELSE
     _apselectid := 0;
@@ -69,4 +132,4 @@ BEGIN
   RETURN _apselectid;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

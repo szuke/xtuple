@@ -1,4 +1,7 @@
-create or replace function show_search_path() returns text as $$
+-- Cleanup old installs in xt schema.
+DROP FUNCTION IF EXISTS xt.show_search_path();
+
+create or replace function public.show_search_path() returns text as $$
 declare
   path text;
   rec record;

@@ -7,7 +7,7 @@ BEGIN
   RETURN changePoitemQty(pPoitemid, pQty, false);
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION changePoitemQty(pPoitemid INTEGER,
                                            pQty NUMERIC,
@@ -32,11 +32,9 @@ BEGIN
     --Generate the PoItemUpdatedBySo event
     PERFORM postEvent('PoItemUpdatedBySo', 'P', poitem_id,
                       itemsite_warehous_id,
-                      (pohead_number || '-'|| poitem_linenumber || ': ' || item_number),
+                      formatPoitemNumber(poitem_id, TRUE),
                       NULL, NULL, NULL, NULL)
-    FROM poitem JOIN pohead ON (pohead_id=poitem_pohead_id)
-                JOIN itemsite ON (itemsite_id=poitem_itemsite_id)
-                JOIN item ON (item_id=itemsite_item_id)
+    FROM poitem JOIN itemsite ON (itemsite_id=poitem_itemsite_id)
     WHERE (poitem_id=pPoitemid)
       AND (poitem_duedate <= (CURRENT_DATE + itemsite_eventfence));
   END IF;
@@ -44,4 +42,4 @@ BEGIN
   RETURN pPoitemid;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

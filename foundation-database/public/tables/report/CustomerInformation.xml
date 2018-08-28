@@ -107,16 +107,7 @@ SELECT aropen_cust_id AS cust_id,
        END AS docnumber,
        '' AS f_open,
        CASE WHEN (arapply_source_doctype='C') THEN text('C/M')
-            WHEN (arapply_fundstype='C') THEN text('Check')
-            WHEN (arapply_fundstype='T') THEN text('Certified Check')
-            WHEN (arapply_fundstype='M') THEN text('Master Card')
-            WHEN (arapply_fundstype='V') THEN text('Visa')
-            WHEN (arapply_fundstype='A') THEN text('American Express')
-            WHEN (arapply_fundstype='D') THEN text('Discover Card')
-            WHEN (arapply_fundstype='R') THEN text('Other Credit Card')
-            WHEN (arapply_fundstype='K') THEN text('Cash')
-            WHEN (arapply_fundstype='W') THEN text('Wire Transfer')
-            WHEN (arapply_fundstype='O') THEN text('Other')
+            ELSE getFundsTypeName(arapply_fundstype)
        END AS documenttype,
        formatDate(arapply_postdate) AS f_docdate,
        '' AS f_duedate,

@@ -1,0 +1,16 @@
+select xt.add_column('invbal','invbal_qoh_beginning', 'NUMERIC(18,6)', 'NOT NULL DEFAULT 0.0', 'public');
+select xt.add_column('invbal','invbal_qoh_ending', 'NUMERIC(18,6)', 'NOT NULL DEFAULT 0.0', 'public');
+select xt.add_column('invbal','invbal_qty_in', 'NUMERIC(18,6)', 'NOT NULL DEFAULT 0.0', 'public');
+select xt.add_column('invbal','invbal_qty_out', 'NUMERIC(18,6)', 'NOT NULL DEFAULT 0.0', 'public');
+select xt.add_column('invbal','invbal_value_beginning', 'NUMERIC(12,2)', 'NOT NULL DEFAULT 0.0', 'public');
+select xt.add_column('invbal','invbal_value_ending', 'NUMERIC(12,2)', 'NOT NULL DEFAULT 0.0', 'public');
+select xt.add_column('invbal','invbal_value_in', 'NUMERIC(12,2)', 'NOT NULL DEFAULT 0.0', 'public');
+select xt.add_column('invbal','invbal_value_out', 'NUMERIC(12,2)', 'NOT NULL DEFAULT 0.0', 'public');
+select xt.add_column('invbal','invbal_nn_beginning', 'NUMERIC(18,6)', 'NOT NULL DEFAULT 0.0', 'public');
+select xt.add_column('invbal','invbal_nn_ending', 'NUMERIC(18,6)', 'NOT NULL DEFAULT 0.0', 'public');
+select xt.add_column('invbal','invbal_nn_in', 'NUMERIC(18,6)', 'NOT NULL DEFAULT 0.0', 'public');
+select xt.add_column('invbal','invbal_nn_out', 'NUMERIC(18,6)', 'NOT NULL DEFAULT 0.0', 'public');
+select xt.add_column('invbal','invbal_nnval_beginning', 'NUMERIC(12,2)', 'NOT NULL DEFAULT 0.0', 'public');
+select xt.add_column('invbal','invbal_nnval_ending', 'NUMERIC(12,2)', 'NOT NULL DEFAULT 0.0', 'public');
+select xt.add_column('invbal','invbal_nnval_in', 'NUMERIC(12,2)', 'NOT NULL DEFAULT 0.0', 'public');
+select xt.add_column('invbal','invbal_nnval_out', 'NUMERIC(12,2)', 'NOT NULL DEFAULT 0.0', 'public');

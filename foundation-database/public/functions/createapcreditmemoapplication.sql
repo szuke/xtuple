@@ -8,22 +8,23 @@ DECLARE
   _apCreditApplyId	INTEGER;
 
 BEGIN
-  IF (pAmount > (SELECT ROUND(currToCurr(apopen_curr_id, pCurrId, (apopen_amount - apopen_paid), apopen_docdate), 2)
+  IF (ROUND(pAmount, 2) > (SELECT ROUND(apopen_amount - apopen_paid, 2)
                  FROM apopen
                  WHERE (apopen_id=pTargetApopenId))) THEN
     RETURN -1;
   END IF;
 
-  IF (pAmount > (SELECT ROUND((apopen_amount - apopen_paid) - 
-		       COALESCE(SUM(currToCurr(apcreditapply_curr_id,
-						apopen_curr_id, 
-						apcreditapply_amount, 
-						apopen_docdate)), 0), 2)
+  IF (ROUND(pAmount, 2) > (SELECT ROUND(currToCurr(apopen_curr_id, pCurrId,
+                                                   apopen_amount - apopen_paid, apopen_docdate) -
+                                  COALESCE(SUM(currToCurr(apcreditapply_curr_id,
+                                               pCurrId, 
+                                               apcreditapply_amount, 
+                                               apopen_docdate)), 0), 2)
              FROM apopen LEFT OUTER JOIN apcreditapply 
                ON ((apcreditapply_source_apopen_id=apopen_id) 
               AND (apcreditapply_target_apopen_id<>pTargetApopenId)) 
              WHERE (apopen_id=pSourceApopenId) 
-             GROUP BY apopen_amount, apopen_paid)) THEN
+             GROUP BY apopen_curr_id, apopen_amount, apopen_paid, apopen_docdate)) THEN
       RETURN -2;
     END IF;
 

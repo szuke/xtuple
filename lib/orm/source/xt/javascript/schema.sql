@@ -211,6 +211,10 @@ select xt.install_js('XT','Schema','xtuple', $$
             ret[res[i].column_name].maximum = "2147483647";
           }
           break;
+        case "interval":
+          ret[res[i].column_name].type = "string";
+          ret[res[i].column_name].format = "time";
+          break;
         case "money":
           ret[res[i].column_name].type = "number";
           ret[res[i].column_name].format = "float";
@@ -421,6 +425,10 @@ select xt.install_js('XT','Schema','xtuple', $$
         if (orm.properties[i].toOne.required) {
           ret.properties[orm.properties[i].name].required = true;
         }
+
+        if (orm.properties[i].toOne.column) {
+          columns.push(orm.properties[i].toOne.column);
+        }
       }
       /* toMany property */
       else if (orm.properties[i].toMany) {
@@ -448,6 +456,10 @@ select xt.install_js('XT','Schema','xtuple', $$
             "$ref": orm.properties[i].toMany.type + "/" + relatedKey
           };
         }
+
+        if (orm.properties[i].toMany.column) {
+          columns.push(orm.properties[i].toMany.column);
+        }
       }
       /* Error */
       else {
@@ -465,15 +477,40 @@ select xt.install_js('XT','Schema','xtuple', $$
     }
 
     for (var i = 0; i < orm.properties.length; i++) {
-      /* Basic properties only. */
+      /* Basic properties. */
       if (orm.properties[i].attr && orm.properties[i].attr.column) {
         /* Loop through the returned schemaColumnInfo attributes and add them. */
         for (var attrname in schemaColumnInfo[orm.properties[i].attr.column]) {
-          if (!ret.properties[orm.properties[i].name]) {
+          if (ret.properties[orm.properties[i].name]) {
+            ret.properties[orm.properties[i].name][attrname] = schemaColumnInfo[orm.properties[i].attr.column][attrname];
+          } else {
             /* This can happen if the same column name is errantly referenced in different properties */
-            throw new Error("Cannot get property " + orm.properties[i].name + " on ORM " + orm.nameSpace + "." + orm.type);
+            // TODO: With support for toOne and toMany column properties, this check is expected to fail on some properties.
+            // Do not throw the error. Should be removed???
+            //throw new Error("Cannot get property " + orm.properties[i].name + " on ORM " + orm.nameSpace + "." + orm.type);
           }
-          ret.properties[orm.properties[i].name][attrname] = schemaColumnInfo[orm.properties[i].attr.column][attrname];
+        }
+      }
+
+      /* toOne properties. */
+      if (orm.properties[i].toOne && orm.properties[i].toOne.column) {
+        /* Loop through the returned schemaColumnInfo attributes and add them. */
+        for (var attrname in schemaColumnInfo[orm.properties[i].toOne.column]) {
+          /* Only add column "description" as format does not apply to toOne relations. */
+          if (ret.properties[orm.properties[i].name] && attrname === "description") {
+            ret.properties[orm.properties[i].name][attrname] = schemaColumnInfo[orm.properties[i].toOne.column][attrname];
+          }
+        }
+      }
+
+      /* toMany properties. */
+      if (orm.properties[i].toMany && orm.properties[i].toMany.column) {
+        /* Loop through the returned schemaColumnInfo attributes and add them. */
+        for (var attrname in schemaColumnInfo[orm.properties[i].toMany.column]) {
+          /* Only add column "description" as format does not apply to toMany relations. */
+          if (ret.properties[orm.properties[i].name] && attrname === "description") {
+            ret.properties[orm.properties[i].name][attrname] = schemaColumnInfo[orm.properties[i].toMany.column][attrname];
+          }
         }
       }
     }
@@ -520,6 +557,10 @@ select xt.install_js('XT','Schema','xtuple', $$
       }
       /* toOne property */
       else if (orm.properties[i].toOne) {
+        if (orm.properties[i].toOne.column) {
+          columns.push(orm.properties[i].toOne.column);
+        }
+
         /* Add required override based off of ORM's property. */
         if (orm.properties[i].toOne.required) {
           ret.push(orm.properties[i].name);
@@ -527,6 +568,10 @@ select xt.install_js('XT','Schema','xtuple', $$
       }
       /* toMany property */
       else if (orm.properties[i].toMany) {
+        if (orm.properties[i].toMany.column) {
+          columns.push(orm.properties[i].toMany.column);
+        }
+
         /* Add required override based off of ORM's property. */
         if (orm.properties[i].toMany.required) {
           ret.push(orm.properties[i].name);

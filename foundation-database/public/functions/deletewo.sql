@@ -1,55 +1,47 @@
-CREATE OR REPLACE FUNCTION deleteWo(INTEGER, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+DROP FUNCTION IF EXISTS deleteWo(INTEGER, BOOLEAN);
+CREATE OR REPLACE FUNCTION deleteWo(pWoid           INTEGER,
+                                    pDeleteChildren BOOLEAN,
+                                    pDeleteForce    BOOLEAN DEFAULT FALSE)
+  RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pWoid ALIAS FOR $1;
-  deleteChildren ALIAS FOR $2;
-
-BEGIN
-  RETURN deleteWo(pWoid, deleteChildren, FALSE);
-END;
-$$ LANGUAGE 'plpgsql';
-
-CREATE OR REPLACE FUNCTION deleteWo(INTEGER, BOOLEAN, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
--- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  pWoid ALIAS FOR $1;
-  deleteChildren ALIAS FOR $2;
-  deleteForce ALIAS FOR $3;
   woStatus CHAR(1);
   itemType CHAR(1);
   ordtype CHAR(1);
   ordid INTEGER;
+  wipValue NUMERIC;
   returnCode INTEGER;
-  _wotcCnt	INTEGER;
-  _routings BOOLEAN;
 
 BEGIN
-  SELECT wo_status, wo_ordtype, wo_ordid, item_type
-  INTO woStatus, ordtype, ordid, itemType
+  SELECT wo_status, wo_ordtype, wo_ordid, wo_wipvalue, item_type
+  INTO woStatus, ordtype, ordid, wipValue, itemType
   FROM wo JOIN itemsite ON (itemsite_id=wo_itemsite_id)
           JOIN item ON (item_id=itemsite_item_id)
   WHERE (wo_id=pWoid);
 
-  IF (NOT woStatus IN ('O', 'E', 'C')) THEN
-    RETURN -3;
+  IF (wipValue > 0) THEN
+    RAISE EXCEPTION 'You cannot delete a W/O with outstanding WIP value [xtuple: deleteWo, -4]';
   END IF;
 
-  IF (NOT deleteForce) THEN
+  IF (pDeleteForce) THEN
+    IF (NOT woStatus IN ('O', 'E', 'R', 'C')) THEN
+      RAISE EXCEPTION 'The Work Order cannot be deleted in the current status [xtuple: deleteWo, -3]';
+    END IF;
+  ELSE
+    IF (NOT woStatus IN ('O', 'E')) THEN
+      RAISE EXCEPTION 'The Work Order cannot be deleted in the current status [xtuple: deleteWo, -3]';
+    END IF;
+
     IF (itemType = 'J') THEN
-      RETURN -2;
+      RAISE EXCEPTION 'The Work Order cannot be deleted for Job Item Types [xtuple: deleteWo, -2]';
     END IF;
   END IF;
 
-  SELECT fetchMetricBool('Routings') INTO _routings;
-
-  IF (_routings AND woStatus != 'C') THEN
-    SELECT count(*) INTO _wotcCnt
-    FROM xtmfg.wotc
-    WHERE (wotc_wo_id=pWoid);
-    IF (_wotcCnt > 0) THEN
-      RETURN -1;
+  IF fetchMetricBool('Routings') AND woStatus != 'C'
+     AND packageIsEnabled('xtmfg') THEN
+    IF EXISTS(SELECT 1 FROM xtmfg.wotc WHERE wotc_wo_id = pWoid) THEN
+      RAISE EXCEPTION 'The Work Order cannot be deleted because time clock entries exist [xtuple: deleteWo, -1]';
     END IF;
   END IF;
 
@@ -64,7 +56,7 @@ BEGIN
      RETURN 0;
   ELSE
     IF (woStatus = 'E') THEN
-      returnCode := (SELECT implodeWo(pWoid, FALSE));
+      PERFORM implodeWo(pWoid, FALSE);
     END IF;
   END IF;
 
@@ -72,7 +64,7 @@ BEGIN
     DELETE FROM womatl
     WHERE (womatl_wo_id=pWoid);
 
-    IF _routings THEN
+    IF fetchMetricBool('Routings') AND packageIsEnabled('xtmfg') THEN
       DELETE FROM xtmfg.wotc
       WHERE (wotc_wo_id=pWoid);
       DELETE FROM xtmfg.wooper
@@ -88,13 +80,13 @@ BEGIN
     WHERE (wo_id=pWoid);
   END IF;
 
-  IF (deleteChildren) THEN
-    returnCode := (SELECT MAX(deleteWo(wo_id, TRUE))
-                   FROM wo
-                   WHERE ((wo_ordtype='W')
-                    AND (wo_ordid=pWoid)));
+  IF (pDeleteChildren) THEN
+    PERFORM MAX(deleteWo(wo_id, TRUE))
+       FROM wo
+      WHERE wo_ordtype='W'
+        AND wo_ordid = pWoid;
   END IF;
 
   RETURN 0;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

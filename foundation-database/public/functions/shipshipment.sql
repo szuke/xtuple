@@ -1,22 +1,21 @@
 CREATE OR REPLACE FUNCTION shipShipment(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
   SELECT shipShipment($1, CURRENT_TIMESTAMP);
 $$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION shipShipment(INTEGER, TIMESTAMP WITH TIME ZONE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION shipShipment(pshipheadid INTEGER,
+                                        ptimestamp TIMESTAMP WITH TIME ZONE) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pshipheadid		ALIAS FOR $1;
-  _timestamp		TIMESTAMP WITH TIME ZONE := $2;
-
+  _timestamp		TIMESTAMP WITH TIME ZONE;
   _billedQty		NUMERIC;
   _c			RECORD;
   _coholdtype		TEXT;
   _gldate		DATE;
   _invhistid		INTEGER;
-  _itemlocSeries	INTEGER;
+  _itemlocSeries INTEGER := NEXTVAL('itemloc_series_seq');
   _lineitemsToClose     INTEGER[];
   _newQty		NUMERIC;
   _result		INTEGER;
@@ -27,12 +26,11 @@ DECLARE
   _to			RECORD;
   _variance           	NUMERIC;
   _k                    RECORD;
+  _balance              NUMERIC := 0.0;
 
 BEGIN
 
-  IF (_timestamp IS NULL) THEN
-    _timestamp := CURRENT_TIMESTAMP;
-  END IF;
+  _timestamp := COALESCE(ptimestamp, CURRENT_TIMESTAMP);
   _gldate := _timestamp::DATE;
 
   SELECT * INTO _shiphead
@@ -43,12 +41,16 @@ BEGIN
 
   IF (_shiphead.shiphead_order_type = 'SO') THEN
 
-    SELECT cohead_shipcomplete, cohead_holdtype INTO _shipcomplete, _coholdtype
+    SELECT cohead_shipcomplete INTO _shipcomplete
       FROM cohead, shiphead
      WHERE ((shiphead_order_id=cohead_id)
        AND  (NOT shiphead_shipped)
        AND  (shiphead_order_type=_shiphead.shiphead_order_type)
        AND  (shiphead_id=pshipheadid));
+
+    SELECT soHoldType(shiphead_order_id) INTO _coholdtype
+    FROM shiphead
+    WHERE (shiphead_id=pshipheadid);
 
     IF (_coholdtype = 'C') THEN
       RETURN -12;
@@ -58,38 +60,37 @@ BEGIN
       RETURN -14;
     ELSIF (_coholdtype = 'S') THEN
       RETURN -15;
+    ELSIF (_coholdtype = 'T') THEN
+      RETURN -16;
     END IF;
 
 ---Must Ship Kit components (coitem_subnumber <> 0 complete---------------
     IF ((
          --  Test to see if order's customer accepts backorders and partials 
          --  If not then test for shipping kit components complete 
-        SELECT cohead_number
-        FROM shiphead, cohead, custinfo
+         --  Only test kit components if at least one kit component is being shipped
+        SELECT COUNT(*)
+        FROM (shiphead JOIN shipitem ON (shiphead_id=shipitem_shiphead_id)) JOIN (cohead JOIN coitem ON (cohead_id=coitem_cohead_id)) ON
+             (shiphead_order_id=cohead_id AND shipitem_orderitem_id=coitem_id) JOIN custinfo ON (cohead_cust_id=cust_id)
         WHERE 
-          (shiphead_order_id = cohead_id) AND
-          (cohead_cust_id = cust_id) AND
-          (shiphead_order_type = 'SO') AND 
-          (cust_partialship) AND
-          (cust_backorder) AND
+          (shiphead_order_type = 'SO') AND
+          (coitem_subnumber <> 0) AND 
+          (shipitem_qty <> 0 ) AND
+          ((NOT cust_partialship) OR (NOT cust_backorder)) AND
           (shiphead_id = pshipheadid)
-         ) IS NULL) THEN
-      FOR _k IN SELECT (coitem_qtyord -
-			(COALESCE(SUM(shipitem_qty),0) +
-			 (coitem_qtyshipped - coitem_qtyreturned))) AS remain
-		  FROM (coitem LEFT OUTER JOIN (itemsite JOIN item ON (itemsite_item_id=item_id)) ON (coitem_itemsite_id=itemsite_id)) LEFT OUTER JOIN
-		       shipitem ON (shipitem_orderitem_id=coitem_id
-		                AND shipitem_shiphead_id=pshipheadid)
-		 WHERE ((coitem_status NOT IN ('C','X'))
-                   AND  (item_type != 'K')
-		   AND  (coitem_cohead_id=_shiphead.shiphead_order_id)
-                   AND  (coitem_subnumber <> 0)
-		   )
-	      GROUP BY coitem_id, coitem_qtyshipped, coitem_qtyord,
-		       coitem_qtyreturned LOOP
-	IF (_k.remain > 0) THEN
-	  RAISE EXCEPTION 'Kit component item not shipped complete.  Kits must be shipped and shipped complete or closed on the order.';
-	END IF;
+         ) > 0) THEN
+      FOR _k IN SELECT (coitem_qtyord - (COALESCE(SUM(shipitem_qty),0) + (coitem_qtyshipped - coitem_qtyreturned))) AS remain
+                FROM (coitem JOIN (itemsite JOIN item ON (itemsite_item_id=item_id)) ON (coitem_itemsite_id=itemsite_id))
+                      LEFT OUTER JOIN shipitem ON (shipitem_orderitem_id=coitem_id AND shipitem_shiphead_id=pshipheadid)
+                WHERE ((coitem_status NOT IN ('C','X'))
+                  AND  (item_type != 'K')
+                  AND  (coitem_cohead_id=_shiphead.shiphead_order_id)
+                  AND  (coitem_subnumber <> 0))
+                GROUP BY coitem_id, coitem_qtyshipped, coitem_qtyord, coitem_qtyreturned
+      LOOP
+        IF (_k.remain > 0) THEN
+          RAISE EXCEPTION 'Kit component item not shipped complete.  Kits must be shipped and shipped complete or closed on the order. [xtuple: shipshipment, -99]';
+        END IF;
       END LOOP;
     END IF;
 ---End--------------------------------------------------------------------
@@ -134,7 +135,7 @@ BEGIN
       IF _c._value > 0 THEN
   --    Distribute to G/L, credit Shipping Asset, debit COS
 	SELECT MIN(insertGLTransaction( 'S/R', 'SH', _shiphead.shiphead_number,
-                                        ('Ship Order ' || _c.cohead_number || ' for Customer ' || _c.cohead_billtoname),
+                                        ('Ship Order ' || formatSoNumber(_c.coitem_id) || ' for Customer ' || _c.cohead_billtoname),
                                         getPrjAccntId(_c.cohead_prj_id, costcat_shipasset_accnt_id),
                                         CASE WHEN (COALESCE(_c.coitem_cos_accnt_id, -1) != -1)
                                                THEN getPrjAccntId(_c.cohead_prj_id, _c.coitem_cos_accnt_id)
@@ -236,12 +237,12 @@ BEGIN
       END LOOP;
     END IF;
 
-    FOR _ti IN SELECT toitem_id, toitem_item_id, SUM(shipitem_qty) AS qty, SUM(shipitem_value) AS value
+    FOR _ti IN SELECT toitem_tohead_id, toitem_id, toitem_item_id, SUM(shipitem_qty) AS qty, SUM(shipitem_value) AS value
 		FROM toitem, shipitem
 		WHERE ((toitem_tohead_id=_to.tohead_id)
 		  AND  (shipitem_orderitem_id=toitem_id)
 		  AND  (shipitem_shiphead_id=pshipheadid))
-		GROUP BY toitem_id, toitem_item_id LOOP
+		GROUP BY toitem_tohead_id, toitem_id, toitem_item_id LOOP
 
       IF (NOT EXISTS(SELECT itemsite_id
 		     FROM itemsite
@@ -251,15 +252,14 @@ BEGIN
 	RETURN -6;
       END IF;
 
-      _itemlocSeries := NEXTVAL('itemloc_series_seq');
-
       SELECT postInvTrans(si.itemsite_id, 'TS', _ti.qty,
                           'I/M', _shiphead.shiphead_order_type,
                           formatToNumber(_ti.toitem_id), _to.tohead_number,
 			  'Ship from Src to Transit Warehouse',
 			  tc.costcat_asset_accnt_id,
 			  sc.costcat_shipasset_accnt_id,
-			  _itemlocSeries, _timestamp, _ti.value) INTO _invhistid
+			  _itemlocSeries, _timestamp, _ti.value,
+        NULL, NULL, FALSE, _ti.toitem_tohead_id, _ti.toitem_id) INTO _invhistid
       FROM itemsite AS ti, costcat AS tc,
 	   itemsite AS si, costcat AS sc
       WHERE ( (ti.itemsite_costcat_id=tc.costcat_id)
@@ -290,7 +290,8 @@ BEGIN
 			  tc.costcat_asset_accnt_id,
 			  tc.costcat_asset_accnt_id,
 			  _itemlocSeries, _timestamp, 
-			  _ti.value) INTO _invhistid
+			  _ti.value,
+        NULL, NULL, FALSE, _ti.toitem_tohead_id, _ti.toitem_id) INTO _invhistid
       FROM itemsite AS ti, costcat AS tc
       WHERE ((ti.itemsite_costcat_id=tc.costcat_id)
         AND  (ti.itemsite_item_id=_ti.toitem_item_id)
@@ -348,4 +349,4 @@ BEGIN
   RETURN _itemlocSeries;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

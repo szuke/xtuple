@@ -15,6 +15,7 @@ BEGIN
   -- Start with privileges
   IF ( (NOT checkPrivilege('MaintainARMemos')) AND
        (NOT checkPrivilege('PostMiscInvoices')) AND
+       (NOT checkPrivilege('MaintainSalesOrders')) AND -- #24608 Required to post payments on SOs
        (NOT checkPrivilege('PostARDocuments')) ) THEN
     RAISE EXCEPTION 'You do not have privileges to maintain A/R Memos.';
   END IF;
@@ -23,17 +24,13 @@ BEGIN
     RAISE EXCEPTION 'You must enter a valid Document # for this A/R Memo.';
   END IF;
 
-  IF ( (NEW.aropen_amount IS NOT NULL) AND (NEW.aropen_amount < 0) ) THEN
-    RAISE EXCEPTION 'You must enter a positive Amount for this A/R Memo.';
-  END IF;
-
   IF (TG_OP IN ('INSERT', 'UPDATE') AND NEW.aropen_cust_id < 0) THEN
-    RAISE NOTICE 'Fixing deprecated use of negative aropen_cust_id';
+    RAISE WARNING 'Fixing deprecated use of negative aropen_cust_id';
     NEW.aropen_cust_id := NULL;
   END IF;
 
   IF (TG_OP IN ('INSERT', 'UPDATE') AND NEW.aropen_salesrep_id < 0) THEN
-    RAISE NOTICE 'Fixing deprecated use of negative aropen_salesrep_id';
+    RAISE WARNING 'Fixing deprecated use of negative aropen_salesrep_id';
     NEW.aropen_salesrep_id := NULL;
   END IF;
 

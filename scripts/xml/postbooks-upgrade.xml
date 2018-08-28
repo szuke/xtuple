@@ -1,0 +1,13 @@
+<package id        = "postbooks-upgrade-4.11.3"
+         version   = "4.11.3"
+         developer = "xTuple"
+         descrip   = "load PostBooks resources"
+         updater   = "2.2.4" >
+
+  <postbooks-prerequisites/>
+  <all-prerequisites/>
+
+  <script file="postbooks-upgrade.sql" />
+  <xTuple-translations/>
+
+</package>

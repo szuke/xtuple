@@ -1,8 +1,8 @@
 -- Group: employees
 -- Name:  detail
 -- Notes: 
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
--- See www.xtuple.com/CPAL for the full text of the software license.
+--        Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+--        See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT emp_id, warehous_code, emp_active, emp_code, emp_number,
   cntct_first_name, cntct_last_name
@@ -18,6 +18,9 @@ SELECT emp_id, warehous_code, emp_active, emp_code, emp_number,
 FROM emp
   LEFT OUTER JOIN cntct ON (emp_cntct_id=cntct_id)
   LEFT OUTER JOIN whsinfo ON (emp_warehous_id=warehous_id)
+<? if exists("emp_group") ?>
+  JOIN empgrpitem ON (emp_id=empgrpitem_emp_id AND empgrpitem_empgrp_id=<? value("emp_group") ?>)
+<? endif ?>
 <? foreach("char_id_text_list") ?>
   LEFT OUTER JOIN charass charass_alias<? literal("char_id_text_list") ?> ON ((charass_alias<? literal("char_id_text_list") ?>.charass_target_type='EMP') 
                                                                     AND  (charass_alias<? literal("char_id_text_list") ?>.charass_target_id=emp_id)

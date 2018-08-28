@@ -1,19 +1,13 @@
-
-CREATE OR REPLACE FUNCTION calcWooperStartStub(INTEGER, INTEGER) RETURNS DATE AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION calcWooperStartStub(pWoId         INTEGER,
+                                               pBooitemSeqId INTEGER)
+  RETURNS DATE AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  pWoId         ALIAS FOR $1;
-  pBooitemSeqId ALIAS FOR $2;
-  _result       DATE;
 BEGIN
-
-  IF ( SELECT ((metric_value='t') AND packageIsEnabled('xtmfg'))
-         FROM metric
-        WHERE(metric_name='Routings') ) THEN
+  IF (fetchMetricBool('Routings') AND packageIsEnabled('xtmfg')) THEN
     RETURN xtmfg.calcWooperStart(pWoId, pBooitemSeqId);
   END IF;
-  RETURN null;
+  RETURN NULL;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 

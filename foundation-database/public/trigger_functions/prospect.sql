@@ -12,9 +12,16 @@ BEGIN
 
   NEW.prospect_number := UPPER(NEW.prospect_number);
 
+  -- Timestamps
+  IF (TG_OP = 'INSERT') THEN
+    NEW.prospect_created := now();
+  ELSIF (TG_OP = 'UPDATE') THEN
+    NEW.prospect_lastupdated := now();
+  END IF;
+
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('trigger', 'prospectTrigger');
 CREATE TRIGGER prospectTrigger BEFORE INSERT OR UPDATE ON prospect
@@ -24,7 +31,6 @@ CREATE OR REPLACE FUNCTION _prospectAfterTrigger () RETURNS TRIGGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  _cmnttypeid   INTEGER;
   _custid       INTEGER;
   _prospectid   INTEGER;
 
@@ -79,86 +85,60 @@ BEGIN
   END IF;
 
   IF (fetchMetricBool('ProspectChangeLog')) THEN
-    SELECT cmnttype_id INTO _cmnttypeid
-      FROM cmnttype
-     WHERE (cmnttype_name='ChangeLog');
+    IF (TG_OP = 'INSERT') THEN
+      PERFORM postComment('ChangeLog', 'PSPCT', NEW.prospect_id, 'Created');
 
-    IF (_cmnttypeid IS NOT NULL) THEN
-      IF (TG_OP = 'INSERT') THEN
-        PERFORM postComment(_cmnttypeid, 'PSPCT', NEW.prospect_id, 'Created');
+    ELSIF (TG_OP = 'UPDATE') THEN
+      IF (OLD.prospect_active <> NEW.prospect_active) THEN
+        PERFORM postComment('ChangeLog', 'PSPCT', NEW.prospect_id,
+                            CASE WHEN NEW.prospect_active THEN 'Activated'
+                                 ELSE 'Deactivated' END);
+      END IF;
 
-      ELSIF (TG_OP = 'UPDATE') THEN
-        IF (OLD.prospect_active <> NEW.prospect_active) THEN
-          PERFORM postComment(_cmnttypeid, 'PSPCT', NEW.prospect_id,
-                              CASE WHEN NEW.prospect_active THEN 'Activated'
-                                   ELSE 'Deactivated' END);
-        END IF;
+      IF (OLD.prospect_number <> NEW.prospect_number) THEN
+        PERFORM postComment('ChangeLog', 'PSPCT', NEW.prospect_id, 'Number',
+                            OLD.prospect_number, NEW.prospect_number);
+      END IF;
 
-        IF (OLD.prospect_number <> NEW.prospect_number) THEN
-          PERFORM postComment(_cmnttypeid, 'PSPCT', NEW.prospect_id,
-                              'Number changed from "' || OLD.prospect_number ||
-                              '" to "' || NEW.prospect_number || '"');
-        END IF;
+      IF (OLD.prospect_name <> NEW.prospect_name) THEN
+        PERFORM postComment('ChangeLog', 'PSPCT', NEW.prospect_id, 'Name',
+                            OLD.prospect_name, NEW.prospect_name);
+      END IF;
 
-        IF (OLD.prospect_name <> NEW.prospect_name) THEN
-          PERFORM postComment(_cmnttypeid, 'PSPCT', NEW.prospect_id,
-                              'Name changed from "' || OLD.prospect_name ||
-                              '" to "' || NEW.prospect_name || '"');
-        END IF;
+      IF (OLD.prospect_cntct_id <> NEW.prospect_cntct_id) THEN
+        PERFORM postComment('ChangeLog', 'PSPCT', NEW.prospect_id, 'Contact',
+                            formatCntctName(OLD.prospect_cntct_id), formatCntctName(NEW.prospect_cntct_id));
+      END IF;
 
-        IF (OLD.prospect_cntct_id <> NEW.prospect_cntct_id) THEN
-          PERFORM postComment(_cmnttypeid, 'PSPCT', NEW.prospect_id,
-                              'Contact changed from "' ||
-                              formatCntctName(OLD.prospect_cntct_id) || '" to "' ||
-                              formatCntctName(NEW.prospect_cntct_id) || '"');
-        END IF;
+      IF (OLD.prospect_taxauth_id <> NEW.prospect_taxauth_id) THEN
+        PERFORM postComment('ChangeLog', 'PSPCT', NEW.prospect_id, 'Tax Authority',
+                            (SELECT taxauth_code FROM taxauth WHERE taxauth_id=OLD.prospect_taxauth_id),
+                            (SELECT taxauth_code FROM taxauth WHERE taxauth_id=NEW.prospect_taxauth_id));
+      END IF;
 
-        IF (OLD.prospect_taxauth_id <> NEW.prospect_taxauth_id) THEN
-          PERFORM postComment(_cmnttypeid, 'PSPCT', NEW.prospect_id,
-                              'Tax Authority changed from "' ||
-                              (SELECT taxauth_code FROM taxauth
-                                WHERE taxauth_id=OLD.prospect_taxauth_id) ||
-                              '" to "' ||
-                              (SELECT taxauth_code FROM taxauth
-                                WHERE taxauth_id=NEW.prospect_taxauth_id) || '"');
-        END IF;
+      IF (OLD.prospect_salesrep_id <> NEW.prospect_salesrep_id) THEN
+        PERFORM postComment('ChangeLog', 'PSPCT', NEW.prospect_id, 'Sales Rep',
+                            (SELECT salesrep_number FROM salesrep WHERE salesrep_id=OLD.prospect_salesrep_id),
+                            (SELECT salesrep_number FROM salesrep WHERE salesrep_id=NEW.prospect_salesrep_id));
+      END IF;
 
-        IF (OLD.prospect_salesrep_id <> NEW.prospect_salesrep_id) THEN
-          PERFORM postComment(_cmnttypeid, 'PSPCT', NEW.prospect_id,
-                              'Sales Rep changed from "' ||
-                              (SELECT salesrep_number FROM salesrep
-                               WHERE salesrep_id=OLD.prospect_salesrep_id) ||
-                              '" to "' ||
-                              (SELECT salesrep_number FROM salesrep
-                               WHERE salesrep_id=NEW.prospect_salesrep_id) || '"');
-        END IF;
+      IF (OLD.prospect_warehous_id <> NEW.prospect_warehous_id) THEN
+        PERFORM postComment('ChangeLog', 'PSPCT', NEW.prospect_id, 'Warehouse',
+                            (SELECT warehous_code FROM whsinfo WHERE warehous_id=OLD.prospect_warehous_id),
+                            (SELECT warehous_code FROM whsinfo WHERE warehous_id=NEW.prospect_warehous_id));
+      END IF;
 
-        IF (OLD.prospect_warehous_id <> NEW.prospect_warehous_id) THEN
-          PERFORM postComment(_cmnttypeid, 'PSPCT', NEW.prospect_id,
-                              'Warehouse changed from "' ||
-                              (SELECT warehous_code FROM whsinfo
-                                WHERE warehous_id=OLD.prospect_warehous_id) ||
-                              '" to "' ||
-                              (SELECT warehous_code FROM whsinfo
-                                WHERE warehous_id=NEW.prospect_warehous_id) || '"');
-        END IF;
-
-        IF (OLD.prospect_taxzone_id <> NEW.prospect_taxzone_id) THEN
-          PERFORM postComment(_cmnttypeid, 'PSPCT', NEW.prospect_id,
-                              'Tax Zone changed from "' ||
-                              (SELECT taxzone_code FROM taxzone
-                                WHERE taxzone_id=OLD.prospect_taxzone_id) || '" to "' ||
-                              (SELECT taxzone_code FROM taxzone
-                                WHERE taxzone_id=NEW.prospect_taxzone_id) || '"');
-        END IF;
-
+      IF (OLD.prospect_taxzone_id <> NEW.prospect_taxzone_id) THEN
+        PERFORM postComment('ChangeLog', 'PSPCT', NEW.prospect_id, 'Tax Zone',
+                            (SELECT taxzone_code FROM taxzone WHERE taxzone_id=OLD.prospect_taxzone_id),
+                            (SELECT taxzone_code FROM taxzone WHERE taxzone_id=NEW.prospect_taxzone_id));
       END IF;
     END IF;
   END IF;
 
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'prospectAfterTrigger');
 CREATE TRIGGER prospectAfterTrigger AFTER INSERT OR UPDATE ON prospect
@@ -177,7 +157,7 @@ BEGIN
 
   RETURN OLD;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('trigger', 'prospectBeforeDeleteTrigger');
 CREATE TRIGGER prospectBeforeDeleteTrigger BEFORE DELETE ON prospect
@@ -193,15 +173,13 @@ BEGIN
   END IF;
 
   IF (fetchMetricBool('ProspectChangeLog')) THEN
-    PERFORM postComment(cmnttype_id, 'PSPCT', OLD.prospect_id,
-                        'Deleted "' || OLD.prospect_number || '"')
-      FROM cmnttype
-     WHERE (cmnttype_name='ChangeLog');
+    PERFORM postComment('ChangeLog', 'PSPCT', OLD.prospect_id,
+                        'Deleted "' || OLD.prospect_number || '"');
   END IF;
 
   RETURN OLD;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'prospectAfterDeleteTrigger');
 CREATE TRIGGER prospectAfterDeleteTrigger AFTER DELETE ON prospect

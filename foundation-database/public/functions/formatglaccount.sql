@@ -1,63 +1,43 @@
 
-CREATE OR REPLACE FUNCTION formatGLAccount(INTEGER) RETURNS TEXT IMMUTABLE AS $$
+CREATE OR REPLACE FUNCTION formatGLAccount(pAccntid INTEGER) RETURNS TEXT IMMUTABLE AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  pAccntid ALIAS FOR $1;
-  _accnt RECORD;
-
 BEGIN
 
-  SELECT COALESCE(accnt_company, '') AS accnt_company,
-         COALESCE(accnt_profit, '') AS accnt_profit,
-         accnt_number,
-         COALESCE(accnt_sub, '') AS accnt_sub INTO _accnt
+  RETURN formatGlAccount(accnt_company, accnt_profit, accnt_number, accnt_sub)
   FROM accnt
   WHERE (accnt_id=pAccntid);
 
-  IF (NOT FOUND) THEN
-    RETURN 'Error';
-  END IF;
-
-  RETURN formatGlAccount(_accnt.accnt_company, _accnt.accnt_profit, _accnt.accnt_number, _accnt.accnt_sub);
-
 END;
-$$	 LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION formatGLAccount(TEXT, TEXT, TEXT, TEXT) RETURNS TEXT IMMUTABLE AS $$
+CREATE OR REPLACE FUNCTION formatGLAccount(pCompany TEXT,
+                                           pProfit TEXT,
+                                           pNumber TEXT,
+                                           pSub TEXT) RETURNS TEXT IMMUTABLE AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pCompany ALIAS FOR $1;
-  pProfit ALIAS FOR $2;
-  pNumber ALIAS FOR $3;
-  pSub    ALIAS FOR $4;
   _number TEXT := '';
 
 BEGIN
 
-  IF ( ( SELECT metric_value::INTEGER
-         FROM metric
-         WHERE (metric_name='GLCompanySize') ) > 0 ) THEN
-    _number := pCompany || '-';
+  IF (fetchMetricValue('GLCompanySize') > 0) THEN
+    _number := COALESCE(pCompany, '') || '-';
   END IF;
 
-  IF ( ( SELECT metric_value::INTEGER
-         FROM metric
-         WHERE (metric_name='GLProfitSize') ) > 0 ) THEN
-    _number := _number || pProfit || '-';
+  IF (fetchMetricValue('GLProfitSize') > 0) THEN
+    _number := _number || COALESCE(pProfit, '') || '-';
   END IF;
 
   _number := _number || pNumber;
 
-  IF ( ( SELECT metric_value::INTEGER
-         FROM metric
-         WHERE (metric_name='GLSubaccountSize') ) > 0 ) THEN
-    _number := _number || '-' || pSub;
+  IF (fetchMetricValue('GLSubaccountSize') > 0) THEN
+    _number := _number || '-' || COALESCE(pSub, '');
   END IF;
 
   RETURN _number;
 
 END;
-$$	 LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 

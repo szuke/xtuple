@@ -39,7 +39,7 @@ BEGIN
     END IF;
   
     -- Find the shipment transaction record
-    SELECT shipitem.*,
+    SELECT shipitem.*, shiphead_order_id,
            shiphead_id, shiphead_number, shiphead_order_type, invhist_series,
            itemsite_loccntrl, itemsite_costmethod, itemsite_controlmethod,
            cohead_prj_id AS prj_id     
@@ -55,7 +55,7 @@ BEGIN
     GET DIAGNOSTICS _rows = ROW_COUNT;
     IF (_rows = 0 ) THEN
       -- Was it a non-controlled sales order item?
-      SELECT shipitem.*,
+      SELECT shipitem.*, shiphead_order_id,
              shiphead_id, shiphead_number, shiphead_order_type,
              itemsite_loccntrl, itemsite_costmethod, itemsite_controlmethod,
              cohead_prj_id AS prj_id
@@ -73,7 +73,7 @@ BEGIN
     GET DIAGNOSTICS _rows = ROW_COUNT;
     IF (_rows = 0 AND fetchmetricbool('MultiWhs') ) THEN
       -- Was it a non-controlled transfer order item?
-      SELECT shipitem.*,
+      SELECT shipitem.*, shiphead_order_id,
              shiphead_id, shiphead_number, shiphead_order_type,
              itemsite_loccntrl, itemsite_costmethod, itemsite_controlmethod,
              NULL AS prj_id
@@ -81,7 +81,8 @@ BEGIN
       FROM shipitem
         JOIN shiphead ON (shiphead_id=shipitem_shiphead_id)
         JOIN toitem ON (shipitem_orderitem_id=toitem_id)
-        JOIN itemsite ON (itemsite_id=coitem_itemsite_id)
+        JOIN tohead ON toitem_tohead_id=tohead_id
+        JOIN itemsite ON (itemsite_item_id=toitem_item_id AND itemsite_warehous_id=tohead_src_warehous_id)
       WHERE ((NOT shiphead_shipped)
         AND  (shipitem_id=pShipitemId)
         AND  (shiphead_order_type = 'TO'));
@@ -95,7 +96,8 @@ BEGIN
                                'S/R', _r.shiphead_order_type, formatSoNumber(_r.shipitem_orderitem_id),
                                shiphead_number, 'Return from Shipping',
                                costcat_asset_accnt_id, getPrjAccntId(_r.prj_id, costcat_shipasset_accnt_id),
-                               _itemlocSeries, pTimestamp, _r.shipitem_value, _r.shipitem_invhist_id ) INTO _invhistid
+                               _itemlocSeries, pTimestamp, _r.shipitem_value, _r.shipitem_invhist_id,
+                               NULL, FALSE, _r.shiphead_order_id, _r.shipitem_orderitem_id) INTO _invhistid
           FROM coitem, itemsite, costcat, shiphead, shipitem
           WHERE ((coitem_itemsite_id=itemsite_id)
             AND  (itemsite_costcat_id=costcat_id)
@@ -103,6 +105,10 @@ BEGIN
             AND  (shiphead_order_type=_r.shiphead_order_type)
             AND  (shiphead_id=shipitem_shiphead_id)
             AND  (shipitem_orderitem_id=_r.shipitem_orderitem_id));
+
+          IF NOT FOUND THEN
+            RAISE EXCEPTION 'Missing cost category [xtuple: returnShipmentTransaction, -1]';
+          END IF;
  
           -- We know the distribution so post this through so the any w/o activity knows about it
           PERFORM postItemlocseries(_itemlocSeries);
@@ -135,7 +141,8 @@ BEGIN
                             'S/R', _r.shiphead_order_type, formatToNumber(toitem_id),
                             tohead_number, 'Return from Shipping',
                             costcat_asset_accnt_id, costcat_shipasset_accnt_id,
-                            _itemlocSeries, pTimestamp, _r.shipitem_value, _r.shipitem_invhist_id ) INTO _invhistid
+                            _itemlocSeries, pTimestamp, _r.shipitem_value, _r.shipitem_invhist_id,
+                            NULL, FALSE, _r.shiphead_order_id, _r.shipitem_orderitem_id) INTO _invhistid
         FROM toitem, tohead, itemsite, costcat
         WHERE ((toitem_item_id=itemsite_item_id)
           AND  (toitem_tohead_id=tohead_id)
@@ -143,9 +150,13 @@ BEGIN
           AND  (itemsite_costcat_id=costcat_id)
           AND  (toitem_id=_r.shipitem_orderitem_id));
 
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'Missing cost category [xtuple: returnShipmentTransaction, -2]';
+      END IF;
+
       ELSE
         -- Don't know what kind of order this is
-        RETURN -11;
+        RAISE EXCEPTION 'Can not Return Shipment for order type % [xtuple: returnShipmentTransaction, -11, %]', _r.shiphead_order_type, _r.shiphead_order_type;
       END IF;
 
       UPDATE shiphead
@@ -201,6 +212,13 @@ BEGIN
       END IF;
       
       DELETE FROM shipitem WHERE (shipitem_id = _r.shipitem_id );
+
+      IF (EXISTS(SELECT 1
+                 FROM shipitem
+                 WHERE (shipitem_shiphead_id=_r.shiphead_id))) THEN
+        UPDATE shiphead SET shiphead_freight=calcShipFreight(_r.shiphead_id)
+        WHERE (shiphead_id=_r.shiphead_id);
+      END IF;
 
       -- Clean up if this is the last shipitem on the shipment
       IF (NOT EXISTS(SELECT shipitem_shiphead_id

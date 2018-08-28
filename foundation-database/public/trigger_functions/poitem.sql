@@ -1,9 +1,10 @@
 CREATE OR REPLACE FUNCTION _poitemTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _cmnttypeid 	INTEGER;
   _status      	CHAR(1);
+  _taxzone      INTEGER;
   _check      	BOOLEAN;
   _cnt     	INTEGER;
   _s 		RECORD;
@@ -22,7 +23,7 @@ BEGIN
   END IF;
 
   IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
-    SELECT pohead_status INTO _status
+    SELECT pohead_status, pohead_taxzone_id INTO _status, _taxzone
     FROM pohead
     WHERE (pohead_id=NEW.poitem_pohead_id);
 
@@ -55,8 +56,8 @@ BEGIN
     IF (_status='C') THEN
       RAISE EXCEPTION 'New lines may not be inserted into a closed purchase order';
     END IF;
-    
-    --Fetch and apply default item source data if applicable    
+
+    --Fetch and apply default item source data if applicable
     IF ((NEW.poitem_itemsrc_id IS NULL) AND (NEW.poitem_itemsite_id IS NOT NULL)) THEN
       IF (NEW.poitem_itemsrc_id IS NULL) THEN
         SELECT COUNT(itemsrc_id)  INTO _cnt
@@ -111,7 +112,7 @@ BEGIN
     IF (NEW.poitem_duedate IS NULL) THEN
       RAISE EXCEPTION  'A due date is required';
     END IF;
-    
+
     --Set defaults
     NEW.poitem_linenumber    		:= COALESCE(NEW.poitem_linenumber,(
 						SELECT COALESCE(MAX(poitem_linenumber),0) + 1
@@ -147,7 +148,7 @@ BEGIN
     NEW.poitem_qty_received		:= 0;
     NEW.poitem_qty_returned		:= 0;
     NEW.poitem_qty_vouchered		:= 0;
-      
+
   END IF;
 
   IF (TG_OP = 'UPDATE') THEN
@@ -158,19 +159,28 @@ BEGIN
     END IF;
   END IF;
 
+  -- Timestamps
+  IF (TG_OP = 'INSERT') THEN
+    NEW.poitem_created := now();
+  ELSIF (TG_OP = 'UPDATE') THEN
+    NEW.poitem_lastupdated := now();
+  END IF;
+
   RETURN NEW;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropifexists('TRIGGER', 'poitemTrigger');
-CREATE TRIGGER poitemTrigger BEFORE INSERT OR UPDATE ON poitem FOR EACH ROW EXECUTE PROCEDURE _poitemTrigger();
+CREATE TRIGGER poitemTrigger
+  BEFORE INSERT OR UPDATE
+  ON poitem
+  FOR EACH ROW
+  EXECUTE PROCEDURE _poitemTrigger();
 
 CREATE OR REPLACE FUNCTION _poitemAfterTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  _changelog BOOLEAN := FALSE;
 BEGIN
 
   IF (TG_OP = 'UPDATE') THEN
@@ -194,47 +204,35 @@ BEGIN
   IF (TG_OP = 'INSERT') THEN
     PERFORM postEvent('POitemCreate', 'P', NEW.poitem_id,
                       itemsite_warehous_id,
-                      (pohead_number || '-' || NEW.poitem_linenumber || ': ' || item_number),
+                      formatPoitemNumber(poitem_id, TRUE),
                       NULL, NULL, NULL, NULL)
-    FROM pohead JOIN itemsite ON (itemsite_id=NEW.poitem_itemsite_id)
-                JOIN item ON (item_id=itemsite_item_id)
-    WHERE (pohead_id=NEW.poitem_pohead_id)
+    FROM poitem JOIN itemsite ON (itemsite_id=poitem_itemsite_id)
+    WHERE (poitem_id=NEW.poitem_id)
       AND (NEW.poitem_duedate <= (CURRENT_DATE + itemsite_eventfence));
   END IF;
 
   IF ( SELECT fetchMetricBool('POChangeLog') ) THEN
-    _changelog := TRUE;
-  END IF;
-
-  IF ( _changelog ) THEN
     IF (TG_OP = 'INSERT') THEN
       PERFORM postComment('ChangeLog', 'P', NEW.poitem_pohead_id, ('Created Line #' || NEW.poitem_linenumber::TEXT));
       PERFORM postComment('ChangeLog', 'PI', NEW.poitem_id, 'Created');
 
     ELSIF (TG_OP = 'UPDATE') THEN
       IF (NEW.poitem_qty_ordered <> OLD.poitem_qty_ordered) THEN
-        PERFORM postComment( 'ChangeLog', 'PI', NEW.poitem_id,
-                             ( 'Qty. Ordered Changed from ' || formatQty(OLD.poitem_qty_ordered) ||
-                               ' to ' || formatQty(NEW.poitem_qty_ordered ) ) );
+        PERFORM postComment('ChangeLog', 'PI', NEW.poitem_id, 'Qty. Ordered',
+                            formatQty(OLD.poitem_qty_ordered), formatQty(NEW.poitem_qty_ordered));
       END IF;
       IF (NEW.poitem_unitprice <> OLD.poitem_unitprice) THEN
-        PERFORM postComment( 'ChangeLog', 'PI', NEW.poitem_id,
-                             ( 'Unit Price Changed from ' || formatPurchPrice(OLD.poitem_unitprice) ||
-                               ' to ' || formatPurchPrice(NEW.poitem_unitprice ) ) );
+        PERFORM postComment('ChangeLog', 'PI', NEW.poitem_id, 'Unit Price',
+                            formatPurchPrice(OLD.poitem_unitprice), formatPurchPrice(NEW.poitem_unitprice));
       END IF;
       IF (NEW.poitem_duedate <> OLD.poitem_duedate) THEN
-        PERFORM postComment( 'ChangeLog', 'PI', NEW.poitem_id,
-                             ( 'Due Date Changed from ' || formatDate(OLD.poitem_duedate) ||
-                               ' to ' || formatDate(NEW.poitem_duedate ) ) );
+        PERFORM postComment('ChangeLog', 'PI', NEW.poitem_id, 'Due Date',
+                            formatDate(OLD.poitem_duedate), formatDate(NEW.poitem_duedate));
       END IF;
       IF (COALESCE(OLD.poitem_taxtype_id, -1) <> COALESCE(NEW.poitem_taxtype_id, -1)) THEN
-        PERFORM postComment( 'ChangeLog', 'PI', NEW.poitem_id,
-                             ( 'Tax Type Changed from "' ||
-                               COALESCE((SELECT taxtype_name FROM taxtype WHERE taxtype_id=OLD.poitem_taxtype_id), 'None') ||
-                               '" (' || COALESCE(OLD.poitem_taxtype_id, 0) ||
-                               ') to "' ||
-                               COALESCE((SELECT taxtype_name FROM taxtype WHERE taxtype_id=NEW.poitem_taxtype_id), 'None') ||
-                               '" (' || COALESCE(NEW.poitem_taxtype_id, 0) || ')' ) );
+        PERFORM postComment('ChangeLog', 'PI', NEW.poitem_id, 'Tax Type',
+                             COALESCE((SELECT taxtype_name FROM taxtype WHERE taxtype_id=OLD.poitem_taxtype_id), 'None'),
+                             COALESCE((SELECT taxtype_name FROM taxtype WHERE taxtype_id=NEW.poitem_taxtype_id), 'None'));
       END IF;
       IF (NEW.poitem_status <> OLD.poitem_status) THEN
         IF (NEW.poitem_status = 'C') THEN
@@ -243,20 +241,23 @@ BEGIN
           PERFORM postComment('ChangeLog', 'PI', NEW.poitem_id, 'Opened');
         END IF;
       END IF;
-
     END IF;
   END IF;
 
   RETURN NEW;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropifexists('TRIGGER', 'poitemAfterTrigger');
-CREATE TRIGGER poitemAfterTrigger AFTER INSERT OR UPDATE ON poitem FOR EACH ROW EXECUTE PROCEDURE _poitemAfterTrigger();
+CREATE TRIGGER poitemAfterTrigger
+  AFTER INSERT OR UPDATE
+  ON poitem
+  FOR EACH ROW
+  EXECUTE PROCEDURE _poitemAfterTrigger();
 
 CREATE OR REPLACE FUNCTION _poitemDeleteTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
 BEGIN
@@ -284,16 +285,18 @@ BEGIN
   RETURN OLD;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropifexists('TRIGGER', 'poitemDeleteTrigger');
-CREATE TRIGGER poitemDeleteTrigger BEFORE DELETE ON poitem FOR EACH ROW EXECUTE PROCEDURE _poitemDeleteTrigger();
+CREATE TRIGGER poitemDeleteTrigger
+  BEFORE DELETE
+  ON poitem
+  FOR EACH ROW
+  EXECUTE PROCEDURE _poitemDeleteTrigger();
 
 CREATE OR REPLACE FUNCTION _poitemAfterDeleteTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  _changelog BOOLEAN := FALSE;
 BEGIN
 
   IF (OLD.poitem_status = 'O') THEN
@@ -309,16 +312,21 @@ BEGIN
   END IF;
 
   IF ( SELECT fetchMetricBool('POChangeLog') ) THEN
-    _changelog := TRUE;
-  END IF;
-
-  IF ( _changelog ) THEN
     PERFORM postComment('ChangeLog', 'P', OLD.poitem_pohead_id, ('Deleted Line #' || OLD.poitem_linenumber::TEXT));
   END IF;
 
+  DELETE
+  FROM charass
+  WHERE charass_target_type = 'PI'
+    AND charass_target_id = OLD.poitem_id;
+
   RETURN OLD;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropifexists('TRIGGER', 'poitemAfterDeleteTrigger');
-CREATE TRIGGER poitemAfterDeleteTrigger AFTER DELETE ON poitem FOR EACH ROW EXECUTE PROCEDURE _poitemAfterDeleteTrigger();
+CREATE TRIGGER poitemAfterDeleteTrigger
+  AFTER DELETE
+  ON poitem
+  FOR EACH ROW
+  EXECUTE PROCEDURE _poitemAfterDeleteTrigger();

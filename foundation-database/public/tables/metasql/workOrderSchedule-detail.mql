@@ -10,7 +10,10 @@ SELECT wo_id,
        END AS orderid,
        wo.*, warehous_code, uom_name,
        item_number, (item_descrip1 || ' ' || item_descrip2) AS itemdescrip,
-       item_descrip1, item_descrip2,
+       item_descrip1, item_descrip2, prj_number,
+       CASE wo_ordtype WHEN ('S') THEN formatSoitemNumber(wo_ordid)
+                       WHEN ('W') THEN formatWoNumber(wo_ordid)
+       END AS parentorder,
        formatQty(wo_qtyord) AS ordered,
        formatQty(wo_qtyrcv) AS received,
        formatDate(wo_startdate) AS startdate,
@@ -22,19 +25,43 @@ SELECT wo_id,
        END AS wo_startdate_qtforegroundrole,
        CASE WHEN (wo_duedate<=CURRENT_DATE) THEN 'error'
        END AS wo_duedate_qtforegroundrole,
-       CASE WHEN (wo_duedate<=CURRENT_DATE) THEN 'Overdue'
-            ELSE 'On Time'
+       CASE WHEN (wo_duedate<=CURRENT_DATE) THEN <? value("overdue") ?>
+            ELSE <? value("ontime") ?>
        END AS condition,
-       CASE WHEN (wo_duedate<=CURRENT_DATE) THEN 'error' END AS condition_qtforegroundrole
-FROM itemsite, whsinfo, item, uom, wo
+       CASE WHEN (wo_duedate<=CURRENT_DATE) THEN 'error' END AS condition_qtforegroundrole,
+       CASE wo_status WHEN ('O') THEN <? value("open") ?>
+                      WHEN ('E') THEN <? value("exploded") ?>
+                      WHEN ('R') THEN <? value("released") ?>
+                      WHEN ('I') THEN <? value("inprocess") ?>
+                      WHEN ('C') THEN <? value("closed") ?>
+                      ELSE '?'
+       END AS wo_status_qtdisplayrole,
+       CASE wo_ordtype WHEN ('')  THEN ''
+                       WHEN ('W') THEN <? value("wo") ?>
+                       WHEN ('M') THEN <? value("planord") ?>
+                       WHEN ('P') THEN <? value("mps") ?>
+                       WHEN ('S') THEN <? value("so") ?>
+                       WHEN ('Q') THEN <? value("quote") ?>
+                       ELSE '?'
+       END AS wo_ordtype_qtdisplayrole,
+
+       0 AS wo_wipvalue_xttotalrole,
+       woplancost(wo_id) AS plancost, 0 AS plancost_xttotalrole,
+
+       CASE WHEN itemsite_costmethod = 'S' THEN
+               woplancost(wo_id) - stdcost(itemsite_item_id) * wo_qtyord
+       ELSE 0 END AS wopvar, 0 AS wopvar_xttotalrole,
+       CASE WHEN itemsite_costmethod = 'S' THEN 'Standard' ELSE 'Average/Job' END AS costmethod
+
+FROM wo JOIN itemsite ON (itemsite_id=wo_itemsite_id)
+        JOIN item ON (item_id=itemsite_item_id)
+        JOIN uom ON (uom_id=item_inv_uom_id)
+        JOIN site() ON (warehous_id=itemsite_warehous_id)
+        LEFT OUTER JOIN prj ON (prj_id=wo_prj_id)
 <? if reExists("woSoStatus") ?>
- JOIN coitem ON ((coitem_order_id=wo_id)
-             AND (coitem_order_type='W'))
+        JOIN coitem ON ((coitem_order_id=wo_id) AND (coitem_order_type='W'))
 <? endif ?>
-WHERE ( (wo_itemsite_id=itemsite_id)
-  AND (itemsite_item_id=item_id)
-  AND (item_inv_uom_id=uom_id)
-  AND (itemsite_warehous_id=warehous_id)
+WHERE ( (true)
 <? if exists("search_pattern") ?>
   AND ( (wo_number::TEXT ~* <? value("search_pattern") ?>)
     OR  (item_number ~* <? value("search_pattern") ?>)
@@ -44,6 +71,9 @@ WHERE ( (wo_itemsite_id=itemsite_id)
   AND (coitem_status <> 'X')
 <? elseif exists("woSoStatusMismatch") ?>
   AND (coitem_status='C')
+<? endif ?>
+<? if exists("prj_id") ?>
+  AND (wo_prj_id=<? value("prj_id") ?>)
 <? endif ?>
 <? if exists("startDate") ?>
   AND (wo_startdate >= <? value("startDate") ?>)

@@ -110,7 +110,7 @@
           "type": "Boolean",
           "column": "vend_restrictpurch"
         }
-      }      
+      }
     ],
     "isSystem": true
   },

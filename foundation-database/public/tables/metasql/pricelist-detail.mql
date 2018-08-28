@@ -7,26 +7,27 @@
 --        Then the outer query modifies the sourcecode to indicate
 --        item vs product category.
 --        TODO: possible improvements include removing OUTER JOINs with uom table
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
-SELECT sourcecode + CASE WHEN source='P' THEN 10 ELSE 0 END AS source,
+SELECT sourcecode + CASE WHEN source='P' THEN 10 ELSE 0 END AS source, method,
        sourceid, schedulename, type,
        invqty AS qty_break,
        CASE WHEN (qtybreak = -1) THEN <? value('na') ?>
        END             AS qty_break_qtdisplayrole,
        invuom.uom_name AS qty_uom,
-       price,
+       base_price,
        currConcat(curr_id) AS currency,
        priceuom.uom_name   AS price_uom,
        currToCurr(curr_id, <? value('curr_id') ?>,
-                  price,   <? value('effective') ?>) AS base_price,
+                  base_price,   <? value('effective') ?>) AS price,
        discountpercent,
        discountfixed,
+       price_type,
        CASE WHEN (price_type='N') THEN <? value('nominal') ?>
             WHEN (price_type='D') THEN <? value('discount') ?>
             WHEN (price_type='M') THEN <? value('markup') ?>
-       END AS price_type,
+       END AS price_type_qtdisplayrole,
        'qty'        AS qty_break_xtnumericrole,
        'salesprice' AS price_xtnumericrole,
        'salesprice' AS base_price_xtnumericrole,
@@ -35,6 +36,7 @@ SELECT sourcecode + CASE WHEN source='P' THEN 10 ELSE 0 END AS source,
 FROM ( 
 
     SELECT 4 AS sourcecode,
+           'S' AS method,
            ipsitem_id AS sourceid,
            CASE WHEN (ipsitem_item_id=<? value('item_id') ?>) THEN 'I'
                 WHEN (ipsitem_prodcat_id=<? value('prodcat_id') ?>) THEN 'P'
@@ -47,27 +49,18 @@ FROM (
                 ELSE ipsitem_qtybreak
            END AS invqty,
            ipsitem_qtybreak AS qtybreak,
-           CASE WHEN (ipsitem_type = 'N') THEN
-                 (ipsitem_price * itemuomtouomratio(<? value('item_id') ?>, NULL, ipsitem_price_uom_id)) * iteminvpricerat(ipsitem_item_id)
-                WHEN (ipsitem_type = 'D') THEN
-                 noNeg(<? value('item_listprice') ?> - (<? value('item_listprice') ?> * ipsitem_discntprcnt) - ipsitem_fixedamtdiscount)
-                WHEN ((ipsitem_type = 'M') AND fetchMetricBool('Long30Markups') AND fetchMetricBool('WholesalePriceCosting')) THEN
-                 (<? value('item_listcost') ?> / (1.0 - ipsitem_discntprcnt) + ipsitem_fixedamtdiscount)
-                WHEN ((ipsitem_type = 'M') AND fetchMetricBool('Long30Markups')) THEN
-                 (<? value('item_unitcost') ?> / (1.0 - ipsitem_discntprcnt) + ipsitem_fixedamtdiscount)
-                WHEN (ipsitem_type = 'M' AND fetchMetricBool('WholesalePriceCosting')) THEN
-                 (<? value('item_listcost') ?> + (<? value('item_listcost') ?> * ipsitem_discntprcnt) + ipsitem_fixedamtdiscount)
-                WHEN (ipsitem_type = 'M') THEN
-                 (<? value('item_unitcost') ?> + (<? value('item_unitcost') ?> * ipsitem_discntprcnt) + ipsitem_fixedamtdiscount)
-                ELSE 0.00
-           END AS price,
+           calcIpsitemPrice(ipsitem_id,
+                            <? value('item_id') ?>,
+                            <? value('warehous_id') ?>,
+                            <? value('item_listprice') ?>,
+                            <? value('effective') ?>) AS base_price,
            ipsitem_qty_uom_id AS qtybreak_uom_id,
            ipsitem_price_uom_id AS price_uom_id,
            ipsitem_discntprcnt AS discountpercent,
            ipsitem_fixedamtdiscount AS discountfixed,
            ipshead_curr_id AS curr_id,
            ipsitem_type AS price_type
-    FROM sale JOIN ipshead ON (ipshead_id=sale_ipshead_id)
+    FROM sale JOIN ipshead ON (ipshead_id=sale_ipshead_id AND NOT ipshead_listprice)
               JOIN ipsiteminfo ON (ipsitem_ipshead_id=ipshead_id)
               JOIN ipsass ON (ipsass_ipshead_id=ipshead_id)
    WHERE ((ipsitem_item_id=<? value('item_id') ?>) OR (ipsitem_prodcat_id=<? value('prodcat_id') ?>))
@@ -76,7 +69,9 @@ FROM (
        OR   ((COALESCE(LENGTH(ipsass_shipto_pattern), 0) > 0) AND (<? value('shipto_num') ?> ~ ipsass_shipto_pattern))
        OR   (ipsass_cust_id=<? value('cust_id') ?>)
        OR   (ipsass_custtype_id=<? value('custtype_id') ?>)
-       OR   ((COALESCE(LENGTH(ipsass_custtype_pattern), 0) > 0) AND (<? value('custtype_code') ?> ~ ipsass_custtype_pattern)) )
+       OR   ((COALESCE(LENGTH(ipsass_custtype_pattern), 0) > 0) AND (<? value('custtype_code') ?> ~ ipsass_custtype_pattern))
+       OR   ((COALESCE(ipsass_shipzone_id,0) > 0) AND (ipsass_shipzone_id=<? value('shipzone_id') ?>)) 
+       OR   ((COALESCE(ipsass_saletype_id,0) > 0) AND (ipsass_saletype_id=<? value('saletype_id') ?>)) )
 
     UNION
 
@@ -87,6 +82,7 @@ FROM (
                 WHEN (COALESCE(LENGTH(ipsass_custtype_pattern), 0) > 0) THEN 3
                 ELSE 99
            END AS sourcecode,
+           'I' AS method,
            ipsitem_id AS sourceid,
            CASE WHEN (ipsitem_item_id=<? value('item_id') ?>) THEN 'I'
                 WHEN (ipsitem_prodcat_id=<? value('prodcat_id') ?>) THEN 'P'
@@ -99,33 +95,26 @@ FROM (
                 WHEN (COALESCE(ipsass_cust_id, -1) > 0) THEN <? value('customer') ?>
                 WHEN (COALESCE(ipsass_custtype_id, -1) > 0) THEN <? value('custType') ?>
                 WHEN (COALESCE(LENGTH(ipsass_custtype_pattern), 0) > 0) THEN <? value('custTypePattern') ?>
+                WHEN (COALESCE(ipsass_shipzone_id, -1) > 0) THEN <? value('shipZone') ?>
+                WHEN (COALESCE(ipsass_saletype_id, -1) > 0) THEN <? value('saleType') ?>
                 ELSE 'Error'
            END AS type,
            CASE WHEN (ipsitem_item_id=<? value('item_id') ?>) THEN itemuomtouom(ipsitem_item_id, ipsitem_qty_uom_id, NULL, ipsitem_qtybreak)
                 ELSE ipsitem_qtybreak
            END AS invqty,
            ipsitem_qtybreak AS qtybreak,
-           CASE WHEN ipsitem_type = 'N' THEN
-                 (ipsitem_price * itemuomtouomratio(<? value('item_id') ?>, NULL, ipsitem_price_uom_id)) * iteminvpricerat(ipsitem_item_id)
-                WHEN ipsitem_type = 'D' THEN
-                 noNeg(<? value('item_listprice') ?> - (<? value('item_listprice') ?> * ipsitem_discntprcnt) - ipsitem_fixedamtdiscount)
-                WHEN ((ipsitem_type = 'M') AND fetchMetricBool('Long30Markups') AND fetchMetricBool('WholesalePriceCosting')) THEN
-                 (<? value('item_listcost') ?> / (1.0 - ipsitem_discntprcnt) + ipsitem_fixedamtdiscount)
-                WHEN ((ipsitem_type = 'M') AND fetchMetricBool('Long30Markups')) THEN
-                 (<? value('item_unitcost') ?> / (1.0 - ipsitem_discntprcnt) + ipsitem_fixedamtdiscount)
-                WHEN (ipsitem_type = 'M' AND fetchMetricBool('WholesalePriceCosting')) THEN
-                 (<? value('item_listcost') ?> + (<? value('item_listcost') ?> * ipsitem_discntprcnt) + ipsitem_fixedamtdiscount)
-                WHEN (ipsitem_type = 'M') THEN
-                 (<? value('item_unitcost') ?> + (<? value('item_unitcost') ?> * ipsitem_discntprcnt) + ipsitem_fixedamtdiscount)
-                ELSE 0.00
-           END AS price,
+           calcIpsitemPrice(ipsitem_id,
+                            <? value('item_id') ?>,
+                            <? value('warehous_id') ?>,
+                            <? value('item_listprice') ?>,
+                            <? value('effective') ?>) AS base_price,
            ipsitem_qty_uom_id AS qtybreak_uom_id,
            ipsitem_price_uom_id AS price_uom_id,
            ipsitem_discntprcnt AS discountpercent,
            ipsitem_fixedamtdiscount AS discountfixed,
            ipshead_curr_id AS curr_id,
            ipsitem_type AS price_type
-    FROM ipsass JOIN ipshead ON (ipshead_id=ipsass_ipshead_id)
+    FROM ipsass JOIN ipshead ON (ipshead_id=ipsass_ipshead_id AND NOT ipshead_listprice)
                 JOIN ipsiteminfo ON (ipsitem_ipshead_id=ipshead_id)
     WHERE ((ipsitem_item_id=<? value('item_id') ?>) OR (ipsitem_prodcat_id=<? value('prodcat_id') ?>))
       AND (<? value('asof') ?> BETWEEN ipshead_effective AND ipshead_expires)
@@ -134,19 +123,22 @@ FROM (
        OR   (ipsass_cust_id=<? value('cust_id') ?>)
        OR   (ipsass_custtype_id=<? value('custtype_id') ?>)
        OR   ((COALESCE(LENGTH(ipsass_custtype_pattern), 0) > 0) AND (<? value('custtype_code') ?> ~ ipsass_custtype_pattern))
+       OR   ((COALESCE(ipsass_shipzone_id,0) > 0) AND (ipsass_shipzone_id=<? value('shipzone_id') ?>)) 
+       OR   ((COALESCE(ipsass_saletype_id,0) > 0) AND (ipsass_saletype_id=<? value('saletype_id') ?>))
           )
 
     UNION
 
     SELECT 5 AS sourcecode,
+           'L' AS method,
            item_id AS sourceid,
            NULL AS source,
            NULL AS ipshead_id,
-           '' AS schedulename,
+           <? value('listpricesched') ?> AS schedulename,
            <? value('listPrice') ?> AS type,
            -1 AS invqty,
            -1 AS qtybreak,
-           (item_listprice - (item_listprice * cust_discntprcnt)) AS price,
+           (<? value('item_listprice') ?> - (<? value('item_listprice') ?> * cust_discntprcnt)) AS base_price,
            item_inv_uom_id   AS qtybreak_uom_id,
            item_price_uom_id AS price_uom_id,
            cust_discntprcnt  AS discountpercent,

@@ -24,7 +24,9 @@ select xt.install_js('XM','Billing','xtuple', $$
     "DefaultAutoCreditWarnGraceDays",
     "RecurringInvoiceBuffer",
     "DefaultARIncidentStatus",
-    "AutoCloseARIncident"
+    "AutoCloseARIncident",
+    "InvoiceShowPrices",
+    "InvoiceShowPrices0"
   ],
     i, option;
 
@@ -42,6 +44,8 @@ select xt.install_js('XM','Billing','xtuple', $$
   }
 
   XM.Billing.isDispatchable = true;
+
+  XT.documentAssociations.INV = "InvoiceRelation";
 
   /**
     Return Billing configuration settings.

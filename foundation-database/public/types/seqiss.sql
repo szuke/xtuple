@@ -6,7 +6,7 @@ BEGIN
       seqiss_time   TIMESTAMP WITH TIME ZONE
     );
   EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE 'Type seqiss already exists';
+    RAISE WARNING 'Type seqiss already exists';
   END;
 END;
 $$ LANGUAGE PLPGSQL;

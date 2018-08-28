@@ -13,7 +13,6 @@
     @param {Any} [dataHash.dispatch.parameters] One or many parameters to pass to the function call.
 
     Sample usage:
-    select xt.js_init(true);
     select xt.post('{
       "username": "admin",
       "nameSpace":"XM",

@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION merge2crmaccts(INTEGER, INTEGER, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSourceId ALIAS FOR $1;
@@ -18,7 +18,7 @@ DECLARE
 BEGIN
   -- Validate
   IF (pSourceId = pTargetId) THEN
-    RAISE NOTICE 'Tried to merge a CRM Account with itself: %.', pSourceId;
+    RAISE WARNING 'Tried to merge a CRM Account with itself: %.', pSourceId;
     RETURN 0;
   ELSIF (pSourceId IS NULL) THEN
     RAISE EXCEPTION 'Merge source id cannot be null [xtuple: merge, -1]';
@@ -78,6 +78,13 @@ BEGIN
                      AND (relname='crmacct')
                      AND (nspname='public')
                      AND (attname NOT IN ('crmacct_id', 'crmacct_number'))
+                     AND EXISTS(SELECT 1
+                                  FROM pg_attribute a
+                                  JOIN pg_class c ON a.attrelid=c.oid
+                                  JOIN pg_namespace n ON c.relnamespace=n.oid
+                                 WHERE a.attname='crmacctsel_mrg_' || pg_attribute.attname
+                                   AND c.relname='crmacctsel'
+                                   AND n.nspname='public')
   LOOP
 
     -- if we're supposed to merge this column at all
@@ -130,7 +137,7 @@ BEGIN
                  WHERE ((dest.crmacct_id=crmacctsel_dest_crmacct_id)
                     AND (dest.crmacct_id!=crmacctsel_src_crmacct_id));';
 
-      ELSIF (_colname IN ('crmacct_cust_id', 'crmacct_prospect_id', 
+      ELSIF (_colname IN ('crmacct_cust_id', 'crmacct_prospect_id',
                           'crmacct_vend_id', 'crmacct_taxauth_id',
                           'crmacct_emp_id',  'crmacct_salesrep_id')) THEN
         IF (_colname IN ('crmacct_cust_id', 'crmacct_prospect_id')) THEN

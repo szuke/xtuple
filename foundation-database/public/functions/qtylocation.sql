@@ -1,17 +1,16 @@
 SELECT dropIfExists('FUNCTION','qtyLocation(INTEGER, INTEGER, DATE, DATE, INTEGER, TEXT, INTEGER)');
 
-CREATE OR REPLACE FUNCTION qtyLocation(INTEGER, INTEGER, DATE, DATE, INTEGER, TEXT, INTEGER, INTEGER) RETURNS NUMERIC AS $$
+CREATE OR REPLACE FUNCTION qtyLocation(pLocationId INTEGER,
+                                       pLsId INTEGER,
+                                       pExpiration DATE,
+                                       pWarranty DATE,
+                                       pItemsiteId INTEGER,
+                                       pOrderType TEXT,
+                                       pOrderId INTEGER,
+                                       pItemlocdistId INTEGER) RETURNS NUMERIC AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pLocationId  ALIAS FOR $1;
-  pLsId        ALIAS FOR $2;
-  pExpiration  ALIAS FOR $3;
-  pWarranty    ALIAS FOR $4;
-  pItemsiteId  ALIAS FOR $5;
-  pOrderType   ALIAS FOR $6;
-  pOrderId     ALIAS FOR $7;
-  pItemlocdistId ALIAS FOR $8;
   _qty         NUMERIC = 0.0;
   _qtyDist     NUMERIC = 0.0;
   _qtyReserved NUMERIC = 0.0;
@@ -56,4 +55,4 @@ BEGIN
   RETURN (_qty + _qtyDist - _qtyReserved);
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

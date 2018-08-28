@@ -30,7 +30,8 @@ BEGIN
                                         ELSE apselect_amount END * _check_curr_rate / apopen_curr_rate)          
 	 FROM apselect JOIN apopen ON (apopen_id=apselect_apopen_id)
 	 WHERE ((apopen_vend_id=_v.vend_id)
-	   AND  (apselect_bankaccnt_id=pBankaccntid)) ) >= 0) THEN
+	   AND  (apselect_bankaccnt_id=pBankaccntid)
+           AND  (apselect_date <= pCheckDate)) ) >= 0) THEN
       -- 0.01 is a temporary amount; we''ll update the check amount later
       _checkid := createCheck(pBankaccntid,	'V',	_v.vend_id,
 			      pCheckDate,		0.01,	_check_curr_id,
@@ -38,12 +39,13 @@ BEGIN
 
       FOR _r IN SELECT apopen_id, apselect_id,
 		       apopen_docnumber, apopen_invcnumber, apopen_ponumber,
-		       apopen_docdate, apselect_curr_id,
+		       apopen_docdate, apopen_curr_rate, apselect_curr_id,
 		       apselect_amount, apselect_discount
 		FROM apselect, apopen
 		WHERE ( (apselect_apopen_id=apopen_id)
 		 AND (apopen_vend_id=_v.vend_id)
-		 AND (apselect_bankaccnt_id=pBankaccntid) ) LOOP
+		 AND (apselect_bankaccnt_id=pBankaccntid)
+                 AND (apselect_date <= pCheckDate) ) LOOP
 	INSERT INTO checkitem
 	( checkitem_checkhead_id, checkitem_apopen_id,
 	  checkitem_vouchernumber, checkitem_invcnumber, checkitem_ponumber,
@@ -54,7 +56,7 @@ BEGIN
 	  _r.apopen_docnumber, _r.apopen_invcnumber, _r.apopen_ponumber,
 	  _r.apselect_amount, _r.apselect_discount, _r.apopen_docdate,
 	  _r.apselect_curr_id, 
-          1 / (_check_curr_rate / currRate(_r.apselect_curr_id, pCheckdate))  );
+          _r.apopen_curr_rate );
 
 	DELETE FROM apselect
 	WHERE (apselect_id=_r.apselect_id);
@@ -63,8 +65,9 @@ BEGIN
 
       -- one check can pay for purchases on multiple dates in multiple currencies
       UPDATE checkhead
-      SET checkhead_amount = (SELECT SUM(CASE WHEN (apopen_doctype='C') THEN checkitem_amount / checkitem_curr_rate * -1.0
-                                              ELSE checkitem_amount / checkitem_curr_rate END)
+      SET checkhead_amount = (SELECT SUM(currToCurr(checkitem_curr_id, checkhead_curr_id, 
+                                         CASE WHEN (apopen_doctype='C') THEN checkitem_amount * -1.0
+                                              ELSE checkitem_amount END, pCheckDate))
 			      FROM checkitem LEFT OUTER JOIN apopen ON (apopen_id=checkitem_apopen_id)
 			      WHERE (checkitem_checkhead_id=checkhead_id))
       WHERE (checkhead_id=_checkid);

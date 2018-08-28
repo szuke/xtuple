@@ -78,7 +78,7 @@
    	 LEFT JOIN salesrep     ON (crmacct_salesrep_id = salesrep_id)
    	 LEFT JOIN vendinfo     ON (crmacct_vend_id = vend_id)
    	 LEFT JOIN image 	ON (e.emp_image_id = image.image_id)
-   	 JOIN curr_symbol 	ON (e.emp_wage_curr_id = curr_symbol.curr_id);
+   	 LEFT JOIN curr_symbol 	ON (e.emp_wage_curr_id = curr_symbol.curr_id);
 
 ALTER TABLE api.employee OWNER TO "admin";
 GRANT ALL ON TABLE api.employee TO "admin";

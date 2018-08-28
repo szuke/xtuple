@@ -1,9 +1,12 @@
 CREATE OR REPLACE RULE "_INSERT" AS
   ON INSERT TO api.creditmemoline DO INSTEAD NOTHING;
-CREATE OR REPLACE RULE "_UPDATE" AS 
+CREATE OR REPLACE RULE "_UPDATE" AS
   ON UPDATE TO api.creditmemoline DO INSTEAD NOTHING;
 SELECT dropIfExists('FUNCTION', 'insertCreditMemoLine(api.creditmemoline)');
 SELECT dropIfExists('FUNCTION', 'updateCreditMemoLine(api.creditmemoline, api.creditmemoline)');
+-- Cleanup old bad installs.
+SELECT dropIfExists('FUNCTION', 'insertCreditMemoLine(api.creditmemoline)', 'xt');
+SELECT dropIfExists('FUNCTION', 'updateCreditMemoLine(api.creditmemoline, api.creditmemoline)', 'xt');
 SELECT dropIfExists('VIEW', 'creditmemoline', 'api');
 CREATE OR REPLACE VIEW api.creditmemoline AS
   SELECT cmhead_number AS memo_number,
@@ -26,14 +29,14 @@ CREATE OR REPLACE VIEW api.creditmemoline AS
               LEFT OUTER JOIN taxtype ON (taxtype_id=cmitem_taxtype_id)
               LEFT OUTER JOIN uom AS qty_uom ON (qty_uom.uom_id=cmitem_qty_uom_id)
               LEFT OUTER JOIN uom AS price_uom ON (price_uom.uom_id=cmitem_price_uom_id);
-	
+
 GRANT ALL ON TABLE api.creditmemoline TO xtrole;
 COMMENT ON VIEW api.creditmemoline IS 'Credit Memo Line';
 
 
 CREATE OR REPLACE FUNCTION insertcreditmemoline(api.creditmemoline) RETURNS boolean AS
 $insertcreditmemoline$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pNew ALIAS FOR $1;
@@ -45,7 +48,8 @@ BEGIN
   FROM cmhead
   WHERE (cmhead_id=getCmheadId(pNew.memo_number, FALSE));
   IF (NOT FOUND) THEN
-    RAISE EXCEPTION 'Credit Memo # % not found', pNew.memo_number;
+    RAISE EXCEPTION 'Credit Memo # % not found [xtuple: insertCreditMemoLine, -1, %]',
+                    pNew.memo_number, pNew.memo_number;
   END IF;
 
   INSERT INTO cmitem ( cmitem_cmhead_id,
@@ -97,7 +101,7 @@ $insertcreditmemoline$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION updatecreditmemoline(api.creditmemoline, api.creditmemoline) RETURNS boolean AS
 $updatecreditmemoline$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pNew ALIAS FOR $1;
@@ -110,7 +114,8 @@ BEGIN
   FROM cmitem
   WHERE ( (cmitem_cmhead_id=getCmheadId(pOld.memo_number, FALSE)) AND (cmitem_linenumber=pOld.line_number) );
   IF (NOT FOUND) THEN
-    RAISE EXCEPTION 'Credit Memo # % Line Number # not found', pOld.memo_number, pOld.line_number;
+    RAISE EXCEPTION 'Credit Memo % Line % not found [xtuple: updateCreditMemoLine, -1, %, %]',
+                     pOld.memo_number, pOld.line_number, pOld.memo_number, pOld.line_number;
   END IF;
 
   UPDATE cmitem
@@ -152,12 +157,12 @@ CREATE OR REPLACE RULE "_INSERT" AS
     SELECT insertcreditmemoline(NEW);
 
 
-CREATE OR REPLACE RULE "_UPDATE" AS 
+CREATE OR REPLACE RULE "_UPDATE" AS
   ON UPDATE TO api.creditmemoline DO INSTEAD
     SELECT updatecreditmemoline(NEW, OLD);
 
 
-CREATE OR REPLACE RULE "_DELETE" AS 
+CREATE OR REPLACE RULE "_DELETE" AS
   ON DELETE TO api.creditmemoline DO INSTEAD
     DELETE FROM cmitem
     WHERE ( (cmitem_cmhead_id=getCmheadId(OLD.memo_number, FALSE))

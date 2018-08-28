@@ -519,6 +519,116 @@ strict: false*/
     ]
   });
 
+  // ..........................................................
+  // PRINT FORM
+  //
+
+  enyo.kind({
+    name: "XV.PrintFormWorkspace",
+    kind: "XV.Workspace",
+    title: "_printForm".loc(),
+    model: "XM.Form",
+    backText: "_cancel".loc(),
+    saveText: "_print".loc(),
+    hideApply: true,
+    hideRefresh: true,
+    dirtyWarn: false,
+    published: {
+      printModel: null
+    },
+    /**
+      Set Key field on the FormPicker to handle
+        filtering of Forms.
+    */
+    attributesChanged: function (model, options) {
+      this.inherited(arguments);
+      var that = this,
+        unsetAttr,
+        key = this.value.get("key");
+
+      if (this.$.formPicker) {
+        this.$.formPicker.setKey(key);
+      }
+
+      if (this.isDirty()) {
+        unsetAttr = _.filter(this.getComponents(), function (comp) {
+          if (comp.attr) {
+            return !comp.value;
+          }
+          return comp.attr;
+        });
+        // If every attr has a value, enable the Save (Print) button
+        if (!unsetAttr.length) {
+          that.parent.parent.$.saveButton.setDisabled(false);
+        }
+      }
+    },
+    /**
+      Hanle meta properly
+    */
+    metaChanged: function (inSender, inEvent) {
+      var attr = inEvent.originator.getAttr(),
+        value = inEvent.originator.getValue();
+
+      this.value.meta.set(attr, value);
+      this.attributesChanged();
+    },
+    /**
+      Print the report
+    */
+    save: function (options) {
+      var printOptions = {
+          model: this.value.getValue("order"),
+          reportName: this.$.formPicker.value.getValue("reportName"),
+          printer: this.$.printer.value.id
+        };
+      // callback is passed in mocha test
+      if (options.callback) {
+        _.extend(printOptions, {callback: options.callback});
+      }
+      this.print(printOptions);
+      return this.doPrevious();
+    },
+    /**
+      Keep the Save (print) button disabled.
+    */
+    statusChanged: function (inSender, inEvent) {
+      this.inherited(arguments);
+      this.parent.parent.$.saveButton.setDisabled(true);
+    }
+  });
+
+  XV.registerModelWorkspace("XM.PrintForm", "XV.PrintFormWorkspace");
+
+  // ..........................................................
+  // PRINT SALES ORDER FORM WORKSPACE
+  //
+
+  enyo.kind({
+    name: "XV.PrintSalesOrderFormWorkspace",
+    kind: "XV.PrintFormWorkspace",
+    title: "_printSalesOrderForm".loc(),
+    components: [
+      {kind: "Panels", arrangerKind: "CarouselArranger", fit: true, components: [
+        {kind: "XV.Groupbox", name: "mainPanel", components: [
+          {kind: "onyx.GroupboxHeader", content: "_overview".loc()},
+          {kind: "XV.ScrollableGroupbox", name: "mainGroup", classes: "in-panel", components: [
+            {kind: "XV.SalesOrderWidget", attr: "order", label: "_salesOrder".loc()},
+            {kind: "XV.FormPicker", name: "formPicker", attr: "reportName"},
+            {kind: "XV.PrinterPicker", name: "printer", attr: "printer", label: "_printer".loc(),
+              onValueChange: "metaChanged"}
+          ]}
+        ]}
+      ]}
+    ]
+  });
+
+  XV.registerModelWorkspace("XM.PrintForm", "XV.PrintSalesOrderFormWorkspace");
+
+  // ..........................................................
+  // USER PREFERENCES
+  //
+
   enyo.kind({
     name: "XV.UserPreferenceWorkspace",
     kind: "XV.Workspace",
@@ -535,10 +645,57 @@ strict: false*/
           {kind: "XV.ScrollableGroupbox", name: "mainGroup",
             classes: "in-panel", components: [
           ]}
+        ]},
+        {kind: "XV.Groupbox", components: [
+          {kind: "onyx.GroupboxHeader", content: "_printSettings".loc()},
+          {kind: "XV.ScrollableGroupbox", name: "printSettingsGroup",
+            classes: "in-panel", components: [
+          ]}
         ]}
       ]}
-    ]
+    ],
+    /**
+      On create, cycle through the XM.printableObjects cache and create the enyo PrinterPickers
+      components.
+    */
+    create: function () {
+      this.inherited(arguments);
+      var printableObjects = XM.printableObjects,
+        that = this;
+
+      _.each(printableObjects, function (val, key) {
+        that.$.printSettingsGroup.createComponents([
+            {kind: "XV.PrinterPicker", attr: key, name: key, label: key.loc(),
+              onValueChange: "metaChanged"}
+          ], {owner: that});
+      });
+    },
+    /** 
+      PrintPicker value changed, call model's metaChanged for some special handling.
+    */
+    metaChanged: function (inSender, inEvent) {
+      var model = this.getValue(),
+        val = inSender.value ? inSender.value.id : null;
+      model.meta.set(inSender.attr, val);
+      model.metaChanged();
+    },
+    /**
+      Overload: Some special handling for start up. Go and set PrinterPicker value's based on
+      User's Print Settings preferences.
+    */
+    recordIdChanged: function () {
+      this.inherited(arguments);
+      var model = this.getValue();
+
+      if (!this._started && model && model.getStatus() === XM.Model.READY_CLEAN) {
+        model.statusReadyClean();
+        // Repaint workspace
+        this.attributesChanged();
+      }
+    }
   });
+
+  XV.registerModelWorkspace("XM.UserPreference", "XV.UserPreferenceWorkspace");
 
   // ..........................................................
   // CONTACT
@@ -641,12 +798,12 @@ strict: false*/
           {kind: "onyx.GroupboxHeader", content: "_overview".loc()},
           {kind: "XV.ScrollableGroupbox", name: "mainGroup",
             classes: "in-panel", components: [
-            {kind: "XV.InputWidget", attr: "abbreviation"},
+            {kind: "XV.InputWidget", attr: "abbreviation", maxlength: 2},
             {kind: "XV.InputWidget", attr: "name"},
             {kind: "XV.InputWidget", attr: "currencyName"},
             {kind: "XV.InputWidget", attr: "currencySymbol"},
-            {kind: "XV.InputWidget", attr: "currencyAbbreviation"},
-            {kind: "XV.InputWidget", attr: "currencyNumber"}
+            {kind: "XV.InputWidget", attr: "currencyAbbreviation", maxlength: 3},
+            {kind: "XV.InputWidget", attr: "currencyNumber", maxlength: 3}
           ]}
         ]}
       ]}
@@ -1276,6 +1433,7 @@ strict: false*/
     },
     {
       name: "email",
+      method: "doEmail",
       isViewMethod: true,
       label: "_email".loc(),
       privilege: "PrintInvoices",
@@ -1305,7 +1463,7 @@ strict: false*/
                   city: "billtoCity", state: "billtoState",
                   postalCode: "billtoPostalCode", country: "billtoCountry"}
               },
-              {kind: "onyx.GroupboxHeader", content: "_notes".loc()},
+              {kind: "onyx.GroupboxHeader", content: "_notes".loc(), name: "notesHeader"},
               {kind: "XV.TextArea", attr: "notes", fit: true}
             ]}
           ]}
@@ -1336,12 +1494,12 @@ strict: false*/
       this.inherited(arguments);
       if (enyo.platform.touch) {
         this.$.panels.createComponents([
-          {kind: "XV.InvoiceLineItemBox", name: "invoiceLineItemBox", attr: "lineItems",
+          {kind: "XV.InvoiceLineItemBox", name: "lineItemBox", attr: "lineItems",
             title: "_lineItems".loc(), addBefore: this.$.settingsPanel, classes: "medium-panel"}
         ], {owner: this});
       } else {
         this.$.panels.createComponents([
-          {kind: "XV.InvoiceLineItemGridBox", name: "invoiceLineItemBox", title: "_lineItems".loc(),
+          {kind: "XV.InvoiceLineItemGridBox", name: "lineItemBox", title: "_lineItems".loc(),
             attr: "lineItems", addBefore: this.$.settingsPanel}
         ], {owner: this});
       }
@@ -1733,6 +1891,32 @@ strict: false*/
   XV.registerModelWorkspace("XM.PlannerCode", "XV.PlannerCodeWorkspace");
 
   // ..........................................................
+  // PRINTER
+  //
+
+  enyo.kind({
+    name: "XV.PrinterWorkspace",
+    kind: "XV.Workspace",
+    title: "_printers".loc(),
+    model: "XM.Printer",
+    components: [
+      {kind: "Panels", arrangerKind: "CarouselArranger",
+        fit: true, components: [
+        {kind: "XV.Groupbox", name: "mainPanel", components: [
+          {kind: "onyx.GroupboxHeader", content: "_overview".loc()},
+          {kind: "XV.ScrollableGroupbox", name: "mainGroup",
+            classes: "in-panel", components: [
+            {kind: "XV.InputWidget", attr: "name"},
+            {kind: "XV.InputWidget", attr: "description"}
+          ]}
+        ]}
+      ]}
+    ]
+  });
+
+  XV.registerModelWorkspace("XM.Printer", "XV.PrinterWorkspace");
+
+  // ..........................................................
   // PRIORITY
   //
 
@@ -1882,13 +2066,13 @@ strict: false*/
       this.inherited(arguments);
       if (enyo.platform.touch) {
         this.$.panels.createComponents([
-          {kind: "XV.ReturnLineItemBox", name: "returnLineItemBox",
+          {kind: "XV.ReturnLineItemBox", name: "lineItemBox",
             attr: "lineItems", title: "_lineItems".loc(),
               addBefore: this.$.settingsPanel, classes: "medium-panel"}
         ], {owner: this});
       } else {
         this.$.panels.createComponents([
-          {kind: "XV.ReturnLineItemGridBox", name: "returnLineItemBox",
+          {kind: "XV.ReturnLineItemGridBox", name: "lineItemBox",
             title: "_lineItems".loc(), attr: "lineItems", addBefore: this.$.settingsPanel}
         ], {owner: this});
       }
@@ -1988,7 +2172,7 @@ strict: false*/
   //
 
   /**
-    This is the base kind for Quote and Sales order. This should include all common components
+    This is the base kind for Quote and Sales orderDateer. This should include all common components
     and functions.
   */
   enyo.kind({
@@ -2214,9 +2398,7 @@ strict: false*/
             {kind: "onyx.GroupboxHeader", content: "_delivery".loc()},
             {kind: "XV.DateWidget", attr: "scheduleDate"},
             {kind: "XV.DateWidget", attr: "promiseDate", showing: false,
-              name: "promiseDate"},
-            {kind: "XV.PurchaseOrderLineCharacteristicsWidget",
-              attr: "characteristics"}
+              name: "promiseDate"}
           ]}
         ]},
         {kind: "XV.Groupbox", name: "detailsPanel", title: "_detail".loc(),
@@ -2327,15 +2509,10 @@ strict: false*/
       onPaymentPosted: 'handlePaymentPosted',
     },
     model: "XM.SalesOrder",
-    printOnSaveSetting: "DefaultPrintPOOnSave",
+    printOnSaveSetting: "DefaultPrintSOOnSave",
     actions: [{
-      name: "print",
-      isViewMethod: true,
-      label: "_print".loc(),
-      privilege: "ViewSalesOrders",
-      prerequisite: "isReadyClean"
-    },
-    {name: "email",
+      name: "email",
+      method: "doEmail",
       isViewMethod: true,
       label: "_email".loc(),
       privilege: "ViewSalesOrders",
@@ -2355,7 +2532,7 @@ strict: false*/
             {kind: "XV.DateWidget", attr: "packDate"},
             {kind: "XV.InputWidget", attr: "formatStatus",
               label: "_status".loc()},
-            {kind: "XV.CheckboxWidget", attr: "printOnSaveSetting",
+            {kind: "XV.CheckboxWidget", attr: "printOnSaveSetting", name: "printOnSave",
               label: "_printOnSave".loc()},
             {kind: "onyx.GroupboxHeader", content: "_billTo".loc()},
             {kind: "XV.SalesCustomerWidget", attr: "customer",
@@ -2473,18 +2650,10 @@ strict: false*/
           {kind: "XV.SalesOrderLineItemBox", name: "salesOrderLineItemBox",
             attr: "lineItems", addBefore: this.$.settingsPanel, classes: "medium-panel"},
         ], {owner: this});
-        this.$.panels.createComponents([
-          {kind: "XV.SalesOrderWorkflowBox", attr: "workflow", title: "_workflow".loc(),
-            addBefore: this.$.salesOrderCommentBox, classes: "medium-panel"}
-        ], {owner: this});
       } else {
         this.$.panels.createComponents([
           {kind: "XV.SalesOrderLineItemGridBox", name: "salesOrderLineItemBox",
             attr: "lineItems", addBefore: this.$.settingsPanel},
-        ], {owner: this});
-        this.$.panels.createComponents([
-          {kind: "XV.SalesOrderWorkflowGridBox", attr: "workflow", title: "_workflow".loc(),
-            addBefore: this.$.salesOrderCommentBox}
         ], {owner: this});
       }
     },
@@ -2519,69 +2688,9 @@ strict: false*/
   });
 
   XV.registerModelWorkspace("XM.SalesOrder", "XV.SalesOrderWorkspace");
-  XV.registerModelWorkspace("XM.SalesOrderWorkflow", "XV.SalesOrderWorkspace");
   XV.registerModelWorkspace("XM.SalesOrderRelation", "XV.SalesOrderWorkspace");
   XV.registerModelWorkspace("XM.SalesOrderListItem", "XV.SalesOrderWorkspace");
 
-  // ..........................................................
-  // SALES ORDER WORKFLOW
-  //
-
-  enyo.kind({
-    name: "XV.SalesOrderWorkflowWorkspace",
-    kind: "XV.ChildWorkspace",
-    title: "_salesOrderWorkflow".loc(),
-    model: "XM.SalesOrderWorkflow",
-    components: [
-      {kind: "Panels", arrangerKind: "CarouselArranger",
-        classes: "xv-top-panel", fit: true, components: [
-        {kind: "XV.Groupbox", name: "mainPanel", components: [
-          {kind: "onyx.GroupboxHeader", content: "_overview".loc()},
-          {kind: "XV.ScrollableGroupbox", name: "mainGroup", fit: true,
-            classes: "in-panel", components: [
-            {kind: "XV.InputWidget", attr: "name"},
-            {kind: "XV.InputWidget", attr: "description"},
-            {kind: "XV.SalesOrderWorkflowTypePicker", attr: "workflowType"},
-            {kind: "XV.WorkflowStatusPicker", attr: "status"},
-            {kind: "XV.PriorityPicker", attr: "priority", showNone: false},
-            {kind: "XV.NumberSpinnerWidget", attr: "sequence"},
-            {kind: "onyx.GroupboxHeader", content: "_schedule".loc()},
-            {kind: "XV.DateWidget", attr: "dueDate"},
-            {kind: "XV.DateWidget", attr: "startDate"},
-            {kind: "XV.DateWidget", attr: "assignDate"},
-            {kind: "XV.DateWidget", attr: "completeDate"},
-            {kind: "onyx.GroupboxHeader", content: "_userAccounts".loc()},
-            {kind: "XV.UserAccountWidget", attr: "owner"},
-            {kind: "XV.UserAccountWidget", attr: "assignedTo"},
-            {kind: "onyx.GroupboxHeader", content: "_notes".loc()},
-            {kind: "XV.TextArea", attr: "notes", fit: true}
-          ]}
-        ]},
-        {kind: "XV.Groupbox", name: "onCompletedPanel", title: "_completionActions".loc(),
-          components: [
-          {kind: "onyx.GroupboxHeader", content: "_onCompletion".loc()},
-          {kind: "XV.ScrollableGroupbox", name: "completionGroup", fit: true,
-            classes: "in-panel", components: [
-            {kind: "XV.CreditStatusPicker", attr: "completedParentStatus",
-              noneText: "_noChange".loc(), label: "_nextStatus".loc()},
-            {kind: "XV.DependenciesWidget",
-              attr: {workflow: "parent.workflow", successors: "completedSuccessors"}}
-          ]}
-        ]},
-        {kind: "XV.Groupbox", name: "onDeferredPanel", title: "_deferredActions".loc(),
-          components: [
-          {kind: "onyx.GroupboxHeader", content: "_onDeferred".loc()},
-          {kind: "XV.ScrollableGroupbox", name: "deferredGroup", fit: true,
-            classes: "in-panel", components: [
-            {kind: "XV.CreditStatusPicker", attr: "deferredParentStatus",
-              noneText: "_noChange".loc(), label: "_nextStatus".loc()},
-            {kind: "XV.DependenciesWidget",
-              attr: {workflow: "parent.workflow", successors: "deferredSuccessors"}}
-          ]}
-        ]}
-      ]}
-    ]
-  });
   // ..........................................................
   // REASON CODE
   //
@@ -2679,12 +2788,12 @@ strict: false*/
             classes: "in-panel", components: [
             {kind: "XV.InputWidget", attr: "code"},
             {kind: "XV.InputWidget", attr: "description"},
+            {kind: "XV.CheckboxWidget", attr: "default"},
             {kind: "XV.SalesEmailProfilePicker", attr: "emailProfile"},
             {kind: "XV.HoldTypePicker", attr: "defaultHoldType"},
             {kind: "XV.SaleTypeCharacteristicsWidget", attr: "characteristics"}
           ]}
-        ]},
-        {kind: "XV.SaleTypeWorkflowBox", attr: "workflow"}
+        ]}
       ]}
     ]
   });
@@ -2785,19 +2894,17 @@ strict: false*/
           {kind: "onyx.GroupboxHeader", content: "_overview".loc()},
           {kind: "XV.ScrollableGroupbox", name: "mainGroup", fit: true,
             classes: "in-panel", components: [
-            {kind: "XV.InputWidget", attr: "code"},
-            {kind: "XV.CheckboxWidget", attr: "isActive"},
-            {kind: "XV.SiteTypePicker", attr: "siteType"},
-            {kind: "XV.InputWidget", attr: "description"},
-            {kind: "XV.ContactWidget", attr: "contact"},
-            {kind: "XV.AddressWidget", attr: "address"},
-            {kind: "XV.TaxZonePicker", attr: "taxZone"},
-            {kind: "XV.InputWidget", attr: "incoterms"},
-            {kind: "onyx.GroupboxHeader", content: "_notes".loc()},
-            {kind: "XV.TextArea", attr: "notes", fit: true}
+            {name: "mainSubgroup", components: [ // not a scroller, so we can addBefore
+              {kind: "XV.InputWidget", attr: "code"},
+              {kind: "XV.CheckboxWidget", attr: "isActive"},
+              {kind: "XV.SiteTypePicker", attr: "siteType"},
+              {kind: "XV.InputWidget", attr: "description"},
+              {kind: "XV.ContactWidget", attr: "contact", name: "contactWidget"},
+              {kind: "XV.AddressWidget", attr: "address"}
+            ]}
           ]}
         ]},
-        {kind: "XV.SiteCommentBox", attr: "comments"}
+        {kind: "XV.SiteCommentBox", attr: "comments", name: "commentsPanel"}
       ]}
     ]
   });
@@ -3344,6 +3451,5 @@ strict: false*/
   XV.registerModelWorkspace("XM.UserAccountRole", "XV.UserAccountRoleWorkspace");
   XV.registerModelWorkspace("XM.UserAccountRoleRelation", "XV.UserAccountRoleWorkspace");
   XV.registerModelWorkspace("XM.UserAccountRoleListItem", "XV.UserAccountRoleWorkspace");
-
 
 }());

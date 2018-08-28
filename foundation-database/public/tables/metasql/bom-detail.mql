@@ -5,7 +5,10 @@
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT <? if exists("bySingleLvl") ?>
-         bomitem_item_id AS itemid, bomitem.*, item_number,
+         bomitem_item_id AS itemid, item_number,
+         bomitem_seqnumber, item_number, bomitem_qtyfxd, bomitem_qtyper,
+         bomitem_scrap, bomitem_effective, bomitem_expires, bomitem_ecn,
+         bomitem_notes, bomitem_ref,
          invuom.uom_name AS invuomname, issueuom.uom_name AS issueuomname,
          (item_descrip1 || ' ' || item_descrip2) AS itemdescription,
          (itemuomtouomratio(bomitem_item_id, bomitem_uom_id, NULL) * bomitem_qtyfxd) AS invqtyfxd,
@@ -31,7 +34,11 @@ SELECT <? if exists("bySingleLvl") ?>
          <? else ?>
            bomdata_item_id AS itemid,
          <? endif ?>
-         *,'percent' AS bomdata_scrap_xtnumericrole,
+         item_number,
+         bomdata_bomwork_seqnumber, bomdata_item_number, bomdata_uom_name,
+         bomdata_itemdescription, bomdata_qtyreq, bomdata_scrap,
+         bomdata_effective, bomdata_expires, bomdata_notes, bomdata_ref,
+         'percent' AS bomdata_scrap_xtnumericrole,
          'qtyper' AS bomdata_qtyreq_xtnumericrole,
          CASE WHEN COALESCE(bomdata_effective, startOfTime()) <=
                    startOfTime() THEN <? value("always") ?>
@@ -54,6 +61,7 @@ FROM <? if exists("bySingleLvl") ?>
                    <? value("revision_id") ?>,
                    <? value("expiredDays") ?>,
                    <? value("futureDays") ?>)
+       JOIN item ON (bomdata_item_number=item_number)
      <? elseif exists("bySummarized") ?>
        summarizedBOM(<? value("item_id") ?>,
                      <? value("revision_id") ?>,

@@ -98,7 +98,8 @@ BEGIN
 		  FROM poitem 
 		  WHERE (poitem_pohead_id = pSrcid) LOOP
 
-      SELECT * INTO _itemsrc
+      SELECT itemsrc.*, itemsite_item_id
+        INTO _itemsrc
       FROM itemsrc, itemsite
       WHERE (itemsrc_active
         AND  (itemsrc_id = _lineitem.poitem_itemsrc_id)
@@ -209,4 +210,4 @@ BEGIN
   RETURN _tgtid;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

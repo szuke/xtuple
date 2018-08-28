@@ -2,22 +2,16 @@
 noarg:true, regexp:true, undef:true, strict:true, trailing:true, white:true */
 /*global XT:true, X:true, _:true */
 
-var routes = require('./routes'),
-  _ = require('underscore'),
-  str = require('underscore.string'),
-  querylib = require('../lib/query'),
-  RestQuery = querylib.RestQuery,
-  FreeTextQuery = querylib.FreeTextQuery,
-  XtGetQuery = querylib.XtGetQuery;
-
-_.mixin(str.exports());
+var routes = require("./routes"),
+  _ = require("underscore"),
+  restQueryFormat = require("../lib/rest-query-format");
 
 /**
  * @class RestRouter
  * @singleton
  */
 module.exports = (function () {
-  'use strict';
+  "use strict";
 
   var getIsRestORMsStore,
     getResourcesStore,
@@ -31,42 +25,25 @@ module.exports = (function () {
       GET: function (req, res, session, options) {
         var callback = options.callback,
           payload = {
-            nameSpace: 'XM',
+            nameSpace: "XM",
             type: options.ormType
           },
-          restQuery,
-          freeQuery,
-          schema,
           error;
 
         if (options.id) {
           payload.id = options.id;
           return routes.queryDatabase("get", payload, session, callback);
-        }
-
-        if (req.query.q) {
-          freeQuery = new FreeTextQuery(req.query);
-          if (freeQuery.isValid()) {
-            schema = XT.session.schemas.XM.attributes[_.capitalize(_.camelize(payload.type))];
-            payload.query = freeQuery.toTarget(XtGetQuery, { schema: schema }).query;
+        } else {
+          // Format a complex REST API query structure into an xTuple's datasource database query.
+          payload.query = restQueryFormat(payload.nameSpace + "." + payload.type, req.url, req.query);
+          if (payload.query) {
             return routes.queryDatabase("get", payload, session, callback);
-          }
-          else {
-            error = freeQuery.getErrors();
-          }
-        }
-        else {
-          restQuery = new RestQuery(req.query);
-          if (restQuery.isValid()) {
-            payload.query = restQuery.toTarget(XtGetQuery).query;
-            return routes.queryDatabase("get", payload, session, callback);
-          }
-          else {
-            error = restQuery.getErrors();
+          } else {
+            error = {message: "Bad Request", code: 400};
           }
         }
 
-        return res.json(error.error.code, error);
+        return res.json(error.code, error.message);
       },
 
       /**
@@ -79,7 +56,7 @@ module.exports = (function () {
         var body = _.clone(req.body),
           serviceModel = options.serviceModel,
           services = options.services,
-          id = _.camelize(options.id),
+          id = options.id ? options.id.camelize() : null,
           ormType = options.ormType,
           callback = options.callback,
           payload = {};
@@ -160,14 +137,14 @@ module.exports = (function () {
 
       /**
        * Returns the HTTP methods that the server supports for specified URL.
-       * This can be used to check the functionality of a web server by requesting '*' instead
+       * This can be used to check the functionality of a web server by requesting "*" instead
        * of a specific resource.
        * TODO - call options method.
        * @private
        */
       OPTIONS: function (req, res, session, options) {
         var ormType = options.ormType;
-        return res.send('REST API OPTIONS call to ormType: ' + ormType);
+        return res.send("REST API OPTIONS call to ormType: " + ormType);
       },
 
       /**
@@ -189,8 +166,8 @@ module.exports = (function () {
       var rootUrl = req.protocol + "://" + req.host + "/",
         session = getSession(req, next),
         payload = {
-          nameSpace: 'XT',
-          type: 'Discovery',
+          nameSpace: "XT",
+          type: "Discovery",
           dispatch: {
             functionName: "getResources",
             parameters: [null, rootUrl]
@@ -218,8 +195,8 @@ module.exports = (function () {
     _getServices = function (req, res, next, orms, resources) {
       var rootUrl = req.protocol + "://" + req.host + "/",
         payload = {
-          nameSpace: 'XT',
-          type: 'Discovery',
+          nameSpace: "XT",
+          type: "Discovery",
           dispatch: {
             functionName: "getServices",
             parameters: [null, rootUrl, true]
@@ -270,10 +247,10 @@ module.exports = (function () {
       }
 
       if (req.params.model) {
-        ormType = _.capitalize(_.camelize(req.params.model));
+        ormType = req.params.model.camelize().capitalize();
         resourceModel = _.findWhere(orms, { orm_type: ormType });
       } else if (req.params.service) {
-        ormType = _.capitalize(_.camelize(req.params.service));
+        ormType = req.params.service.camelize().capitalize();
         serviceModel  = _.contains(_.keys(services), ormType);
       }
 
@@ -303,8 +280,8 @@ module.exports = (function () {
    */
   function getIsRestORMs(req, res, next) {
     var payload = {
-        nameSpace: 'XT',
-        type: 'Discovery',
+        nameSpace: "XT",
+        type: "Discovery",
         dispatch: {
           functionName: "getIsRestORMs"
         }
@@ -331,7 +308,7 @@ module.exports = (function () {
    */
   function getSession(req, next) {
     return {
-      passport: getPassport(req.user, next)
+      passport: getPassport(req.user.get("username") ? req.user : req.session.passport.user, next)
     };
   }
 
@@ -339,12 +316,12 @@ module.exports = (function () {
    * Create a session passport object given a req.user
    */
   function getPassport(user, next) {
-    if (!user) return next(new Error('user is not defined'));
+    if (!user) return next(new Error("user is not defined"));
     return {
       user: {
-        id: user.get('username'),
-        username: user.get('username'),
-        organization: user.get('organization')
+        id: user.get ? user.get("username") : user.username,
+        username: user.get ? user.get("username") : user.username,
+        organization: user.get ? user.get("organization") : user.organization
       }
     };
   }

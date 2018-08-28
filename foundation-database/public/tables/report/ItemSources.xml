@@ -15,26 +15,10 @@
  <bottommargin>50</bottommargin>
  <rightmargin>50</rightmargin>
  <leftmargin>50</leftmargin>
- <querysource>
+ <querysource loadFromDb="true">
   <name>detail</name>
-  <sql>SELECT item_number, vend_name,
-       item_descrip1, item_descrip2,
-       uom_name,
-       itemsrc_vend_item_number as f_venditem,
-       itemsrc_vend_uom as f_venduom,
-       formatQty(itemsrc_invvendoruomratio) as f_uomratio
-FROM itemsrc, vendinfo, item, uom
-WHERE ((itemsrc_vend_id=vend_id)
-  AND (itemsrc_item_id=item_id)
-  AND (item_inv_uom_id=uom_id)
-&lt;? if exists("item_id") ?>
-  AND (itemsrc_item_id=&lt;? value("item_id") ?>)
-&lt;? endif ?>
-&lt;? if exists("vend_id") ?>
-  AND (itemsrc_vend_id=&lt;? value("vend_id") ?>)
-&lt;? endif ?>
-)
-ORDER By item_number, vend_name;</sql>
+  <mqlgroup>itemSources</mqlgroup>
+  <mqlname>detail</mqlname>
  </querysource>
  <rpthead>
   <height>221</height>
@@ -400,7 +384,7 @@ ORDER By item_number, vend_name;</sql>
     <vcenter/>
     <data>
      <query>detail</query>
-     <column>f_venduom</column>
+     <column>itemsrc_vend_uom</column>
     </data>
    </field>
    <field>
@@ -464,7 +448,7 @@ ORDER By item_number, vend_name;</sql>
     <vcenter/>
     <data>
      <query>detail</query>
-     <column>f_venditem</column>
+     <column>itemsrc_vend_item_number</column>
     </data>
    </field>
    <field>

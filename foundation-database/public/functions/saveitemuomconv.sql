@@ -1,6 +1,6 @@
 CREATE OR REPLACE FUNCTION saveItemUomConv(integer, integer, numeric, integer, numeric, boolean, integer[])
   RETURNS integer AS '
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pItemId ALIAS FOR $1;
@@ -40,7 +40,7 @@ BEGIN
     _fromValue := _p.uomconv_from_value;
     _toValue := _p.uomconv_to_value;
     _fractional := _p.uomconv_fractional;
-    RAISE NOTICE ''Defaulted to global Unit of Measure conversion ratios.'';
+    --RAISE NOTICE ''Defaulted to global Unit of Measure conversion ratios.'';
   ELSE
     _fromUomId := pFromUomId;
     _fromValue := pFromValue;
@@ -76,17 +76,17 @@ BEGIN
       itemuomconv_fractional=_fractional
     WHERE (itemuomconv_id=_p.itemuomconv_id);
     _seq := _p.itemuomconv_id;
-    
+
     --Delete old type list
     DELETE FROM itemuom WHERE itemuom_itemuomconv_id=_p.itemuomconv_id;
   ELSE
-  
+
 -- Otherwise create a new one
     SELECT NEXTVAL(''itemuomconv_itemuomconv_id_seq'') INTO _seq;
     INSERT INTO itemuomconv VALUES
       (_seq, pItemId,_fromUomId,_fromValue,_toUomId,_toValue,_fractional);
   END IF;
-  
+
 -- Build new type list
   FOR _i IN 1..ARRAY_UPPER(pUomTypes,1)
   LOOP
@@ -104,7 +104,7 @@ BEGIN
       VALUES (_seq,pUomTypes[_i]);
     END IF;
   END LOOP;
-  
+
   RETURN _seq;
 END;
 ' LANGUAGE 'plpgsql';

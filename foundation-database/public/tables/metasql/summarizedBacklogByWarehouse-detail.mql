@@ -14,6 +14,7 @@ SELECT * FROM (
                WHEN (cohead_holdtype='S') THEN <? value("ship") ?>
                WHEN (cohead_holdtype='P') THEN <? value("pack") ?>
                WHEN (cohead_holdtype='R') THEN <? value("return") ?>
+               WHEN (cohead_holdtype='T') THEN <? value("tax") ?>
                ELSE <? value("other") ?>
    END AS f_holdtype,       
    MIN(coitem_scheddate) AS scheddate,       

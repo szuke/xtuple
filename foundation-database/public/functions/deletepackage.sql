@@ -7,7 +7,7 @@ DECLARE
   _pkgname      TEXT;
   _r            RECORD;
   _tabs         TEXT[] := ARRAY['cmd',  'cmdarg', 'image',  'metasql',
-                                'priv', 'report', 'script', 'uiform'];
+                                'priv', 'report', 'script', 'uiform', 'dict'];
   _debug        BOOL := false;
 
 BEGIN

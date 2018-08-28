@@ -1,13 +1,18 @@
 -- Group: customers
 -- Name:  detail
 -- Notes: 
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
--- See www.xtuple.com/CPAL for the full text of the software license.
+--        Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+--        See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT DISTINCT ON ( cust_number ) 
   cust_id, cust_custtype_id, 
   cust_active, cust_number, cust_name,
   custtype_code,
+  CASE cust_creditstatus WHEN 'W' THEN <? value('creditwarn')?>
+			WHEN 'H' THEN <? value('credithold')?>
+			WHEN 'G' THEN ''  -- Good Status
+			ELSE cust_creditstatus
+			END as holdtype,
   bill_cntct.cntct_first_name AS bill_first_name,
   bill_cntct.cntct_last_name AS bill_last_name,
   bill_cntct.cntct_title AS bill_title,
@@ -97,6 +102,9 @@ WHERE true
 <? if exists("cust_name_pattern") ?>
   AND (cust_name ~* <? value("cust_name_pattern") ?>)
 <? endif ?>
+<? if exists("cust_custtype_id") ?>
+  AND (cust_custtype_id = <? value("cust_custtype_id") ?>)
+<? endif ?>
 <? if exists("custtype_code_pattern") ?>
   AND (custtype_code ~* <? value("custtype_code_pattern") ?>)
 <? endif ?>
@@ -135,5 +143,11 @@ WHERE true
 <? if exists("salesrep_id") ?>
   AND (cust_salesrep_id = <? value("salesrep_id") ?>)
 <? endif ?>
+<? if exists("holdtype") ?>
+ AND CASE WHEN <? value("holdtype") ?> = 1 THEN cust_creditstatus = 'W'
+	  WHEN <? value("holdtype") ?> = 2 THEN cust_creditstatus = 'H'
+	  ELSE cust_creditstatus = 'G' END
+<? endif ?>
 <? literal("charClause") ?>
 ORDER BY cust_number; 
+

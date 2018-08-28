@@ -1,12 +1,12 @@
-CREATE OR REPLACE FUNCTION stdCost(INTEGER) RETURNS NUMERIC STABLE AS '
+CREATE OR REPLACE FUNCTION stdCost(INTEGER) RETURNS NUMERIC STABLE AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   RETURN stdCost($1, NULL);
 END;
-' LANGUAGE 'plpgsql';
+$$ LANGUAGE 'plpgsql';
 
-CREATE OR REPLACE FUNCTION stdCost(INTEGER, INTEGER) RETURNS NUMERIC STABLE AS '
+CREATE OR REPLACE FUNCTION stdCost(INTEGER, INTEGER) RETURNS NUMERIC STABLE AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
@@ -16,10 +16,15 @@ DECLARE
 
 BEGIN
 
-  SELECT SUM(COALESCE(bomitemcost_stdcost, itemcost_stdcost)) INTO _cost
-  FROM itemcost
-    LEFT OUTER JOIN bomitemcost ON (bomitemcost_bomitem_id=pBomitemid AND bomitemcost_costelem_id=itemcost_costelem_id)
-  WHERE (itemcost_item_id=pItemid);
+  IF (EXISTS(SELECT 1 FROM bomitemcost WHERE bomitemcost_bomitem_id=pBomitemid)) THEN
+    SELECT SUM(bomitemcost_stdcost) INTO _cost
+    FROM bomitemcost
+    WHERE bomitemcost_bomitem_id=pBomitemid;
+  ELSE
+    SELECT SUM(itemcost_stdcost) INTO _cost
+    FROM itemcost
+    WHERE itemcost_item_id=pItemid;
+  END IF;
 
   IF (_cost IS NULL) THEN
     RETURN 0;
@@ -28,4 +33,4 @@ BEGIN
   END IF;
 
 END;
-' LANGUAGE 'plpgsql';
+$$ LANGUAGE 'plpgsql';

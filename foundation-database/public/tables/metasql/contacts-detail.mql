@@ -7,9 +7,16 @@
 SELECT DISTINCT ON (length(cntct_last_name)=0, length(cntct_first_name)=0, cntct_last_name, cntct_first_name, cntct_number) 
   cntct_id AS id
 <? if not exists("idOnly") ?> 
-, addr_id AS altId, addr.*,
+, addr_id AS altId,
+  addr_line1, addr_line2, addr_line3, addr_city, addr_state, addr_postalcode,
+  addr_country, addr_notes, addr_number,
   crmacct_id, crmacct_number, crmacct_name,
-  cntct.* 
+  COALESCE(crmacct_cust_id,-1) > 0 AS cust_qtdisplayrole,
+  crmacct_cust_id AS cust,
+  COALESCE(crmacct_prospect_id,-1) > 0 AS prospect_qtdisplayrole,
+  crmacct_prospect_id AS prospect,
+  cntct_first_name, cntct_last_name, cntct_owner_username, cntct_title, cntct_phone,
+  cntct_phone2, cntct_fax, cntct_email, cntct_webaddr
 <? foreach("char_id_text_list") ?>
   , charass_alias<? literal("char_id_text_list") ?>.charass_value AS char<? literal("char_id_text_list") ?>
 <? endforeach ?>
@@ -73,7 +80,7 @@ WHERE true
   AND (cntct_id=<? value("cntct_id")?>)
 <? endif ?>
 <? if exists("crmacct_id") ?>
-  AND (crmacct_id=<? value("crmacct_id")?>)
+  AND ( (crmacct_id=<? value("crmacct_id")?>) OR (crmacct_parent_id=<? value("crmacct_id")?>) )
 <? endif ?>
 <? if exists("cntct_name_pattern") ?>
   AND (COALESCE(cntct_first_name,'') || ' ' || COALESCE(cntct_last_name,'') ~* <? value("cntct_name_pattern") ?>)

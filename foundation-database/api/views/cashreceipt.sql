@@ -3,28 +3,7 @@ CREATE OR REPLACE VIEW api.cashreceipt AS
   SELECT
     cust_number::VARCHAR AS customer_number,
     cashrcpt_number AS cashreceipt_number,
-    CASE
-      WHEN cashrcpt_fundstype='C' THEN
-        'Check'::VARCHAR
-      WHEN cashrcpt_fundstype='T' THEN
-        'Certified Check'::VARCHAR
-      WHEN cashrcpt_fundstype='M' THEN
-        'Master Card'::VARCHAR
-      WHEN cashrcpt_fundstype='V' THEN
-        'Visa'::VARCHAR
-      WHEN cashrcpt_fundstype='A' THEN
-        'American Express'::VARCHAR
-      WHEN cashrcpt_fundstype='D' THEN
-        'Discover Card'::VARCHAR
-      WHEN cashrcpt_fundstype='R' THEN
-        'Other Credit Card'::VARCHAR
-      WHEN cashrcpt_fundstype='K' THEN
-        'Cash'::VARCHAR
-      WHEN cashrcpt_fundstype='W' THEN
-        'Wire Transfer'::VARCHAR
-      WHEN cashrcpt_fundstype='O' THEN
-        'Other'::VARCHAR
-    END AS funds_type,
+    getFundsTypeName(cashrcpt_fundstype)::VARCHAR AS funds_type,
     cashrcpt_docnumber::VARCHAR AS check_document_number,
     cust_name AS customer_name,
     addr_line1 AS customer_address,
@@ -47,11 +26,11 @@ CREATE OR REPLACE VIEW api.cashreceipt AS
     LEFT OUTER JOIN curr_symbol ON (curr_id=cashrcpt_curr_id)
     LEFT OUTER JOIN bankaccnt ON (bankaccnt_id=cashrcpt_bankaccnt_id)
     LEFT OUTER JOIN salescat ON (salescat_id=cashrcpt_salescat_id);
-	
+
 GRANT ALL ON TABLE api.cashreceipt TO xtrole;
 COMMENT ON VIEW api.cashreceipt IS '
-This view can be used as an interface to import Cash Receipt data directly  
-into the system.  Required fields will be checked and default values will be 
+This view can be used as an interface to import Cash Receipt data directly
+into the system.  Required fields will be checked and default values will be
 populated';
 
 --Rules
@@ -117,7 +96,7 @@ CREATE OR REPLACE RULE "_INSERT" AS
     END
     );
 
-CREATE OR REPLACE RULE "_UPDATE" AS 
+CREATE OR REPLACE RULE "_UPDATE" AS
   ON UPDATE TO api.cashreceipt DO INSTEAD
 
   UPDATE cashrcpt SET
@@ -137,8 +116,6 @@ CREATE OR REPLACE RULE "_UPDATE" AS
           'A'
         WHEN NEW.funds_type='Discover Card' THEN
           'D'
-        WHEN NEW.funds_type='Other Credit Card' THEN
-          'R'
         WHEN NEW.funds_type='Cash' THEN
           'K'
         WHEN NEW.funds_type='Wire Transfer' THEN
@@ -192,9 +169,9 @@ CREATE OR REPLACE RULE "_UPDATE" AS
                        OLD.check_document_number) );
 
 
-CREATE OR REPLACE RULE "_DELETE" AS 
+CREATE OR REPLACE RULE "_DELETE" AS
   ON DELETE TO api.cashreceipt DO INSTEAD
-	
+
     SELECT deleteCashrcpt(cashrcpt_id)
 	FROM cashrcpt
     WHERE (cashrcpt_id=getCashrcptId(

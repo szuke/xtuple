@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION createAPDebitMemo(INTEGER, TEXT, TEXT, DATE, NUMERIC, TEXT) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pVendid ALIAS FOR $1;
@@ -22,7 +22,7 @@ $$ LANGUAGE 'plpgsql';
 
 
 CREATE OR REPLACE FUNCTION createAPDebitMemo(INTEGER, TEXT, TEXT, DATE, NUMERIC, TEXT, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pVendid ALIAS FOR $1;
@@ -46,7 +46,7 @@ $$ LANGUAGE 'plpgsql';
 
 
 CREATE OR REPLACE FUNCTION createAPDebitMemo(INTEGER, TEXT, TEXT, DATE, NUMERIC, TEXT, INTEGER, DATE, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pVendid ALIAS FOR $1;
@@ -72,7 +72,7 @@ $$ LANGUAGE 'plpgsql';
 
 
 CREATE OR REPLACE FUNCTION createAPDebitMemo(INTEGER, INTEGER, TEXT, TEXT, DATE, NUMERIC, TEXT) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pVendid ALIAS FOR $1;
@@ -92,7 +92,7 @@ $$ LANGUAGE 'plpgsql';
 
 
 CREATE OR REPLACE FUNCTION createAPDebitMemo(INTEGER, INTEGER, TEXT, TEXT, DATE, NUMERIC, TEXT, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pVendid ALIAS FOR $1;
@@ -111,7 +111,7 @@ $$ LANGUAGE 'plpgsql';
 
 
 CREATE OR REPLACE FUNCTION createAPDebitMemo(INTEGER, INTEGER, TEXT, TEXT, DATE, NUMERIC, TEXT, INTEGER, DATE, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pVendid ALIAS FOR $1;
@@ -131,7 +131,7 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION createAPDebitMemo(INTEGER, INTEGER, TEXT, TEXT, DATE, NUMERIC, TEXT, INTEGER, DATE, INTEGER, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pVendid ALIAS FOR $1;
@@ -152,8 +152,11 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 
-CREATE OR REPLACE FUNCTION createAPDebitMemo(INTEGER, INTEGER, INTEGER, TEXT, TEXT, DATE, NUMERIC, TEXT, INTEGER, DATE, INTEGER, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+SELECT dropifexists('FUNCTION', 'createapdebitmemo(integer, integer, integer, text, text, date, numeric, text, integer, date, integer, integer)');
+
+CREATE OR REPLACE FUNCTION createapdebitmemo(integer, integer, integer, text, text, date, numeric, text, integer, date, integer, integer, integer DEFAULT NULL)
+  RETURNS integer AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pId ALIAS FOR $1;
@@ -168,6 +171,7 @@ DECLARE
   pDueDate ALIAS FOR $10;
   pTermsid ALIAS FOR $11;
   pCurrId ALIAS FOR $12;
+  pTaxZoneid ALIAS FOR $13;
   _vendName TEXT;
   _apAccntid INTEGER;
   _prepaidAccntid INTEGER;
@@ -219,6 +223,8 @@ BEGIN
       apopen_amount=pAmount, apopen_paid=0,
       apopen_open=(pAmount <> 0), apopen_notes=pNotes,
       apopen_accnt_id=_accntid, apopen_curr_id=pCurrId,
+      apopen_curr_rate=currrate(pCurrId, pDocDate),
+      apopen_taxzone_id=pTaxZoneid,
       apopen_closedate=CASE WHEN (pAmount = 0) THEN pDocdate END
     WHERE apopen_id = _apopenid;
   ELSE
@@ -228,13 +234,15 @@ BEGIN
       apopen_vend_id, apopen_docnumber, apopen_doctype, apopen_ponumber,
       apopen_docdate, apopen_duedate, apopen_distdate, apopen_terms_id,
       apopen_amount, apopen_paid, apopen_discountable_amount, apopen_open, apopen_notes, apopen_accnt_id, apopen_curr_id,
-      apopen_closedate )
+      apopen_curr_rate, apopen_closedate, apopen_taxzone_id )
     VALUES
     ( _apopenid, getEffectiveXtUser(), _journalNumber,
       pVendid, pDocNumber, 'D', pPoNumber,
       pDocDate, pDueDate, pDocDate, pTermsid,
       pAmount, 0, 0, (pAmount <> 0), pNotes, _accntid, pCurrId,
-      CASE WHEN (pAmount = 0) THEN pDocDate END );
+      currrate(pCurrId, pDocDate),
+      CASE WHEN (pAmount = 0) THEN pDocDate END,
+      pTaxZoneid );
   END IF;
 
   _baseAmount := round(currToBase(pCurrId, pAmount, pDocDate), 2);
@@ -273,4 +281,4 @@ BEGIN
   RETURN _apopenid;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

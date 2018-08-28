@@ -4,8 +4,10 @@
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
-SELECT bomitem_id, item_id, *,
+SELECT bomitem_id, item_id, bomitem_seqnumber, item_number,
        (item_descrip1 || ' ' || item_descrip2) AS item_description,
+       bomitem_qtyfxd, bomitem_qtyper, bomitem_scrap, bomitem_notes,
+       bomitem_ref,
        CASE WHEN (item_type='P') THEN text(<? value("purchased") ?>)
             WHEN (item_type='M') THEN text(<? value("manufactured") ?>)
             WHEN (item_type='J') THEN text(<? value("job") ?>)
@@ -42,7 +44,7 @@ SELECT bomitem_id, item_id, *,
             WHEN (item_type='M') THEN 'altemphasis'
        END AS qtforegroundrole
 <? if exists("booitem_id") ?>
-FROM bomitem(<? value("item_id") ?>), item, uom, xtmfg.booitem
+FROM bomitem(<? value("item_id") ?>, <? value("revision_id") ?>), item, uom, xtmfg.booitem
 <? else ?>
 FROM bomitem(<? value("item_id") ?>, <? value("revision_id") ?>), item, uom
 <? endif ?>

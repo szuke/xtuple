@@ -213,6 +213,7 @@ BEGIN
         _row.bomdata_value := _x.bomwork_value;
         _row.bomdata_notes := _x.bomwork_notes;
         _row.bomdata_ref := _x.bomwork_ref;
+        _row.bomdata_seq_ord := _x.seq_ord;
         RETURN NEXT _row;
     END LOOP;
     
@@ -304,6 +305,7 @@ BEGIN
         _row.bomdata_value := _x.bomhist_value;
         _row.bomdata_notes := _x.bomhist_notes;
         _row.bomdata_ref := _x.bomhist_ref;
+        _row.bomdata_seq_ord := _x.seq_ord;
         RETURN NEXT _row;
     END LOOP;
   END IF;   

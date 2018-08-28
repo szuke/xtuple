@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION deleteIncident(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pincdtid    ALIAS FOR $1;
@@ -23,6 +23,10 @@ BEGIN
   DELETE FROM imageass
   WHERE ((imageass_source='INCDT')
      AND (imageass_source_id=pincdtid));
+
+  DELETE FROM docass
+  WHERE ((docass_source_type='INCDT')
+     AND (docass_source_id=pincdtid));
 
   DELETE FROM url
   WHERE ((url_source='INCDT')

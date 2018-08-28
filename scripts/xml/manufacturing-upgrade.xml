@@ -1,0 +1,18 @@
+<package id        = "manufacturing-upgrade-4.11.3"
+         version   = "4.11.3"
+         developer = "xTuple"
+         descrip   = "load Manufacturing resources"
+         updater   = "2.2.4" >
+
+  <manufacturing-prerequisites/>
+  <all-prerequisites/>
+
+  <script file="postbooks-upgrade.sql" />
+  <script file="commercialcore-upgrade.sql" />
+  <script file="inventory-upgrade.sql" />
+  <script file="manufacturing-upgrade.sql" />
+  <xTuple-translations/>
+  <xtcore-translations/>
+  <xtmfg-translations/>
+
+</package>

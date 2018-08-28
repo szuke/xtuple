@@ -7,9 +7,6 @@
 [submodule "lib/layout"]
   path = lib/layout
   url = https://github.com/enyojs/layout.git
-[submodule "lib/enyo-x/lib/gts-plugins"]
-  path = lib/enyo-x/lib/gts-plugins
-  url = https://bitbucket.org/GlitchTechScience/gts-plugins.git
 [submodule "lib/enyo-x/enyo"]
   path = lib/enyo-x/enyo
   url = https://github.com/xtuple/enyo.git
@@ -25,21 +22,45 @@
 [submodule "lib/backbone-x/lib/Backbone-relational"]
   path = lib/backbone-x/lib/Backbone-relational
   url = https://github.com/PaulUithol/Backbone-relational.git
-[submodule "lib/tools/lib/globalize"]
-  path = lib/tools/lib/globalize
-  url = https://github.com/jquery/globalize.git
 [submodule "lib/tools/lib/underscore"]
   path = lib/tools/lib/underscore
   url = https://github.com/documentcloud/underscore.git
 [submodule "lib/backbone-x/lib/JSON-Patch"]
   path = lib/backbone-x/lib/JSON-Patch
   url = https://github.com/xtuple/JSON-Patch.git
-[submodule "lib/enyo-x/lib/nvd3"]
-	path = lib/enyo-x/lib/nvd3
-	url = https://github.com/novus/nvd3.git
 [submodule "lib/enyo-x/lib/font-onyx"]
 	path = lib/enyo-x/lib/font-onyx
 	url = https://github.com/xtuple/font-onyx.git
 [submodule "lib/tools/lib/async"]
 	path = lib/tools/lib/async
 	url = https://github.com/caolan/async.git
+[submodule "node-datasource/lib/bootstrap"]
+	path = node-datasource/lib/bootstrap
+	url = https://github.com/twbs/bootstrap.git
+[submodule "node-datasource/lib/jquery"]
+	path = node-datasource/lib/jquery
+	url = https://github.com/jquery/jquery.git
+[submodule "node-datasource/lib/globalize"]
+	path = node-datasource/lib/globalize
+	url = https://github.com/jquery/globalize.git
+[submodule "node-datasource/lib/d3"]
+	path = node-datasource/lib/d3
+	url = https://github.com/mbostock/d3.git
+[submodule "node-datasource/lib/nvd3"]
+	path = node-datasource/lib/nvd3
+	url = https://github.com/novus/nvd3.git
+[submodule "node-datasource/lib/less"]
+	path = node-datasource/lib/less
+	url = https://github.com/less/less.js.git
+[submodule "node-datasource/lib/moment"]
+	path = node-datasource/lib/moment
+	url = https://github.com/moment/moment.git
+[submodule "lib/enyo-x/lib/Font-Awesome"]
+	path = lib/enyo-x/lib/Font-Awesome
+	url = https://github.com/FortAwesome/Font-Awesome.git
+[submodule "lib/tools/lib/underscore.inflection"]
+	path = lib/tools/lib/underscore.inflection
+	url = https://github.com/jeremyruppel/underscore.inflection.git
+[submodule "lib/enyo-x/lib/gts-plugins"]
+	path = lib/enyo-x/lib/gts-plugins
+	url = https://github.com/xtuple/gts-plugins.git

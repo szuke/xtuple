@@ -69,7 +69,40 @@ white:true*/
       "billtoState",
       "billtoPostalCode",
       "billtoCountry"
-    ]
+    ],
+
+    getPrintParameters: function (callback) {
+      var that = this,
+        dispOptions = {},
+        dispParams = {
+          docNumber: that.id,
+          table: "cmhead",
+          column: "cmhead_number"
+        };
+
+      dispOptions.success = function (pkId) {
+        var printParameters = [
+          {name: "cmhead_id", type: "integer", value: pkId}
+        ];
+
+        // Send back to enyo:
+        callback({
+          id: that.id, // Used for pdf naming convention in generate-report route.
+          reportName: that.reportName || "CreditMemo",
+          printParameters: printParameters
+        });
+      };
+
+      if (that.custFormType) {
+        this.dispatch("XM.Sales", "findCustomerForm", [this.getValue("customer.uuid"), that.custFormType], {success: function (resp) {
+          that.reportName = resp;
+          
+          that.dispatch('XM.Model', 'fetchPrimaryKeyId', dispParams, dispOptions);
+        }});
+      } else {
+        that.dispatch('XM.Model', 'fetchPrimaryKeyId', dispParams, dispOptions);
+      }
+    }
 
   }));
 
@@ -155,7 +188,9 @@ white:true*/
         success: options && options.success,
         error: options && options.error
       });
-    }
+    },
+
+    getPrintParameters: XM.Return.prototype.getPrintParameters
 
   });
 
@@ -231,7 +266,9 @@ white:true*/
   XM.ReturnListItemCollection = XM.Collection.extend({
     /** @scope XM.ReturnListItemCollection.prototype */
 
-    model: XM.ReturnListItem
+    model: XM.ReturnListItem,
+
+    getPrintParameters: XM.Return.prototype.getPrintParameters
 
   });
 

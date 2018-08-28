@@ -17,9 +17,16 @@ BEGIN
 
   NEW.taxauth_code := UPPER(NEW.taxauth_code);
 
+  -- Timestamps
+  IF (TG_OP = 'INSERT') THEN
+    NEW.taxauth_created := now();
+  ELSIF (TG_OP = 'UPDATE') THEN
+    NEW.taxauth_lastupdated := now();
+  END IF;
+
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('trigger', 'taxauthBeforeTrigger');
 CREATE TRIGGER taxauthBeforeTrigger BEFORE INSERT OR UPDATE ON taxauth
@@ -28,9 +35,6 @@ CREATE TRIGGER taxauthBeforeTrigger BEFORE INSERT OR UPDATE ON taxauth
 CREATE OR REPLACE FUNCTION _taxauthAfterTrigger () RETURNS TRIGGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  _cmnttypeid INTEGER;
-
 BEGIN
   IF (TG_OP = 'INSERT') THEN
     -- http://www.postgresql.org/docs/current/static/plpgsql-control-structures.html#PLPGSQL-UPSERT-EXAMPLE
@@ -66,66 +70,50 @@ BEGIN
   END IF;
 
   IF (fetchMetricBool('TaxAuthChangeLog')) THEN
-    SELECT cmnttype_id INTO _cmnttypeid
-      FROM cmnttype
-     WHERE (cmnttype_name='ChangeLog');
+    IF (TG_OP = 'INSERT') THEN
+      PERFORM postComment('ChangeLog', 'TAXAUTH', NEW.taxauth_id, 'Created');
 
-    IF (_cmnttypeid IS NOT NULL) THEN
-      IF (TG_OP = 'INSERT') THEN
-        PERFORM postComment(_cmnttypeid, 'TAXAUTH', NEW.taxauth_id, 'Created');
+    ELSIF (TG_OP = 'UPDATE') THEN
+      IF (OLD.taxauth_code <> NEW.taxauth_code) THEN
+        PERFORM postComment('ChangeLog', 'TAXAUTH', NEW.taxauth_id, 'Code',
+                            OLD.taxauth_code, NEW.taxauth_code);
+      END IF;
 
-      ELSIF (TG_OP = 'UPDATE') THEN
-        IF (OLD.taxauth_code <> NEW.taxauth_code) THEN
-          PERFORM postComment(_cmnttypeid, 'TAXAUTH', NEW.taxauth_id,
-                              'Code changed from "' || OLD.taxauth_code ||
-                              '" to "' || NEW.taxauth_code || '"');
-        END IF;
+      IF (OLD.taxauth_name <> NEW.taxauth_name) THEN
+        PERFORM postComment('ChangeLog', 'TAXAUTH', NEW.taxauth_id, 'Name',
+                            OLD.taxauth_name, NEW.taxauth_name);
+      END IF;
 
-        IF (OLD.taxauth_name <> NEW.taxauth_name) THEN
-          PERFORM postComment(_cmnttypeid, 'TAXAUTH', NEW.taxauth_id,
-                              'Name changed from "' || OLD.taxauth_name ||
-                              '" to "' || NEW.taxauth_name || '"');
-        END IF;
+      IF (OLD.taxauth_extref <> NEW.taxauth_extref) THEN
+        PERFORM postComment('ChangeLog', 'TAXAUTH', NEW.taxauth_id, 'External Ref.',
+                            OLD.taxauth_extref, NEW.taxauth_extref);
+      END IF;
 
-        IF (OLD.taxauth_extref <> NEW.taxauth_extref) THEN
-          PERFORM postComment(_cmnttypeid, 'TAXAUTH', NEW.taxauth_id,
-                              'External Ref. changed from "' || OLD.taxauth_extref ||
-                              '" to "' || NEW.taxauth_extref || '"');
-        END IF;
+      IF (OLD.taxauth_addr_id <> NEW.taxauth_addr_id) THEN
+        PERFORM postComment('ChangeLog', 'TAXAUTH', NEW.taxauth_id, 'Address',
+                            formatAddr(OLD.taxauth_addr_id), formatAddr(NEW.taxauth_addr_id));
+      END IF;
 
-        IF (OLD.taxauth_addr_id <> NEW.taxauth_addr_id) THEN
-          PERFORM postComment(_cmnttypeid, 'TAXAUTH', NEW.taxauth_id,
-                              'Address changed from ' || formatAddr(OLD.taxauth_addr_id)
-                              || ' to ' || formatAddr(NEW.taxauth_addr_id));
-        END IF;
+      IF (OLD.taxauth_curr_id <> NEW.taxauth_curr_id) THEN
+        PERFORM postComment('ChangeLog', 'TAXAUTH', NEW.taxauth_id, 'Currency',
+                            currConcat(OLD.taxauth_curr_id), currConcat(NEW.taxauth_curr_id));
+      END IF;
 
-        IF (OLD.taxauth_curr_id <> NEW.taxauth_curr_id) THEN
-          PERFORM postComment(_cmnttypeid, 'TAXAUTH', NEW.taxauth_id,
-                              'Currency changed from "' ||
-                              currConcat(OLD.taxauth_curr_id) || '" to "' ||
-                              currConcat(NEW.taxauth_curr_id) || '"');
-        END IF;
+      IF (OLD.taxauth_county <> NEW.taxauth_county) THEN
+        PERFORM postComment('ChangeLog', 'TAXAUTH', NEW.taxauth_id, 'County',
+                            OLD.taxauth_county, NEW.taxauth_county);
+      END IF;
 
-        IF (OLD.taxauth_county <> NEW.taxauth_county) THEN
-          PERFORM postComment(_cmnttypeid, 'TAXAUTH', NEW.taxauth_id,
-                              'County changed from "' || OLD.taxauth_county ||
-                              '" to "' || NEW.taxauth_county || '"');
-        END IF;
-
-        IF (OLD.taxauth_accnt_id <> NEW.taxauth_accnt_id) THEN
-          PERFORM postComment(_cmnttypeid, 'TAXAUTH', NEW.taxauth_id,
-                              'Account changed from "' ||
-                              formatGLAccount(OLD.taxauth_accnt_id) || '" to "' ||
-                              formatGLAccount(NEW.taxauth_accnt_id) || '"');
-        END IF;
-
+      IF (OLD.taxauth_accnt_id <> NEW.taxauth_accnt_id) THEN
+        PERFORM postComment('ChangeLog', 'TAXAUTH', NEW.taxauth_id, 'Account',
+                            formatGLAccount(OLD.taxauth_accnt_id), formatGLAccount(NEW.taxauth_accnt_id));
       END IF;
     END IF;
   END IF;
 
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('trigger', 'taxauthAfterTrigger');
 CREATE TRIGGER taxauthAfterTrigger AFTER INSERT OR UPDATE ON taxauth
@@ -144,7 +132,7 @@ BEGIN
 
   RETURN OLD;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('trigger', 'taxauthBeforeDeleteTrigger');
 CREATE TRIGGER taxauthBeforeDeleteTrigger BEFORE DELETE ON taxauth
@@ -168,15 +156,13 @@ BEGIN
   END IF;
 
   IF (fetchMetricBool('TaxAuthChangeLog')) THEN
-    PERFORM postComment(cmnttype_id, 'TAXAUTH', OLD.taxauth_id,
-                        'Deleted "' || OLD.taxauth_number || '"')
-      FROM cmnttype
-     WHERE (cmnttype_name='ChangeLog');
+    PERFORM postComment('ChangeLog', 'TAXAUTH', OLD.taxauth_id,
+                        'Deleted "' || OLD.taxauth_number || '"');
   END IF;
 
   RETURN OLD;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('trigger', 'taxauthAfterDeleteTrigger');
 CREATE TRIGGER taxauthAfterDeleteTrigger AFTER DELETE ON taxauth

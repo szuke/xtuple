@@ -1,0 +1,18 @@
+<package id        = "distribution-upgrade-4.11.3"
+         version   = "4.11.3"
+         developer = "xTuple"
+         descrip   = "load PostBooks resources"
+         updater   = "2.2.4" >
+
+  <distribution-prerequisites/>
+  <all-prerequisites/>
+
+  <script file="postbooks-upgrade.sql" />
+  <script file="commercialcore-upgrade.sql" />
+  <script file="inventory-upgrade.sql" />
+  <script file="distribution-upgrade.sql" />
+  <xTuple-translations/>
+  <xtcore-translations/>
+  <xwd-translations/>
+
+</package>

@@ -29,17 +29,6 @@ white:true, strict: false*/
       model: "XM.PurchaseOrderLineCharacteristic"
     });
 
-    // ..........................................................
-    // PURCHASE TYPE
-    //
-
-    enyo.kind({
-      name: "XV.PurchaseTypeCharacteristicsWidget",
-      kind: "XV.CharacteristicsWidget",
-      model: "XM.PurchaseTypeCharacteristic",
-      which: "isPurchaseOrders"
-    });
-
   };
 
 }());

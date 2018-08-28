@@ -3,6 +3,12 @@
  <title>Characteristics Master List</title>
  <name>CharacteristicsMasterList</name>
  <description></description>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
  <size>Letter</size>
  <portrait/>
  <topmargin>50</topmargin>
@@ -13,48 +19,16 @@
   <name>detail</name>
   <sql>SELECT char_id,
        char_name,
-       formatBoolYN(char_items) AS f_items,
-       formatBoolYN(char_options) AS f_options,
-       formatBoolYN(char_attributes) AS f_attributes,
-       formatBoolYN(char_lotserial) AS f_lotserial,
+       string_agg(source_charass, ', ') AS abbrs,
+       string_agg(source_descrip, ', ') AS names,
        char_notes
   FROM char
+  LEFT OUTER JOIN charuse ON char_id = charuse_char_id
+  LEFT OUTER JOIN source  ON charuse_target_type = source_charass                                                                                        GROUP BY char_id, char_name, char_notes
 ORDER BY char_name;</sql>
  </querysource>
  <rpthead>
   <height>86</height>
-  <label>
-   <rect>
-    <x>370</x>
-    <y>65</y>
-    <width>50</width>
-    <height>15</height>
-   </rect>
-   <font>
-    <face>Arial</face>
-    <size>8</size>
-    <weight>normal</weight>
-   </font>
-   <hcenter/>
-   <vcenter/>
-   <string>Lot/Serial</string>
-  </label>
-  <label>
-   <rect>
-    <x>270</x>
-    <y>65</y>
-    <width>50</width>
-    <height>15</height>
-   </rect>
-   <font>
-    <face>Arial</face>
-    <size>8</size>
-    <weight>normal</weight>
-   </font>
-   <hcenter/>
-   <vcenter/>
-   <string>Options</string>
-  </label>
   <label>
    <rect>
     <x>10</x>
@@ -74,7 +48,7 @@ ORDER BY char_name;</sql>
   <label>
    <rect>
     <x>220</x>
-    <y>50</y>
+    <y>63</y>
     <width>200</width>
     <height>15</height>
    </rect>
@@ -86,22 +60,6 @@ ORDER BY char_name;</sql>
    <hcenter/>
    <vcenter/>
    <string>may be used for</string>
-  </label>
-  <label>
-   <rect>
-    <x>320</x>
-    <y>65</y>
-    <width>50</width>
-    <height>15</height>
-   </rect>
-   <font>
-    <face>Arial</face>
-    <size>8</size>
-    <weight>normal</weight>
-   </font>
-   <hcenter/>
-   <vcenter/>
-   <string>Attributes</string>
   </label>
   <label>
    <rect>
@@ -142,22 +100,6 @@ ORDER BY char_name;</sql>
    <vcenter/>
    <string>Characteristics Master List</string>
   </label>
-  <label>
-   <rect>
-    <x>220</x>
-    <y>65</y>
-    <width>50</width>
-    <height>15</height>
-   </rect>
-   <font>
-    <face>Arial</face>
-    <size>8</size>
-    <weight>normal</weight>
-   </font>
-   <hcenter/>
-   <vcenter/>
-   <string>Items</string>
-  </label>
  </rpthead>
  <pghead>
   <firstpage/>
@@ -168,23 +110,7 @@ ORDER BY char_name;</sql>
   <label>
    <rect>
     <x>220</x>
-    <y>20</y>
-    <width>50</width>
-    <height>15</height>
-   </rect>
-   <font>
-    <face>Arial</face>
-    <size>8</size>
-    <weight>normal</weight>
-   </font>
-   <hcenter/>
-   <vcenter/>
-   <string>Items</string>
-  </label>
-  <label>
-   <rect>
-    <x>220</x>
-    <y>5</y>
+    <y>19</y>
     <width>200</width>
     <height>15</height>
    </rect>
@@ -197,22 +123,6 @@ ORDER BY char_name;</sql>
    <vcenter/>
    <string>may be used for</string>
   </label>
-  <label>
-   <rect>
-    <x>320</x>
-    <y>20</y>
-    <width>50</width>
-    <height>15</height>
-   </rect>
-   <font>
-    <face>Arial</face>
-    <size>8</size>
-    <weight>normal</weight>
-   </font>
-   <hcenter/>
-   <vcenter/>
-   <string>Attributes</string>
-  </label>
   <line>
    <xstart>5</xstart>
    <ystart>35</ystart>
@@ -222,24 +132,8 @@ ORDER BY char_name;</sql>
   </line>
   <label>
    <rect>
-    <x>270</x>
-    <y>20</y>
-    <width>50</width>
-    <height>15</height>
-   </rect>
-   <font>
-    <face>Arial</face>
-    <size>8</size>
-    <weight>normal</weight>
-   </font>
-   <hcenter/>
-   <vcenter/>
-   <string>Options</string>
-  </label>
-  <label>
-   <rect>
     <x>10</x>
-    <y>20</y>
+    <y>19</y>
     <width>95</width>
     <height>15</height>
    </rect>
@@ -255,7 +149,7 @@ ORDER BY char_name;</sql>
   <label>
    <rect>
     <x>425</x>
-    <y>20</y>
+    <y>19</y>
     <width>80</width>
     <height>15</height>
    </rect>
@@ -268,22 +162,6 @@ ORDER BY char_name;</sql>
    <vcenter/>
    <string>Notes</string>
   </label>
-  <label>
-   <rect>
-    <x>370</x>
-    <y>20</y>
-    <width>50</width>
-    <height>15</height>
-   </rect>
-   <font>
-    <face>Arial</face>
-    <size>8</size>
-    <weight>normal</weight>
-   </font>
-   <hcenter/>
-   <vcenter/>
-   <string>Lot/Serial</string>
-  </label>
  </pghead>
  <section>
   <name>detail</name>
@@ -292,44 +170,6 @@ ORDER BY char_name;</sql>
     <query>detail</query>
    </key>
    <height>17</height>
-   <field>
-    <rect>
-     <x>270</x>
-     <y>0</y>
-     <width>50</width>
-     <height>15</height>
-    </rect>
-    <font>
-     <face>Arial</face>
-     <size>8</size>
-     <weight>bold</weight>
-    </font>
-    <hcenter/>
-    <vcenter/>
-    <data>
-     <query>detail</query>
-     <column>f_options</column>
-    </data>
-   </field>
-   <field>
-    <rect>
-     <x>220</x>
-     <y>0</y>
-     <width>50</width>
-     <height>15</height>
-    </rect>
-    <font>
-     <face>Arial</face>
-     <size>8</size>
-     <weight>bold</weight>
-    </font>
-    <hcenter/>
-    <vcenter/>
-    <data>
-     <query>detail</query>
-     <column>f_items</column>
-    </data>
-   </field>
    <field>
     <rect>
      <x>10</x>
@@ -369,44 +209,26 @@ ORDER BY char_name;</sql>
      <column>char_notes</column>
     </data>
    </text>
-   <field>
+   <text>
     <rect>
-     <x>320</x>
-     <y>0</y>
-     <width>50</width>
+     <x>220</x>
+     <y>2</y>
+     <width>200</width>
      <height>15</height>
     </rect>
+    <bottompad>0</bottompad>
     <font>
      <face>Arial</face>
      <size>8</size>
      <weight>bold</weight>
     </font>
-    <hcenter/>
-    <vcenter/>
+    <left/>
+    <top/>
     <data>
      <query>detail</query>
-     <column>f_attributes</column>
+     <column>names</column>
     </data>
-   </field>
-   <field>
-    <rect>
-     <x>370</x>
-     <y>0</y>
-     <width>50</width>
-     <height>15</height>
-    </rect>
-    <font>
-     <face>Arial</face>
-     <size>8</size>
-     <weight>bold</weight>
-    </font>
-    <hcenter/>
-    <vcenter/>
-    <data>
-     <query>detail</query>
-     <column>f_lotserial</column>
-    </data>
-   </field>
+   </text>
   </detail>
  </section>
  <pgfoot>

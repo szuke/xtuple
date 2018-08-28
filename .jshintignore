@@ -1,0 +1,8 @@
+node-datasource/views/javascript/
+node-datasource/lib/bootstrap/
+node-datasource/lib/d3/
+node-datasource/lib/globalize/
+node-datasource/lib/jquery/
+node-datasource/lib/less/
+node-datasource/lib/moment/
+node-datasource/lib/nvd3/

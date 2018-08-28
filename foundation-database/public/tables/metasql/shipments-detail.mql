@@ -20,7 +20,9 @@ SELECT shiphead_id, lineitem_id,
        shiphead_tracknum,
        shiphead_freight,
        freight_curr_abbr,
-       linenumber,
+       CASE WHEN (COALESCE(linenumber, 0) = 0) THEN '' 
+       ELSE linenumber::TEXT
+       END AS linenumber,
        item_number,
        itemdescription,
        warehous_code,
@@ -48,11 +50,11 @@ SELECT DISTINCT
        shiphead_tracknum,
        shiphead_freight,
        currConcat(shiphead_freight_curr_id) AS freight_curr_abbr, 
-       0 AS linenumber, '' AS item_number,
+       NULL::integer AS linenumber, '' AS item_number,
        '' AS itemdescription,
        '' AS warehous_code,
-       0 AS qtyord,
-       0 AS qtyshipped,
+       NULL::numeric AS qtyord,
+       NULL::numeric AS qtyshipped,
        firstline(shiphead_notes) AS notes
 FROM shiphead JOIN cohead ON (cohead_id=shiphead_order_id)
               JOIN custinfo ON (cust_id=cohead_cust_id)
@@ -134,11 +136,11 @@ SELECT shiphead_id, -1 AS lineitem_id, tohead_number AS sortkey1, shiphead_numbe
        shiphead_tracknum,
        shiphead_freight,
        currConcat(shiphead_freight_curr_id) AS freight_curr_abbr, 
-       0 AS linenumber, '' AS item_number,
+       NULL::integer AS linenumber, '' AS item_number,
        '' AS itemdescription,
        '' AS warehous_code,
-       0 AS qtyord,
-       0 AS qtyshipped,
+       NULL::numeric AS qtyord,
+       NULL::numeric AS qtyshipped,
        firstline(shiphead_notes) AS notes
 FROM shiphead, tohead 
 WHERE ( (shiphead_order_id=tohead_id)

@@ -3,6 +3,12 @@
  <title>Earned Commissions</title>
  <name>EarnedCommissions</name>
  <description></description>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
  <size>Letter</size>
  <portrait/>
  <topmargin>50</topmargin>
@@ -22,7 +28,7 @@
        formatDate(&lt;? value("startDate") ?>) AS startdate,
        formatDate(&lt;? value("endDate") ?>) AS enddate;</sql>
  </querysource>
- <querysource loadFromDb="true" >
+ <querysource loadFromDb="true">
   <name>detail</name>
   <mqlgroup>salesHistory</mqlgroup>
   <mqlname>detail</mqlname>
@@ -130,7 +136,7 @@
   </label>
   <label>
    <rect>
-    <x>103</x>
+    <x>105</x>
     <y>200</y>
     <width>50</width>
     <height>15</height>
@@ -255,7 +261,7 @@
   </line>
   <label>
    <rect>
-    <x>202</x>
+    <x>200</x>
     <y>200</y>
     <width>85</width>
     <height>15</height>
@@ -327,7 +333,7 @@
   <label>
    <rect>
     <x>5</x>
-    <y>0</y>
+    <y>-1</y>
     <width>106</width>
     <height>15</height>
    </rect>
@@ -343,7 +349,7 @@
   <label>
    <rect>
     <x>315</x>
-    <y>0</y>
+    <y>-1</y>
     <width>80</width>
     <height>15</height>
    </rect>
@@ -359,7 +365,7 @@
   <label>
    <rect>
     <x>635</x>
-    <y>0</y>
+    <y>-1</y>
     <width>70</width>
     <height>15</height>
    </rect>
@@ -374,8 +380,8 @@
   </label>
   <label>
    <rect>
-    <x>103</x>
-    <y>0</y>
+    <x>105</x>
+    <y>-1</y>
     <width>50</width>
     <height>15</height>
    </rect>
@@ -398,7 +404,7 @@
   <label>
    <rect>
     <x>505</x>
-    <y>0</y>
+    <y>-1</y>
     <width>60</width>
     <height>15</height>
    </rect>
@@ -414,7 +420,7 @@
   <label>
    <rect>
     <x>155</x>
-    <y>0</y>
+    <y>-1</y>
     <width>50</width>
     <height>15</height>
    </rect>
@@ -430,7 +436,7 @@
   <label>
    <rect>
     <x>565</x>
-    <y>0</y>
+    <y>-1</y>
     <width>70</width>
     <height>15</height>
    </rect>
@@ -446,7 +452,7 @@
   <label>
    <rect>
     <x>395</x>
-    <y>0</y>
+    <y>-1</y>
     <width>100</width>
     <height>15</height>
    </rect>
@@ -462,7 +468,7 @@
   <label>
    <rect>
     <x>705</x>
-    <y>0</y>
+    <y>-1</y>
     <width>40</width>
     <height>15</height>
    </rect>
@@ -477,8 +483,8 @@
   </label>
   <label>
    <rect>
-    <x>202</x>
-    <y>0</y>
+    <x>200</x>
+    <y>-1</y>
     <width>85</width>
     <height>15</height>
    </rect>
@@ -515,7 +521,7 @@
     <vcenter/>
     <data>
      <query>detail</query>
-     <column>item_number</column>
+     <column>itemnumber</column>
     </data>
    </field>
    <field>
@@ -558,7 +564,7 @@
    </field>
    <field>
     <rect>
-     <x>103</x>
+     <x>105</x>
      <y>0</y>
      <width>50</width>
      <height>15</height>
@@ -672,7 +678,7 @@
    </field>
    <field>
     <rect>
-     <x>202</x>
+     <x>200</x>
      <y>0</y>
      <width>110</width>
      <height>15</height>
@@ -712,7 +718,7 @@
   <label>
    <rect>
     <x>615</x>
-    <y>0</y>
+    <y>1</y>
     <width>85</width>
     <height>15</height>
    </rect>
@@ -728,7 +734,7 @@
   <field>
    <rect>
     <x>90</x>
-    <y>0</y>
+    <y>1</y>
     <width>100</width>
     <height>15</height>
    </rect>
@@ -747,7 +753,7 @@
   <field>
    <rect>
     <x>705</x>
-    <y>0</y>
+    <y>1</y>
     <width>40</width>
     <height>15</height>
    </rect>
@@ -769,7 +775,7 @@
   <label>
    <rect>
     <x>430</x>
-    <y>0</y>
+    <y>1</y>
     <width>85</width>
     <height>15</height>
    </rect>
@@ -785,7 +791,7 @@
   <field>
    <rect>
     <x>565</x>
-    <y>0</y>
+    <y>1</y>
     <width>70</width>
     <height>15</height>
    </rect>
@@ -800,12 +806,13 @@
     <query>detail</query>
     <column>baseextprice</column>
    </data>
-   <tracktotal builtin="true" >qty</tracktotal>
+   <format builtin="true">qty</format>
+   <tracktotal/>
   </field>
   <field>
    <rect>
     <x>635</x>
-    <y>0</y>
+    <y>1</y>
     <width>70</width>
     <height>15</height>
    </rect>
@@ -820,7 +827,29 @@
     <query>detail</query>
     <column>basecommission</column>
    </data>
-   <tracktotal builtin="true" >qty</tracktotal>
+   <format builtin="true">qty</format>
+   <tracktotal/>
+  </field>
+  <field>
+   <rect>
+    <x>495</x>
+    <y>1</y>
+    <width>70</width>
+    <height>15</height>
+   </rect>
+   <font>
+    <face>Arial</face>
+    <size>8</size>
+    <weight>bold</weight>
+   </font>
+   <right/>
+   <vcenter/>
+   <data>
+    <query>detail</query>
+    <column>cohist_qtyshipped</column>
+   </data>
+   <format builtin="true">qty</format>
+   <tracktotal/>
   </field>
  </rptfoot>
 </report>

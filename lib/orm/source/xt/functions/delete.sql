@@ -11,7 +11,6 @@
     @param {String} [dataHash.encryptionKey] Encryption key.
 
     Sample usage:
-    select xt.js_init();
     select xt.delete('{
       "username": "admin",
       "nameSpace":"XM",
@@ -25,10 +24,10 @@
 create or replace function xt.delete(data_hash text) returns boolean as $$
 
 return (function () {
-  
+
   try {
     return XT.Rest.delete(JSON.parse(data_hash));
-    
+
   } catch (err) {
     XT.error(err);
   }

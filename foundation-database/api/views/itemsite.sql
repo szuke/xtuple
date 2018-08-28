@@ -204,7 +204,7 @@ INSERT INTO itemsite (
        COALESCE(NEW.maximum_order,0),
        COALESCE(NEW.order_multiple,0),
        COALESCE(NEW.enforce_on_manual_orders,FALSE),
-       COALESCE(NEW.group_mps_mrp_orders,0),
+       COALESCE(NEW.group_mps_mrp_orders,1),
        COALESCE(NEW.first_group,FALSE),
        COALESCE(NEW.mps_time_fence,0),
        COALESCE(NEW.lead_time,0),
@@ -337,7 +337,8 @@ UPDATE itemsite SET
          ELSE
            'M'
        END
-   WHERE (itemsite_id=getItemSiteId(OLD.site,OLD.item_number));
+  WHERE ((itemsite.itemsite_item_id = (SELECT item_id FROM item WHERE item_number=old.item_number::text))
+  and   (itemsite_warehous_id=(SELECT warehous_id from whsinfo where warehous_code=old.site::text)));
            
 CREATE OR REPLACE RULE "_DELETE" AS 
     ON DELETE TO api.itemsite DO INSTEAD

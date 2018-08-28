@@ -1,40 +1,36 @@
-CREATE OR REPLACE FUNCTION doUpdateCosts(BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN) RETURNS INTEGER AS '
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION doUpdateCosts(plowerMaterial      BOOLEAN,
+                                         pdirectLabor        BOOLEAN,
+                                         plowerDirectLabor   BOOLEAN,
+                                         poverhead           BOOLEAN,
+                                         plowerOverhead      BOOLEAN,
+                                         pmachOverhead       BOOLEAN,
+                                         plowerMachOverhead  BOOLEAN,
+                                         plowerUser          BOOLEAN,
+                                         prollUp             BOOLEAN)
+  RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-
-  plowerMaterial ALIAS FOR $1;
-  pdirectLabor ALIAS FOR $2;
-  plowerDirectLabor ALIAS FOR $3;
-  poverhead ALIAS FOR $4;
-  plowerOverhead ALIAS FOR $5;
-  pmachOverhead ALIAS FOR $6;
-  plowerMachOverhead ALIAS FOR $7;
-  plowerUser ALIAS FOR $8;
-  prollUp ALIAS FOR $9;
-
 BEGIN
   RETURN doUpdateCosts(plowerMaterial, pdirectLabor, plowerDirectLabor,
 		       poverhead, plowerOverhead, pmachOverhead,
 		       plowerMachOverhead, plowerUser, prollUp, TRUE);
 END;
-' LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION doUpdateCosts(BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN) RETURNS INTEGER AS '
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION doUpdateCosts(plowerMaterial      BOOLEAN,
+                                         pdirectLabor        BOOLEAN,
+                                         plowerDirectLabor   BOOLEAN,
+                                         poverhead           BOOLEAN,
+                                         plowerOverhead      BOOLEAN,
+                                         pmachOverhead       BOOLEAN,
+                                         plowerMachOverhead  BOOLEAN,
+                                         plowerUser          BOOLEAN,
+                                         prollUp             BOOLEAN,
+                                         pActual             BOOLEAN)
+  RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-
-  plowerMaterial ALIAS FOR $1;
-  pdirectLabor ALIAS FOR $2;
-  plowerDirectLabor ALIAS FOR $3;
-  poverhead ALIAS FOR $4;
-  plowerOverhead ALIAS FOR $5;
-  pmachOverhead ALIAS FOR $6;
-  plowerMachOverhead ALIAS FOR $7;
-  plowerUser ALIAS FOR $8;
-  prollUp ALIAS FOR $9;
-  pActual ALIAS FOR $10;
   _item RECORD;
   _bom RECORD;
   _result INTEGER := 0;
@@ -55,57 +51,54 @@ BEGIN
   RETURN _result;
 
 END;
- ' LANGUAGE 'plpgsql';
+ $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION doUpdateCosts(INTEGER, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN) RETURNS INTEGER AS '
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION doUpdateCosts(pItemId             INTEGER,
+                                         pResetLowLevel      BOOLEAN,
+                                         plowerMaterial      BOOLEAN,
+                                         pdirectLabor        BOOLEAN,
+                                         plowerDirectLabor   BOOLEAN,
+                                         poverhead           BOOLEAN,
+                                         plowerOverhead      BOOLEAN,
+                                         pmachOverhead       BOOLEAN,
+                                         plowerMachOverhead  BOOLEAN,
+                                         plowerUser          BOOLEAN,
+                                         prollUp             BOOLEAN)
+   RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-
-  pItemId ALIAS FOR $1;
-  pResetLowLevel ALIAS FOR $2;
-  plowerMaterial ALIAS FOR $3;
-  pdirectLabor ALIAS FOR $4;
-  plowerDirectLabor ALIAS FOR $5;
-  poverhead ALIAS FOR $6;
-  plowerOverhead ALIAS FOR $7;
-  pmachOverhead ALIAS FOR $8;
-  plowerMachOverhead ALIAS FOR $9;
-  plowerUser ALIAS FOR $10;
-  prollUp ALIAS FOR $11;
-
 BEGIN
     RETURN doUpdateCosts(pItemId, pResetLowLevel, plowerMaterial, pdirectLabor,
 			 plowerDirectLabor, poverhead, plowerOverhead,
 			 pmachOverhead, plowerMachOverhead, plowerUser, prollUp,
 			 TRUE);
 END;
-' LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
-
-CREATE OR REPLACE FUNCTION doUpdateCosts(INTEGER, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN) RETURNS INTEGER AS '
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION doUpdateCosts(pItemId             INTEGER,
+                                         pResetLowLevel      BOOLEAN,
+                                         plowerMaterial      BOOLEAN,
+                                         pdirectLabor        BOOLEAN,
+                                         plowerDirectLabor   BOOLEAN,
+                                         poverhead           BOOLEAN,
+                                         plowerOverhead      BOOLEAN,
+                                         pmachOverhead       BOOLEAN,
+                                         plowerMachOverhead  BOOLEAN,
+                                         plowerUser          BOOLEAN,
+                                         prollUp             BOOLEAN,
+                                         pUpdateActual       BOOLEAN)
+  RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
 
-  pItemId ALIAS FOR $1;
-  pResetLowLevel ALIAS FOR $2;
-  plowerMaterial ALIAS FOR $3;
-  pdirectLabor ALIAS FOR $4;
-  plowerDirectLabor ALIAS FOR $5;
-  poverhead ALIAS FOR $6;
-  plowerOverhead ALIAS FOR $7;
-  pmachOverhead ALIAS FOR $8;
-  plowerMachOverhead ALIAS FOR $9;
-  plowerUser ALIAS FOR $10;
-  prollUp ALIAS FOR $11;
-  pUpdateActual ALIAS FOR $12;
   _item RECORD;
   _bom RECORD;
   _result INTEGER := 0;
   _resultFromReset INTEGER;
   _counterNum INTEGER;
   _feedBackNum INTEGER;
+  _hasMfg      BOOLEAN := packageIsEnabled('xtmfg');
 
 BEGIN
 
@@ -118,44 +111,44 @@ BEGIN
     FROM costUpdate
     WHERE costUpdate_item_id = pItemId;
 
-    IF ((plowerMaterial) AND ((_item.item_type <> ''P'') AND (_item.item_type <> ''O''))) THEN    
-      PERFORM updateSorACost(_item.item_id, ''Material'', TRUE, lowerCost(_item.item_id, ''Material'', pUpdateActual), pUpdateActual);
+    IF ((plowerMaterial) AND ((_item.item_type <> 'P') AND (_item.item_type <> 'O'))) THEN
+      PERFORM updateSorACost(_item.item_id, 'Material', TRUE, lowerCost(_item.item_id, 'Material', pUpdateActual), pUpdateActual);
     END IF;
 
-    IF (pdirectLabor) THEN    
-      PERFORM updateSorACost(_item.item_id, ''Direct Labor'', FALSE, xtmfg.directLaborCost(_item.item_id), pUpdateActual);
+    IF (pdirectLabor AND _hasMfg) THEN
+      PERFORM updateSorACost(_item.item_id, 'Direct Labor', FALSE, xtmfg.directLaborCost(_item.item_id), pUpdateActual);
     END IF;
 
-    IF (plowerDirectLabor) THEN    
-      PERFORM updateSorACost(_item.item_id, ''Direct Labor'', TRUE, lowerCost(_item.item_id, ''Direct Labor'', pUpdateActual), pUpdateActual);
+    IF (plowerDirectLabor) THEN
+      PERFORM updateSorACost(_item.item_id, 'Direct Labor', TRUE, lowerCost(_item.item_id, 'Direct Labor', pUpdateActual), pUpdateActual);
     END IF;
 
-    IF (poverhead) THEN    
-      PERFORM updateSorACost(_item.item_id, ''Overhead'', FALSE, xtmfg.overheadCost(_item.item_id), pUpdateActual);
+    IF (poverhead AND _hasMfg) THEN
+      PERFORM updateSorACost(_item.item_id, 'Overhead', FALSE, xtmfg.overheadCost(_item.item_id), pUpdateActual);
     END IF;
 
-    IF (plowerOverhead) THEN    
-      PERFORM updateSorACost(_item.item_id, ''Overhead'', TRUE, lowerCost(_item.item_id, ''Overhead'', pUpdateActual), pUpdateActual);
+    IF (plowerOverhead) THEN
+      PERFORM updateSorACost(_item.item_id, 'Overhead', TRUE, lowerCost(_item.item_id, 'Overhead', pUpdateActual), pUpdateActual);
     END IF;
 
-    IF (pmachOverhead) THEN    
-      PERFORM updateSorACost(_item.item_id, ''Machine Overhead'', FALSE, xtmfg.machineOverheadCost(_item.item_id), pUpdateActual);
+    IF (pmachOverhead AND _hasMfg) THEN
+      PERFORM updateSorACost(_item.item_id, 'Machine Overhead', FALSE, xtmfg.machineOverheadCost(_item.item_id), pUpdateActual);
     END IF;
 
-    IF (plowerMachOverhead) THEN    
-      PERFORM updateSorACost(_item.item_id, ''Machine Overhead'', TRUE, lowerCost(_item.item_id, ''Machine Overhead'', pUpdateActual), pUpdateActual);
+    IF (plowerMachOverhead) THEN
+      PERFORM updateSorACost(_item.item_id, 'Machine Overhead', TRUE, lowerCost(_item.item_id, 'Machine Overhead', pUpdateActual), pUpdateActual);
     END IF;
 
-    IF (plowerUser) THEN    
+    IF (plowerUser) THEN
       PERFORM updateLowerUserCosts(_item.item_id, pUpdateActual);
     END IF;
 
-    IF (prollUp) THEN    
+    IF (prollUp) THEN
       PERFORM rollUpSorACost(_item.item_id, pUpdateActual);
     END IF;
 
     RETURN _result;
 
 END;
- ' LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 

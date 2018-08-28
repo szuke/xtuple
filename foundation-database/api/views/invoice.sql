@@ -1,5 +1,7 @@
 CREATE OR REPLACE RULE "_INSERT" AS ON INSERT TO api.invoice DO INSTEAD NOTHING;
 SELECT dropIfExists('FUNCTION', 'insertInvoice(api.invoice)');
+-- Cleanup old bad installs.
+SELECT dropIfExists('FUNCTION', 'insertInvoice(api.invoice)', 'xt');
 SELECT dropIfExists('VIEW', 'invoice', 'api');
 CREATE OR REPLACE VIEW api.invoice
 AS
@@ -60,17 +62,17 @@ AS
                 LEFT OUTER JOIN saletype ON (invchead_saletype_id=saletype_id)
                 LEFT OUTER JOIN shipzone ON (invchead_shipzone_id=shipzone_id)
 ;
-	
+
 GRANT ALL ON TABLE api.invoice TO xtrole;
 COMMENT ON VIEW api.invoice IS '
-This view can be used as an interface to import Invioce Header data directly  
-into the system.  Required fields will be checked and default values will be 
+This view can be used as an interface to import Invioce Header data directly
+into the system.  Required fields will be checked and default values will be
 populated';
 
 
 CREATE OR REPLACE FUNCTION insertInvoice(api.invoice) RETURNS BOOLEAN AS
 $insertInvoice$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
 	pNew ALIAS FOR $1;
@@ -166,7 +168,7 @@ BEGIN
 		COALESCE(pNew.ship_via,shipto_shipvia,cust_shipvia),
 		COALESCE(getPrjId(pNew.project_number),-1),
 		COALESCE(pNew.fob,fetchDefaultFob((
-			SELECT CAST(usrpref_value AS INTEGER) 
+			SELECT CAST(usrpref_value AS INTEGER)
 			FROM usrpref, whsinfo
 			WHERE ((warehous_id=CAST(usrpref_value AS INTEGER))
 				AND (warehous_shipping)
@@ -210,7 +212,7 @@ CREATE OR REPLACE RULE "_INSERT" AS
 		SELECT insertInvoice(NEW);
 
 
-CREATE OR REPLACE RULE "_UPDATE" AS 
+CREATE OR REPLACE RULE "_UPDATE" AS
 	ON UPDATE TO api.invoice DO INSTEAD
 
 	UPDATE invchead SET
@@ -260,9 +262,9 @@ CREATE OR REPLACE RULE "_UPDATE" AS
 		AND (invchead_posted = FALSE);
 
 
-CREATE OR REPLACE RULE "_DELETE" AS 
+CREATE OR REPLACE RULE "_DELETE" AS
 	ON DELETE TO api.invoice DO INSTEAD
-	
+
 	SELECT deleteInvoice(invchead_id)
 	FROM invchead
 	WHERE invchead_invcnumber = OLD.invoice_number AND invchead_posted = FALSE;

@@ -1,7 +1,7 @@
 -- Group: bankrec
 -- Name: checks
 -- Notes: used by reconcileBankaccount
---        Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+--        Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
 --        See www.xtuple.com/CPAL for the full text of the software license.
 
 <? if exists("summary") ?>
@@ -50,7 +50,11 @@ SELECT gltrans_id AS id, 1 AS altid,
        gltrans_docnumber AS doc_number,
        gltrans_notes AS notes,
        (SELECT currConcat(COALESCE(checkhead_curr_id, baseCurrId()))) AS doc_curr,
-       COALESCE(bankrecitem_curr_rate, checkhead_curr_rate, currRate(bankaccnt_curr_id, gltrans_date)) AS doc_exchrate,
+       CASE WHEN (fetchMetricValue('CurrencyExchangeSense') = 1) THEN
+         ROUND(1.0 / COALESCE(bankrecitem_curr_rate, currRate(bankaccnt_curr_id, gltrans_date)),6)
+            ELSE
+         ROUND(COALESCE(bankrecitem_curr_rate, currRate(bankaccnt_curr_id, gltrans_date)),6)
+       END AS doc_exchrate,
        gltrans_amount AS base_amount,
        CASE WHEN (bankaccnt_curr_id=checkhead_curr_id) THEN
          COALESCE( bankrecitem_amount,
@@ -61,7 +65,7 @@ SELECT gltrans_id AS id, 1 AS altid,
                    currToLocal(bankaccnt_curr_id, gltrans_amount, gltrans_date) )
        END AS amount,
        gltrans_date AS sortdate,
-       'uomratio' AS doc_exchrate_xtnumericrole,
+       '6' AS doc_exchrate_xtnumericrole,
        'curr' AS base_amount_xtnumericrole,
        'curr' AS amount_xtnumericrole
   FROM (bankaccnt CROSS JOIN gltrans)
@@ -93,7 +97,11 @@ SELECT sltrans_id AS id, 2 AS altid,
        sltrans_docnumber AS doc_number,
        sltrans_notes AS notes,
        (SELECT currConcat(COALESCE(checkhead_curr_id, baseCurrId()))) AS doc_curr,
-       COALESCE(bankrecitem_curr_rate, checkhead_curr_rate, currRate(bankaccnt_curr_id, sltrans_date)) AS doc_exchrate,
+       CASE WHEN (fetchMetricValue('CurrencyExchangeSense') = 1) THEN
+         ROUND(1.0 / COALESCE(bankrecitem_curr_rate, currRate(bankaccnt_curr_id, sltrans_date)),6)
+            ELSE
+         ROUND(COALESCE(bankrecitem_curr_rate, currRate(bankaccnt_curr_id, sltrans_date)),6)
+       END AS doc_exchrate,
        sltrans_amount AS base_amount,
        CASE WHEN (bankaccnt_curr_id=checkhead_curr_id) THEN
          COALESCE( bankrecitem_amount,
@@ -104,7 +112,7 @@ SELECT sltrans_id AS id, 2 AS altid,
                    currToLocal(bankaccnt_curr_id, sltrans_amount, sltrans_date) )
        END AS amount,
        sltrans_date AS sortdate,
-       'uomratio' AS doc_exchrate_xtnumericrole,
+       '6' AS doc_exchrate_xtnumericrole,
        'curr' AS base_amount_xtnumericrole,
        'curr' AS amount_xtnumericrole
   FROM (bankaccnt CROSS JOIN sltrans)
@@ -138,7 +146,7 @@ SELECT bankadj_id AS id, 3 AS altid,
        CASE WHEN(bankadjtype_iscredit=false) THEN (bankadj_amount * -1.0) ELSE bankadj_amount END AS base_amount,
        CASE WHEN(bankadjtype_iscredit=false) THEN (bankadj_amount * -1.0) ELSE bankadj_amount END AS amount,
        bankadj_date AS sortdate,
-       'uomratio' AS doc_exchrate_xtnumericrole,
+       '6' AS doc_exchrate_xtnumericrole,
        'curr' AS base_amount_xtnumericrole,
        'curr' AS amount_xtnumericrole
   FROM (bankadjtype CROSS JOIN bankadj)

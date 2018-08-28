@@ -261,7 +261,8 @@ white:true*/
     { id: K.CREDIT_HOLD_TYPE, name: "_credit".loc() },
     { id: K.SHIPPING_HOLD_TYPE, name: "_shipping".loc() },
     { id: K.PACKING_HOLD_TYPE, name: "_packing".loc() },
-    { id: K.RETURN_HOLD_TYPE, name: "_return".loc() }
+    { id: K.RETURN_HOLD_TYPE, name: "_return".loc() },
+    { id: K.TAX_HOLD_TYPE, name: "_tax".loc() }
   ];
   XM.HoldTypeModel = Backbone.Model.extend({
   });
@@ -366,7 +367,8 @@ white:true*/
   K = XM.ReasonCode;
   var reasonDocTypeJson = [
     { id: K.DEBIT_MEMO, name: "_debitMemo".loc() },
-    { id: K.CREDIT_MEMO, name: "_creditMemo".loc() }
+    { id: K.CREDIT_MEMO, name: "_creditMemo".loc() },
+    { id: K.RETURN_AUTH, name: "_returnAuthorization".loc() }
   ];
   XM.ReasonDocTypeModel = Backbone.Model.extend({});
   XM.ReasonDocTypeCollection = Backbone.Collection.extend({
@@ -394,38 +396,6 @@ white:true*/
     var bankAccountType = new XM.BankAccountTypeModel(bankAccountTypeJson[i]);
     XM.bankAccountTypes.add(bankAccountType);
   }
-
-  // Workflow Status
-  K = XM.Workflow;
-  var workflowStatusJson = [
-    { id: K.PENDING, name: "_pending".loc() },
-    { id: K.IN_PROCESS, name: "_inProcess".loc() },
-    { id: K.COMPLETED, name: "_completed".loc() },
-    { id: K.DEFERRED, name: "_deferred".loc() },
-  ];
-  XM.WorkflowStatusModel = Backbone.Model.extend({});
-  XM.WorkflowStatusCollection = Backbone.Collection.extend({
-    model: XM.WorkflowStatusModel
-  });
-  XM.workflowStatuses = new XM.WorkflowStatusCollection();
-  for (i = 0; i < workflowStatusJson.length; i++) {
-    var workflowStatus = new XM.WorkflowStatusModel(workflowStatusJson[i]);
-    XM.workflowStatuses.add(workflowStatus);
-  }
-
-  // Workflow Type
-  var salesOrderWorkflowTypeJson = [
-    { id: XM.SalesOrderWorkflow.TYPE_OTHER, name: "_other".loc() },
-    { id: XM.SalesOrderWorkflow.TYPE_CREDIT_CHECK, name: "_creditCheck".loc() }//,
-  ];
-  XM.SalesOrderWorkflowTypeModel = Backbone.Model.extend({});
-  XM.SalesOrderWorkflowTypeCollection = Backbone.Collection.extend({
-    model: XM.SalesOrderWorkflowTypeModel
-  });
-  XM.salesOrderWorkflowTypes = new XM.SalesOrderWorkflowTypeCollection();
-  _.each(salesOrderWorkflowTypeJson, function (obj) {
-    XM.salesOrderWorkflowTypes.add(new XM.SalesOrderWorkflowTypeModel(obj));
-  });
 
   // Project Status
   K = XM.ProjectStatusMixin;

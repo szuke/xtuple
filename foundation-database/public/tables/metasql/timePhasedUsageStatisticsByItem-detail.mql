@@ -74,4 +74,20 @@ WHERE ((itemsite_warehous_id=warehous_id)
    AND (itemsite_warehous_id=<? value("warehous_id") ?>)
 <? endif ?>
       )
+<? if exists("MultiWhs") ?>
+UNION ALL
+SELECT itemsite_id, <? value("transfers") ?> AS label, warehous_code
+     <? foreach("period_id_list") ?>
+       , summTransT(itemsite_id, <? value("period_id_list") ?>) AS bucket_<? literal("period_id_list") ?>
+     <? endforeach ?>
+FROM itemsite, whsinfo
+WHERE ((itemsite_warehous_id=warehous_id)
+<? if exists("item_id") ?>
+   AND (itemsite_item_id=<? value("item_id") ?>)
+<? endif ?>
+<? if exists("warehous_id") ?>
+   AND (itemsite_warehous_id=<? value("warehous_id") ?>)
+<? endif ?>
+      )
+<? endif ?>
 ORDER BY warehous_code;

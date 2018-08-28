@@ -1,0 +1,283 @@
+<shared>
+<prerequisites>
+ <all>
+  <prerequisite type = "query"
+                name = "Checking for too-old xTuple ERP database version" >
+    <query>SELECT compareVersion(fetchMetricText('ServerVersion'), '4.4.0') >= 0;</query>
+    <message>This package must be applied to a 4.4+ database.
+    </message>
+  </prerequisite>
+
+  <prerequisite type = "query"
+                name = "Checking for too-new xTuple ERP database version" >
+    <query>SELECT compareVersion(fetchMetricText('ServerVersion'), '4.11.3') &lt;= 0;</query>
+    <message>This package may not be applied to a database newer than 4.11.3.
+    </message>
+  </prerequisite>
+
+  <prerequisite type = "query"
+               name = "Checking for plv8 setup in postgresql.conf" >
+    <query>
+      DO $$
+      DECLARE msg text = $m$Please add the line "plv8.start_proc = 'xt.js_init'" to your postgresql.conf and restart the database server.$m$;
+      BEGIN
+        IF NOT (current_setting('plv8.start_proc') = 'xt.js_init') THEN
+          raise exception '%', msg;
+        END IF;
+        EXCEPTION WHEN sqlstate '42704' THEN
+          RAISE EXCEPTION '%', msg;
+      END;
+      $$ LANGUAGE plpgsql;
+      SELECT 1;
+    </query>
+    <message>Please add the line "plv8.start_proc = 'xt.js_init'" to your postgresql.conf and restart the database server.
+    </message>
+  </prerequisite>
+
+  <prerequisite type = "query"
+               name = "Checking for mobile-enabled schemas" >
+    <query>SELECT NOT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname = 'xm');</query>
+    <message>This package may not be applied to a mobile-enabled database. Please see your system administrator or contact xTuple.
+    </message>
+  </prerequisite>
+
+ <prerequisite type = "query"
+               name = "Checking for duplicate Credit Card payments on Sales Orders" >
+    <query>
+      WITH counter AS (SELECT COUNT(*) AS freq
+                        FROM payco
+                        GROUP BY payco_ccpay_id, payco_cohead_id
+                        ORDER BY 1)
+      SELECT (COALESCE(MAX(freq), 1) = 0 OR COALESCE(MAX(freq), 1) = 1)
+      FROM counter;
+    </query>
+    <message>There are duplicate payco_ccpay_id and payco_cohead_id on the payco table. Please see your system administrator or contact xTuple.
+    </message>
+  </prerequisite>
+
+  <prerequisite type = "query"
+                name = "Checking for Comment Type Source consistency - cmnttype" >
+    <query>SELECT BOOL_AND(cmnttype_id IS NOT NULL)
+             FROM cmnttypesource
+             LEFT OUTER JOIN cmnttype ON cmnttypesource_cmnttype_id = cmnttype_id;</query>
+    <message>There are records in the cmnttypesource table with no matching cmnttype entries. Please see your system administrator or contact xTuple.</message>
+  </prerequisite>
+
+  <prerequisite type = "query"
+                name = "Checking for Comment Type Source consistency - source" >
+    <query>SELECT BOOL_AND(source_id IS NOT NULL)
+             FROM cmnttypesource
+             LEFT OUTER JOIN source ON cmnttypesource_source_id = source_id;</query>
+    <message>There are records in the cmnttypesource table with no matching source entries. Please see your system administrator or contact xTuple.</message>
+  </prerequisite>
+
+  <prerequisite type = "query"
+                name = "Checking for duplicate Screens" >
+    <query>SELECT NOT EXISTS(SELECT COUNT(*), uiform_name, uiform_order
+                               FROM uiform
+                             GROUP BY uiform_name, uiform_order
+                             HAVING COUNT(*)>1);</query>
+    <message>There are multiple Screens (uiform table) with the same name and grade. Please see your system administrator or contact xTuple.</message>
+  </prerequisite>
+
+  <prerequisite type = "query"
+                name = "Checking for duplicate Purchase Order Types" >
+    <query>
+      DO $$
+      BEGIN /* must nest IFs to ensure success if potype_code isn't defined */
+        IF EXISTS(SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name   = 'potype'
+                      AND column_name  = 'potype_code') THEN
+          IF EXISTS(SELECT COUNT(*), potype_code FROM potype
+                    GROUP BY potype_code HAVING COUNT(*)>1) THEN
+            RAISE EXCEPTION 'There are multiple Purchase Order Types (potype table) with the same code. Please see your system administrator or contact xTuple.';
+          END IF;
+        END IF;
+      END $$ LANGUAGE plpgsql;
+      SELECT true;
+    </query>
+    <message>There are multiple Purchase Order Types (potype table) with the same code. Please see your system administrator or contact xTuple.</message>
+  </prerequisite>
+ </all>
+ <postbooks>
+  <prerequisite type = "query"
+                name = "Checking xTuple Edition" >
+    <query>SELECT fetchMetricText('Application') = 'PostBooks';</query>
+    <message>This package must be applied to a PostBooks database.</message>
+  </prerequisite>
+ </postbooks>
+ <manufacturing>
+  <prerequisite type = "query"
+                name = "Checking xTuple Edition" >
+    <query>SELECT fetchMetricText('Application') = 'Standard';</query>
+    <message>This package must be applied to a Manufacturing Edition database.</message>
+  </prerequisite>
+
+  <prerequisite type="query"
+    name ="Checking xtmfg package" >
+    <query>SELECT TRUE FROM pkghead WHERE pkghead_name = 'xtmfg';</query>
+    <message>This package must be applied to an xTuple ERP database that already contains the xtmfg package.</message>
+  </prerequisite>
+
+ <prerequisite type="query" name="Checking xtmfg Package Version">
+    <query>SELECT compareVersion(pkghead_version, '4.4.0') >= 0 FROM pkghead WHERE pkghead_name = 'xtmfg';</query>
+    <message>This package must be applied against the 4.4+ version of the xtmfg package.</message>
+  </prerequisite>
+ </manufacturing>
+ <distribution>
+  <prerequisite type = "query"
+                name = "Checking xTuple Edition" >
+    <query>SELECT fetchMetricText('Application') = 'Standard';</query>
+    <message>This package must be applied to a Distribution database.</message>
+  </prerequisite>
+
+  <prerequisite type = "query"
+               name = "Checking for xwd schema" >
+    <query>SELECT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname = 'xwd');</query>
+    <message>This package requires that XWD 240 package to be installed before continuing.</message>
+  </prerequisite>
+
+  <prerequisite type="query" name="Checking xwd Package Version">
+     <query>SELECT TRUE FROM pkghead WHERE pkghead_name = 'xwd' AND (pkghead_version >= '2.4');</query>
+    <message>This package must be applied against the 2.4.0 version of the xwd package.</message>
+  </prerequisite>
+ </distribution>
+ <add>
+  <prerequisite type = "query"
+                name = "Checking xTuple Edition - Distribution" >
+    <query>SELECT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname = 'xwd');</query>
+    <message>This package must be applied to a database containing the xwd schema.</message>
+  </prerequisite>
+
+  <prerequisite type = "query"
+                name = "Checking xTuple Edition - Manufacturing" >
+    <query>SELECT NOT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname = 'xtmfg');</query>
+    <message>This package must be applied to a database that does not contain the xtmfg schema.</message>
+  </prerequisite>
+ </add>
+</prerequisites>
+<translations>
+ <xTuple>
+  <loadqm file="xTuple.ar_eg.qm"/>
+  <loadqm file="xTuple.bg.qm"/>
+  <loadqm file="xTuple.cs.qm"/>
+  <loadqm file="xTuple.de_at.qm"/>
+  <loadqm file="xTuple.de_ch.qm"/>
+  <loadqm file="xTuple.de.qm"/>
+  <loadqm file="xTuple.en_ca.qm"/>
+  <loadqm file="xTuple.es_ar.qm"/>
+  <loadqm file="xTuple.es_mx.qm"/>
+  <loadqm file="xTuple.es.qm"/>
+  <loadqm file="xTuple.et_ee.qm"/>
+  <loadqm file="xTuple.fr_ca.qm"/>
+  <loadqm file="xTuple.fr.qm"/>
+  <loadqm file="xTuple.hr.qm"/>
+  <loadqm file="xTuple.it.qm"/>
+  <loadqm file="xTuple.ja.qm"/>
+  <loadqm file="xTuple.nl.qm"/>
+  <loadqm file="xTuple.no.qm"/>
+  <loadqm file="xTuple.pl.qm"/>
+  <loadqm file="xTuple.pt_br.qm"/>
+  <loadqm file="xTuple.pt.qm"/>
+  <loadqm file="xTuple.ru.qm"/>
+  <loadqm file="xTuple.sk.qm"/>
+  <loadqm file="xTuple.tr.qm"/>
+  <loadqm file="xTuple.uk.qm"/>
+  <loadqm file="xTuple.zh_hk.qm"/>
+  <loadqm file="xTuple.zh.qm"/>
+  <loadqm file="xTuple.zh_tw.qm"/>
+ </xTuple>
+ <xtcore>
+  <loadqm file="xtcore.ar_eg.qm" schema="xtcore"/>
+  <loadqm file="xtcore.bg.qm" schema="xtcore"/>
+  <loadqm file="xtcore.cs.qm" schema="xtcore"/>
+  <loadqm file="xtcore.de_at.qm" schema="xtcore"/>
+  <loadqm file="xtcore.de_ch.qm" schema="xtcore"/>
+  <loadqm file="xtcore.de.qm" schema="xtcore"/>
+  <loadqm file="xtcore.en_ca.qm" schema="xtcore"/>
+  <loadqm file="xtcore.es_ar.qm" schema="xtcore"/>
+  <loadqm file="xtcore.es_mx.qm" schema="xtcore"/>
+  <loadqm file="xtcore.es.qm" schema="xtcore"/>
+  <loadqm file="xtcore.et_ee.qm" schema="xtcore"/>
+  <loadqm file="xtcore.fr_ca.qm" schema="xtcore"/>
+  <loadqm file="xtcore.fr.qm" schema="xtcore"/>
+  <loadqm file="xtcore.hr.qm" schema="xtcore"/>
+  <loadqm file="xtcore.it.qm" schema="xtcore"/>
+  <loadqm file="xtcore.ja.qm" schema="xtcore"/>
+  <loadqm file="xtcore.nl.qm" schema="xtcore"/>
+  <loadqm file="xtcore.no.qm" schema="xtcore"/>
+  <loadqm file="xtcore.pl.qm" schema="xtcore"/>
+  <loadqm file="xtcore.pt_br.qm" schema="xtcore"/>
+  <loadqm file="xtcore.pt.qm" schema="xtcore"/>
+  <loadqm file="xtcore.ru.qm" schema="xtcore"/>
+  <loadqm file="xtcore.sk.qm" schema="xtcore"/>
+  <loadqm file="xtcore.tr.qm" schema="xtcore"/>
+  <loadqm file="xtcore.uk.qm" schema="xtcore"/>
+  <loadqm file="xtcore.zh_hk.qm" schema="xtcore"/>
+  <loadqm file="xtcore.zh.qm" schema="xtcore"/>
+  <loadqm file="xtcore.zh_tw.qm" schema="xtcore"/>
+ </xtcore>
+ <xwd>
+  <loadqm file="xwd.ar_eg.qm" schema="xwd"/>
+  <loadqm file="xwd.bg.qm" schema="xwd"/>
+  <loadqm file="xwd.cs.qm" schema="xwd"/>
+  <loadqm file="xwd.de_at.qm" schema="xwd"/>
+  <loadqm file="xwd.de_ch.qm" schema="xwd"/>
+  <loadqm file="xwd.de.qm" schema="xwd"/>
+  <loadqm file="xwd.en_ca.qm" schema="xwd"/>
+  <loadqm file="xwd.es_ar.qm" schema="xwd"/>
+  <loadqm file="xwd.es_mx.qm" schema="xwd"/>
+  <loadqm file="xwd.es.qm" schema="xwd"/>
+  <loadqm file="xwd.et_ee.qm" schema="xwd"/>
+  <loadqm file="xwd.fr_ca.qm" schema="xwd"/>
+  <loadqm file="xwd.fr.qm" schema="xwd"/>
+  <loadqm file="xwd.hr.qm" schema="xwd"/>
+  <loadqm file="xwd.it.qm" schema="xwd"/>
+  <loadqm file="xwd.ja.qm" schema="xwd"/>
+  <loadqm file="xwd.nl.qm" schema="xwd"/>
+  <loadqm file="xwd.no.qm" schema="xwd"/>
+  <loadqm file="xwd.pl.qm" schema="xwd"/>
+  <loadqm file="xwd.pt_br.qm" schema="xwd"/>
+  <loadqm file="xwd.pt.qm" schema="xwd"/>
+  <loadqm file="xwd.ru.qm" schema="xwd"/>
+  <loadqm file="xwd.sk.qm" schema="xwd"/>
+  <loadqm file="xwd.tr.qm" schema="xwd"/>
+  <loadqm file="xwd.uk.qm" schema="xwd"/>
+  <loadqm file="xwd.zh_hk.qm" schema="xwd"/>
+  <loadqm file="xwd.zh.qm" schema="xwd"/>
+  <loadqm file="xwd.zh_tw.qm" schema="xwd"/>
+ </xwd>
+ <xtmfg>
+  <loadqm file="xtmfg.ar_eg.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.bg.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.cs.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.de_at.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.de_ch.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.de.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.en_ca.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.es_ar.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.es_mx.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.es.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.et_ee.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.fr_ca.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.fr.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.hr.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.it.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.ja.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.nl.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.no.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.pl.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.pt_br.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.pt.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.ru.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.sk.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.tr.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.uk.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.zh_hk.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.zh.qm" schema="xtmfg"/>
+  <loadqm file="xtmfg.zh_tw.qm" schema="xtmfg"/>
+ </xtmfg>
+</translations>
+</shared>

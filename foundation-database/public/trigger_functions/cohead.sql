@@ -1,6 +1,6 @@
 
 CREATE OR REPLACE FUNCTION _soheadTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _p RECORD;
@@ -25,11 +25,6 @@ BEGIN
     IF ( (NOT checkPrivilege('MaintainSalesOrders')) AND
          (NOT checkPrivilege('IssueStockToShipping')) AND
          (NEW.cohead_holdtype = OLD.cohead_holdtype) ) THEN
-      RAISE EXCEPTION 'You do not have privileges to alter a Sales Order.';
-    END IF;
-  ELSE
-    IF ( (NOT checkPrivilege('MaintainSalesOrders')) AND
-         (NOT checkPrivilege('IssueStockToShipping')) ) THEN
       RAISE EXCEPTION 'You do not have privileges to alter a Sales Order.';
     END IF;
   END IF;
@@ -66,7 +61,9 @@ BEGIN
       SELECT cust_creditstatus,cust_number,cust_usespos,cust_blanketpos,cust_ffbillto,
 	     cust_ffshipto,cust_name,cust_salesrep_id,cust_terms_id,cust_shipvia,
 	     cust_shipchrg_id,cust_shipform_id,cust_commprcnt,cust_curr_id,cust_taxzone_id,
-  	     cntct.*,addr.*,
+  	     cntct.*,
+             addr.addr_line1, addr.addr_line2, addr.addr_line3, addr.addr_city,
+             addr.addr_state, addr.addr_postalcode, addr.addr_country,
 	     shipto_id,shipto_addr_id,shipto_name,shipto_salesrep_id,shipto_shipvia,
 	     shipto_shipchrg_id,shipto_shipform_id,shipto_commission,shipto_taxzone_id INTO _p
       FROM custinfo
@@ -78,7 +75,9 @@ BEGIN
       SELECT cust_creditstatus,cust_number,cust_usespos,cust_blanketpos,cust_ffbillto,
 	     cust_ffshipto,cust_name,cust_salesrep_id,cust_terms_id,cust_shipvia,
 	     cust_shipchrg_id,cust_shipform_id,cust_commprcnt,cust_curr_id,cust_taxzone_id,
-  	     cntct.*,addr.*,
+  	     cntct.*,
+             addr.addr_line1, addr.addr_line2, addr.addr_line3, addr.addr_city,
+             addr.addr_state, addr.addr_postalcode, addr.addr_country,
 	     shipto_id,shipto_addr_id,shipto_name,shipto_salesrep_id,shipto_shipvia,
 	     shipto_shipchrg_id,shipto_shipform_id,shipto_commission,shipto_taxzone_id INTO _p
       FROM shiptoinfo,custinfo
@@ -240,26 +239,27 @@ BEGIN
       END IF;
 
       IF (TG_OP = 'UPDATE') THEN
+        --Update project references on supply
+        UPDATE pr SET pr_prj_id=NEW.cohead_prj_id
+                   FROM coitem
+                   WHERE ((coitem_cohead_id=NEW.cohead_id)
+                     AND  (coitem_status != 'C')
+                     AND  (coitem_order_type='R')
+                     AND  (coitem_order_id=pr_id));
+
+        PERFORM changeWoProject(coitem_order_id, NEW.cohead_prj_id, TRUE)
+                    FROM coitem
+                    WHERE ((coitem_cohead_id=NEW.cohead_id)
+                      AND  (coitem_status != 'C')
+                      AND  (coitem_order_type='W'));
+
         SELECT true INTO _check
         FROM coitem
         WHERE ( (coitem_status='C')
         AND (coitem_cohead_id=NEW.cohead_id) )
         LIMIT 1;
 
-        IF (NOT FOUND) THEN
-
-        --Update project references on supply
-        UPDATE pr SET pr_prj_id=NEW.cohead_prj_id
-                   FROM coitem
-                   WHERE ((coitem_cohead_id=NEW.cohead_id)
-                   AND  (coitem_order_type='R')
-                   AND  (coitem_order_id=pr_id));
-
-        PERFORM changeWoProject(coitem_order_id, NEW.cohead_prj_id, TRUE)
-                    FROM coitem
-                    WHERE ((coitem_cohead_id=NEW.cohead_id)
-                    AND  (coitem_order_type='W'));
-        ELSE
+        IF (FOUND) THEN
           IF NEW.cohead_prj_id <> COALESCE(OLD.cohead_prj_id,-1) THEN
             RAISE EXCEPTION 'You can not change the project ID on orders with closed lines.';
           END IF;
@@ -337,7 +337,10 @@ BEGIN
           _shiptoId := NEW.cohead_shipto_id;
         END IF;
 
-        SELECT * INTO _a
+        SELECT cntct.*, shipto_name,
+               addr.addr_line1, addr.addr_line2, addr.addr_line3, addr.addr_city,
+               addr.addr_state, addr.addr_postalcode, addr.addr_country
+        INTO _a
         FROM shiptoinfo
           LEFT OUTER JOIN addr ON (addr_id=shipto_addr_id)
           LEFT OUTER JOIN cntct ON (cntct_id=shipto_cntct_id)
@@ -385,7 +388,10 @@ BEGIN
           SELECT cohead_shipto_id INTO _shiptoid FROM cohead WHERE (cohead_id=NEW.cohead_id);
           -- Get the shipto address
           IF (COALESCE(NEW.cohead_shipto_id,-1) <> COALESCE(_shiptoid,-1)) THEN
-            SELECT * INTO _a
+            SELECT cntct.*, shipto_name,
+               addr.addr_line1, addr.addr_line2, addr.addr_line3, addr.addr_city,
+               addr.addr_state, addr.addr_postalcode, addr.addr_country
+            INTO _a
             FROM shiptoinfo
               LEFT OUTER JOIN cntct ON (shipto_cntct_id=cntct_id)
               LEFT OUTER JOIN addr ON (shipto_addr_id=addr_id)
@@ -418,11 +424,27 @@ BEGIN
         END IF;
       END IF;
     END IF;
+
+    NEW.cohead_billtoaddress1   := COALESCE(NEW.cohead_billtoaddress1, '');
+    NEW.cohead_billtoaddress2   := COALESCE(NEW.cohead_billtoaddress2, '');
+    NEW.cohead_billtoaddress3   := COALESCE(NEW.cohead_billtoaddress3, '');
+    NEW.cohead_billtocity       := COALESCE(NEW.cohead_billtocity, '');
+    NEW.cohead_billtostate      := COALESCE(NEW.cohead_billtostate, '');
+    NEW.cohead_billtozipcode    := COALESCE(NEW.cohead_billtozipcode, '');
+    NEW.cohead_billtocountry    := COALESCE(NEW.cohead_billtocountry, '');
+    NEW.cohead_shiptoaddress1   := COALESCE(NEW.cohead_shiptoaddress1, '');
+    NEW.cohead_shiptoaddress2   := COALESCE(NEW.cohead_shiptoaddress2, '');
+    NEW.cohead_shiptoaddress3   := COALESCE(NEW.cohead_shiptoaddress3, '');
+    NEW.cohead_shiptoaddress4   := COALESCE(NEW.cohead_shiptoaddress4, '');
+    NEW.cohead_shiptoaddress5   := COALESCE(NEW.cohead_shiptoaddress5, '');
+    NEW.cohead_shiptocity       := COALESCE(NEW.cohead_shiptocity, '');
+    NEW.cohead_shiptostate      := COALESCE(NEW.cohead_shiptostate, '');
+    NEW.cohead_shiptozipcode    := COALESCE(NEW.cohead_shiptozipcode, '');
+    NEW.cohead_shiptocountry    := COALESCE(NEW.cohead_shiptocountry, '');
+
   END IF;
 
-  IF ( SELECT (metric_value='t')
-       FROM metric
-       WHERE (metric_name='SalesOrderChangeLog') ) THEN
+  IF (fetchMetricBool('SalesOrderChangeLog')) THEN
 
     IF (TG_OP = 'INSERT') THEN
       PERFORM postComment('ChangeLog', 'S', NEW.cohead_id, 'Created');
@@ -431,39 +453,34 @@ BEGIN
 
       IF ( (OLD.cohead_terms_id <> NEW.cohead_terms_id) AND
            (OLD.cohead_cust_id = NEW.cohead_cust_id) ) THEN
-        PERFORM postComment( 'ChangeLog', 'S', NEW.cohead_id,
-                             ('Terms Changed from "' || oldterms.terms_code || '" to "' || newterms.terms_code || '"') )
-        FROM terms AS oldterms, terms AS newterms
-        WHERE ( (oldterms.terms_id=OLD.cohead_terms_id)
-         AND (newterms.terms_id=NEW.cohead_terms_id) );
+        PERFORM postComment( 'ChangeLog', 'S', NEW.cohead_id, 'Terms',
+                             (SELECT terms_code FROM terms WHERE terms_id=OLD.cohead_terms_id),
+                             (SELECT terms_code FROM terms WHERE terms_id=NEW.cohead_terms_id));
       END IF;
 
       IF ( (OLD.cohead_shipvia <> NEW.cohead_shipvia) AND
            (OLD.cohead_cust_id = NEW.cohead_cust_id) ) THEN
-        PERFORM postComment ('ChangeLog', 'S', New.cohead_id, ('Shipvia Changed from "' || OLD.cohead_shipvia || '" to "' || NEW.cohead_shipvia || '"'));
+        PERFORM postComment ('ChangeLog', 'S', NEW.cohead_id, 'Shipvia',
+                             OLD.cohead_shipvia, NEW.cohead_shipvia);
       END IF;
 
       IF (OLD.cohead_holdtype <> NEW.cohead_holdtype) THEN
-        PERFORM postComment( 'ChangeLog', 'S', NEW.cohead_id,
-                             ( 'Hold Type Changed from ' || (CASE OLD.cohead_holdtype WHEN('N') THEN 'No Hold'
-                                                                                      WHEN('C') THEN 'Credit Hold'
-                                                                                      WHEN('P') THEN 'Packing Hold'
-                                                                                      WHEN('S') THEN 'Shipping Hold'
-                                                                                      ELSE 'Unknown/Error' END) ||
-                               ' to ' || (CASE NEW.cohead_holdtype WHEN('N') THEN 'No Hold'
-                                                                   WHEN('C') THEN 'Credit Hold'
-                                                                   WHEN('P') THEN 'Packing Hold'
-                                                                   WHEN('S') THEN 'Shipping Hold'
-                                                                   ELSE 'Unknown/Error' END) ) );
+        PERFORM postComment( 'ChangeLog', 'S', NEW.cohead_id, 'Hold Type',
+                             (CASE OLD.cohead_holdtype WHEN('N') THEN 'No Hold'
+                                                       WHEN('C') THEN 'Credit Hold'
+                                                       WHEN('P') THEN 'Packing Hold'
+                                                       WHEN('R') THEN 'Return Hold'
+                                                       WHEN('S') THEN 'Shipping Hold'
+                                                       WHEN('T') THEN 'Tax Hold'
+                                                       ELSE 'Unknown/Error' END),
+                             (CASE NEW.cohead_holdtype WHEN('N') THEN 'No Hold'
+                                                       WHEN('C') THEN 'Credit Hold'
+                                                       WHEN('P') THEN 'Packing Hold'
+                                                       WHEN('R') THEN 'Return Hold'
+                                                       WHEN('S') THEN 'Shipping Hold'
+                                                       WHEN('T') THEN 'Tax Hold'
+                                                       ELSE 'Unknown/Error' END) );
       END IF;
-
-    ELSIF (TG_OP = 'DELETE') THEN
-      DELETE FROM docass WHERE docass_source_id = OLD.cohead_id AND docass_source_type = 'S';
-      DELETE FROM docass WHERE docass_target_id = OLD.cohead_id AND docass_target_type = 'S';
-
-      DELETE FROM comment
-      WHERE ( (comment_source='S')
-       AND (comment_source_id=OLD.cohead_id) );
     END IF;
   END IF;
 
@@ -497,19 +514,25 @@ BEGIN
     END IF;
   END IF;
 
-  IF (TG_OP = 'DELETE') THEN
-    RETURN OLD;
-  ELSE
-    NEW.cohead_lastupdated = CURRENT_TIMESTAMP;
-
-    RETURN NEW;
+  -- Timestamps
+  IF (TG_OP = 'INSERT') THEN
+    NEW.cohead_created := now();
+    NEW.cohead_lastupdated := now();
+  ELSIF (TG_OP = 'UPDATE') THEN
+    NEW.cohead_lastupdated := now();
   END IF;
 
+  RETURN NEW;
+
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS soheadTrigger ON cohead;
-CREATE TRIGGER soheadTrigger BEFORE INSERT OR UPDATE OR DELETE ON cohead FOR EACH ROW EXECUTE PROCEDURE _soheadTrigger();
+CREATE TRIGGER soheadTrigger
+  BEFORE INSERT OR UPDATE
+  ON cohead
+  FOR EACH ROW
+  EXECUTE PROCEDURE _soheadTrigger();
 
 CREATE OR REPLACE FUNCTION _soheadTriggerAfter() RETURNS TRIGGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
@@ -529,9 +552,88 @@ BEGIN
     WHERE (pohead_id=poitem_pohead_id);
   END IF;
 
+  -- update shipto address on any associated drop ship POs
+  IF (COALESCE(NEW.cohead_shiptoname, TEXT('')) <> COALESCE(OLD.cohead_shiptoname, TEXT('')) OR
+      COALESCE(NEW.cohead_shiptoaddress1, TEXT('')) <> COALESCE(OLD.cohead_shiptoaddress1, TEXT('')) OR
+      COALESCE(NEW.cohead_shiptoaddress2, TEXT('')) <> COALESCE(OLD.cohead_shiptoaddress2, TEXT('')) OR
+      COALESCE(NEW.cohead_shiptoaddress3, TEXT('')) <> COALESCE(OLD.cohead_shiptoaddress3, TEXT('')) OR
+      COALESCE(NEW.cohead_shiptocity, TEXT('')) <> COALESCE(OLD.cohead_shiptocity, TEXT('')) OR
+      COALESCE(NEW.cohead_shiptostate, TEXT('')) <> COALESCE(OLD.cohead_shiptostate, TEXT('')) OR
+      COALESCE(NEW.cohead_shiptozipcode, TEXT('')) <> COALESCE(OLD.cohead_shiptozipcode, TEXT('')) OR
+      COALESCE(NEW.cohead_shiptocountry, TEXT('')) <> COALESCE(OLD.cohead_shiptocountry, TEXT('')) ) THEN
+    UPDATE pohead
+      SET pohead_shiptoname=NEW.cohead_shiptoname,
+          pohead_shiptoaddress1=NEW.cohead_shiptoaddress1,
+          pohead_shiptoaddress2=NEW.cohead_shiptoaddress2,
+          pohead_shiptoaddress3=NEW.cohead_shiptoaddress3,
+          pohead_shiptocity=NEW.cohead_shiptocity,
+          pohead_shiptostate=NEW.cohead_shiptostate,
+          pohead_shiptozipcode=NEW.cohead_shiptozipcode,
+          pohead_shiptocountry=NEW.cohead_shiptocountry
+    FROM poitem JOIN coitem ON (coitem_cohead_id=NEW.cohead_id AND coitem_order_type='P' AND coitem_order_id=poitem_id)
+    WHERE (pohead_id=poitem_pohead_id)
+      AND (pohead_dropship);
+  END IF;
+
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropifexists('TRIGGER','soheadTriggerAfter');
-CREATE TRIGGER soheadTriggerAfter AFTER UPDATE ON cohead FOR EACH ROW EXECUTE PROCEDURE _soheadTriggerAfter();
+CREATE TRIGGER soheadTriggerAfter
+  AFTER UPDATE
+  ON cohead
+  FOR EACH ROW
+  EXECUTE PROCEDURE _soheadTriggerAfter();
+
+CREATE OR REPLACE FUNCTION _coheadBeforeDeleteTrigger() RETURNS TRIGGER AS $$
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- See www.xtuple.com/CPAL for the full text of the software license.
+DECLARE
+
+BEGIN
+
+  IF ( (NOT checkPrivilege('MaintainSalesOrders')) AND
+       (NOT checkPrivilege('IssueStockToShipping')) ) THEN
+    RAISE EXCEPTION 'You do not have privileges to alter a Sales Order.';
+  END IF;
+
+  DELETE FROM docass WHERE docass_source_id = OLD.cohead_id AND docass_source_type = 'S';
+  DELETE FROM docass WHERE docass_target_id = OLD.cohead_id AND docass_target_type = 'S';
+
+  DELETE FROM comment
+  WHERE ( (comment_source='S')
+   AND (comment_source_id=OLD.cohead_id) );
+
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT dropIfExists('TRIGGER', 'coheadBeforeDeleteTrigger');
+CREATE TRIGGER coheadBeforeDeleteTrigger
+  BEFORE DELETE
+  ON cohead
+  FOR EACH ROW
+  EXECUTE PROCEDURE _coheadBeforeDeleteTrigger();
+
+CREATE OR REPLACE FUNCTION _coheadAfterDeleteTrigger() RETURNS TRIGGER AS $$
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- See www.xtuple.com/CPAL for the full text of the software license.
+DECLARE
+
+BEGIN
+
+  DELETE FROM charass
+  WHERE charass_target_type = 'SO'
+    AND charass_target_id = OLD.cohead_id;
+
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT dropIfExists('TRIGGER', 'coheadAfterDeleteTrigger');
+CREATE TRIGGER coheadAfterDeleteTrigger
+  AFTER DELETE
+  ON cohead
+  FOR EACH ROW
+  EXECUTE PROCEDURE _coheadAfterDeleteTrigger();

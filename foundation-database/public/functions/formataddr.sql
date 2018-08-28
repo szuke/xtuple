@@ -9,7 +9,7 @@ DECLARE
 BEGIN
   -- US conventions
   SELECT formatAddr(addr_line1, addr_line2, addr_line3,
-                    addr_city || ', ' || addr_state || ' ' || addr_postalcode,
+                    (COALESCE(addr_city,'') || ', ' || COALESCE(addr_state,'') || ' ' || COALESCE(addr_postalcode,'')),
                     addr_country) INTO _return
   FROM addr
   WHERE (addr_id=pAddrId);

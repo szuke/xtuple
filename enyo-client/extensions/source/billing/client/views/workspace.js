@@ -166,7 +166,7 @@
     */
     save: function (options) {
       if (this.$.printOnPost.isChecked()) {
-        this.doPrint();
+        this.$.printOnSave = true;
       }
       this.inherited(arguments);
     }

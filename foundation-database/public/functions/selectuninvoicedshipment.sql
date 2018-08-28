@@ -24,7 +24,7 @@ BEGIN
   FOR _r IN SELECT cohead_id, coitem_id, SUM(shipitem_qty) AS qty,
                    coitem_price, coitem_price_invuomratio AS invpricerat, coitem_qty_invuomratio, item_id,
                    ( ((coitem_qtyord - coitem_qtyshipped + coitem_qtyreturned) <= 0)
-                    OR (NOT cust_partialship) ) AS toclose, coitem_taxtype_id
+                    OR (NOT cust_partialship) ) AS toclose, coitem_taxtype_id, true AS additive
             FROM shiphead, shipitem, coitem, cohead, custinfo, itemsite, item
             WHERE ( (shipitem_shiphead_id=shiphead_id)
              AND (shipitem_orderitem_id=coitem_id)
@@ -43,7 +43,7 @@ BEGIN
             UNION
             SELECT cohead_id, coitem_id, coitem_qtyord AS qty,
                    coitem_price, coitem_price_invuomratio AS invpricerat, coitem_qty_invuomratio, item_id,
-                   true AS toclose, coitem_taxtype_id
+                   true AS toclose, coitem_taxtype_id, false AS additive
               FROM shiphead, cohead, custinfo, itemsite, item, coitem AS kit
              WHERE((shiphead_order_id=cohead_id)
                AND (coitem_cohead_id=cohead_id)
@@ -83,7 +83,7 @@ BEGIN
       UPDATE cobill
          SET cobill_selectdate = CURRENT_DATE,
              cobill_select_username = getEffectiveXtUser(),
-             cobill_qty = cobill_qty + _r.qty,
+             cobill_qty = CASE WHEN _r.additive THEN cobill_qty + _r.qty ELSE _r.qty END,
              cobill_toclose = _r.toclose,
              cobill_taxtype_id = _r.coitem_taxtype_id
       WHERE (cobill_id=_cobillid);

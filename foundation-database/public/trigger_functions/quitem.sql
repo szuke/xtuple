@@ -2,7 +2,6 @@ CREATE OR REPLACE FUNCTION _quitemtrigger() RETURNS "trigger" AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  _changelog BOOLEAN := FALSE;
   _check BOOLEAN;
 
 BEGIN
@@ -12,62 +11,45 @@ BEGIN
     RAISE EXCEPTION 'You do not have privileges to maintain Quotes.';
   END IF;
 
-  IF ( SELECT fetchMetricBool('SalesOrderChangeLog') ) THEN
-    _changelog := TRUE;
-  END IF;
-
-  IF (TG_OP = 'INSERT') THEN
-    IF (_changelog) THEN
+  IF (fetchMetricBool('SalesOrderChangeLog')) THEN
+    IF (TG_OP = 'INSERT') THEN
       PERFORM postComment('ChangeLog', 'QI', NEW.quitem_id, 'Created');
     END IF;
 
-    RETURN NEW;
-  END IF;
 
-  IF (TG_OP = 'DELETE') THEN
-    DELETE FROM comment
-    WHERE ( (comment_source='QI')
-     AND (comment_source_id=OLD.quitem_id) );
-
-    DELETE FROM charass
-     WHERE ((charass_target_type='QI')
-       AND  (charass_target_id=OLD.quitem_id));
-
-    RETURN OLD;
-  END IF;
-
-  IF (TG_OP = 'UPDATE') THEN
-    IF (_changelog) THEN
+    IF (TG_OP = 'UPDATE') THEN
       IF (NEW.quitem_qtyord <> OLD.quitem_qtyord) THEN
-        PERFORM postComment( 'ChangeLog', 'QI', NEW.quitem_id,
-                             ( 'Changed Qty. Ordered from ' || formatQty(OLD.quitem_qtyord) ||
-                               ' to ' || formatQty(NEW.quitem_qtyord) ) );
+        PERFORM postComment('ChangeLog', 'QI', NEW.quitem_id, 'Qty. Ordered',
+                            formatQty(OLD.quitem_qtyord), formatQty(NEW.quitem_qtyord));
       END IF;
 
       IF (NEW.quitem_price <> OLD.quitem_price) THEN
-        PERFORM postComment( 'ChangeLog', 'QI', NEW.quitem_id,
-                             ( 'Changed Unit Price from ' || formatPrice(OLD.quitem_price) ||
-                               ' to ' || formatPrice(NEW.quitem_price) ) );
+        PERFORM postComment('ChangeLog', 'QI', NEW.quitem_id, 'Unit Price',
+                            formatPrice(OLD.quitem_price), formatPrice(NEW.quitem_price));
       END IF;
 
       IF (NEW.quitem_scheddate <> OLD.quitem_scheddate) THEN
-        PERFORM postComment( 'ChangeLog', 'QI', NEW.quitem_id,
-                             ( 'Changed Sched. Date from ' || formatDate(OLD.quitem_scheddate) ||
-                               ' to ' || formatDate(NEW.quitem_scheddate)) );
+        PERFORM postComment('ChangeLog', 'QI', NEW.quitem_id, 'Sched. Date',
+                            formatDate(OLD.quitem_scheddate), formatDate(NEW.quitem_scheddate));
       END IF;
     END IF;
   END IF;
 
---  NEW.quitem_lastupdated = CURRENT_TIMESTAMP;
+  -- Timestamps
+  IF (TG_OP = 'INSERT') THEN
+    NEW.quitem_created := now();
+  ELSIF (TG_OP = 'UPDATE') THEN
+    NEW.quitem_lastupdated := now();
+  END IF;
 
   RETURN NEW;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS quitemtrigger ON quitem;
 CREATE TRIGGER quitemtrigger
-  BEFORE INSERT OR UPDATE OR DELETE
+  BEFORE INSERT OR UPDATE
   ON quitem
   FOR EACH ROW
   EXECUTE PROCEDURE _quitemtrigger();
@@ -101,7 +83,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS quitemBeforeTrigger ON quitem;
 CREATE TRIGGER quitemBeforeTrigger
@@ -134,7 +116,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS quitemAfterTrigger ON quitem;
 CREATE TRIGGER quitemAfterTrigger
@@ -143,3 +125,32 @@ CREATE TRIGGER quitemAfterTrigger
   FOR EACH ROW
   EXECUTE PROCEDURE _quitemAfterTrigger();
 
+CREATE OR REPLACE FUNCTION _quitemAfterDeleteTrigger() RETURNS TRIGGER AS $$
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- See www.xtuple.com/CPAL for the full text of the software license.
+DECLARE
+
+BEGIN
+
+  DELETE FROM charass
+   WHERE charass_target_type = 'QI'
+     AND charass_target_id = OLD.quitem_id;
+
+  DELETE FROM comment
+   WHERE ( (comment_source='QI')
+     AND (comment_source_id=OLD.quitem_id) );
+
+  DELETE FROM charass
+   WHERE ((charass_target_type='QI')
+     AND  (charass_target_id=OLD.quitem_id));
+
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT dropIfExists('TRIGGER', 'quitemAfterDeleteTrigger');
+CREATE TRIGGER quitemAfterDeleteTrigger
+  AFTER DELETE
+  ON quitem
+  FOR EACH ROW
+  EXECUTE PROCEDURE _quitemAfterDeleteTrigger();

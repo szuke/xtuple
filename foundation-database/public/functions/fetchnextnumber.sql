@@ -37,10 +37,18 @@ BEGIN
     IF (_not_issued) THEN
 
       -- Test if the number has been committed
-      _select := 'SELECT ' || quote_ident(_numcol) ||
+      -- Have to factor in scenario where Quotes are set to use SO Numbering
+      IF (psequence = 'SoNumber' AND fetchmetrictext('QUNumberGeneration') = 'S') THEN
+        _select := 'SELECT ' || quote_ident(_numcol) ||
+	         ' FROM '  || _table ||
+	         ' WHERE (' || quote_ident(_numcol) || '=' || quote_literal(_number) || ') ' ||
+	         ' UNION SELECT quhead_number FROM quhead WHERE (quhead_number = ' || quote_literal(_number) || ');';
+      ELSE
+        _select := 'SELECT ' || quote_ident(_numcol) ||
 	         ' FROM '  || _table ||
 	         ' WHERE (' || quote_ident(_numcol) || '=' ||
                  quote_literal(_number) || ');';
+      END IF;                 
 
       EXECUTE _select INTO _test;
 

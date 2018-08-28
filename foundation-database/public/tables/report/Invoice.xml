@@ -2123,13 +2123,48 @@ order by shiphead_shipdate;</sql>
    <vcenter/>
    <string>Total Due:</string>
   </label>
+  <label>
+   <rect>
+    <x>355</x>
+    <y>145</y>
+    <width>25</width>
+    <height>20</height>
+   </rect>
+   <font>
+    <face>Arial</face>
+    <size>10</size>
+    <weight>normal</weight>
+   </font>
+   <left/>
+   <vcenter/>
+   <string>of</string>
+  </label>
+  <field>
+   <rect>
+    <x>375</x>
+    <y>145</y>
+    <width>20</width>
+    <height>20</height>
+   </rect>
+   <font>
+    <face>Sans Serif</face>
+    <size>10</size>
+    <weight>normal</weight>
+   </font>
+   <right/>
+   <top/>
+   <data>
+    <query>Context Query</query>
+    <column>page_count</column>
+   </data>
+  </field>
  </pgfoot>
  <pgfoot>
   <height>27</height>
   <field>
    <rect>
     <x>330</x>
-    <y>0</y>
+    <y>2</y>
     <width>20</width>
     <height>20</height>
    </rect>
@@ -2148,7 +2183,7 @@ order by shiphead_shipdate;</sql>
   <label>
    <rect>
     <x>290</x>
-    <y>0</y>
+    <y>2</y>
     <width>40</width>
     <height>20</height>
    </rect>
@@ -2160,6 +2195,41 @@ order by shiphead_shipdate;</sql>
    <left/>
    <vcenter/>
    <string>Page:</string>
+  </label>
+  <field>
+   <rect>
+    <x>375</x>
+    <y>2</y>
+    <width>20</width>
+    <height>20</height>
+   </rect>
+   <font>
+    <face>Sans Serif</face>
+    <size>10</size>
+    <weight>normal</weight>
+   </font>
+   <right/>
+   <top/>
+   <data>
+    <query>Context Query</query>
+    <column>page_count</column>
+   </data>
+  </field>
+  <label>
+   <rect>
+    <x>355</x>
+    <y>2</y>
+    <width>25</width>
+    <height>20</height>
+   </rect>
+   <font>
+    <face>Arial</face>
+    <size>10</size>
+    <weight>normal</weight>
+   </font>
+   <left/>
+   <vcenter/>
+   <string>of</string>
   </label>
  </pgfoot>
 </report>

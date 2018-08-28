@@ -1,14 +1,13 @@
-CREATE OR REPLACE FUNCTION distributeItemlocSeries(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION distributeItemlocSeries(pItemlocSeries INTEGER) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pItemlocSeries   ALIAS FOR $1;
   _distCounter     INTEGER;
   _itemlocdist     RECORD;
   _itemlocid       INTEGER;
   _invhistid       INTEGER;
   _check           BOOLEAN;
-  _debug           BOOLEAN := true;
+  _debug           BOOLEAN := false;
 BEGIN
 
   IF (_debug) THEN
@@ -51,11 +50,6 @@ BEGIN
       RAISE NOTICE 'warranty=%', _itemlocdist.warranty;
     END IF;
 
---  Commit invhist to itemsite
-    IF (NOT _itemlocdist.itemsite_freeze) THEN
-	PERFORM postInvHist(_itemlocdist.invhistid);
-    END IF;
-
 --  Mark the invhist tuple for the itemlocdist in question as having detail
     UPDATE invhist
     SET invhist_hasdetail=TRUE
@@ -69,7 +63,7 @@ BEGIN
         invdetail_qty, invdetail_qty_before, invdetail_qty_after, invdetail_expiration,
         invdetail_warrpurc )
       SELECT _itemlocdist.invhistid, itemloc_location_id, itemloc_ls_id,
-             (itemloc_qty * -1), itemloc_qty, 0, itemloc_expiration, 
+             (itemloc_qty * -1), itemloc_qty, 0, itemloc_expiration,
              _itemlocdist.warranty
       FROM itemloc
       WHERE ( (itemloc_qty <> 0)
@@ -135,50 +129,6 @@ BEGIN
         WHERE (itemloc_id=_itemlocid);
       END IF;
 
---  Adjust QOH if this itemlocdist is to/from a non-netable location
-      IF ( SELECT (NOT location_netable)
-           FROM itemloc, location
-           WHERE ( (itemloc_location_id=location_id)
-            AND (itemloc_id=_itemlocid) ) ) THEN
-
---  Record the netable->non-netable (or visaveras) invhist
-        SELECT NEXTVAL('invhist_invhist_id_seq') INTO _invhistid;
-        INSERT INTO invhist
-        ( invhist_id, invhist_itemsite_id, 
-          invhist_transtype, invhist_invqty,
-          invhist_qoh_before, invhist_qoh_after,
-          invhist_docnumber, invhist_comments,
-          invhist_invuom, invhist_unitcost,
-          invhist_costmethod, invhist_value_before, invhist_value_after,
-          invhist_series ) 
-        SELECT _invhistid, itemsite_id, 
-               'NN', (_itemlocdist.qty * -1),
-               itemsite_qtyonhand, (itemsite_qtyonhand - _itemlocdist.qty),
-               invhist_docnumber, invhist_comments,
-               uom_name, stdCost(item_id),
-               itemsite_costmethod, itemsite_value,
-               (itemsite_value + (_itemlocdist.qty * -1 * CASE WHEN(itemsite_costmethod='A') THEN avgcost(itemsite_id)
-                                                               ELSE stdCost(itemsite_item_id)
-                                                          END)),
-               _itemlocdist.series
-        FROM item, itemsite, invhist, uom
-        WHERE ((itemsite_item_id=item_id)
-         AND (item_inv_uom_id=uom_id)
-         AND (itemsite_controlmethod <> 'N')
-         AND (itemsite_id=_itemlocdist.itemsiteid)
-         AND (invhist_id=_itemlocdist.invhistid));
-
---  Adjust the parent itemsite
-        IF (NOT _itemlocdist.itemsite_freeze) THEN
-          UPDATE itemsite
-          SET itemsite_qtyonhand = (itemsite_qtyonhand - _itemlocdist.qty),
-              itemsite_nnqoh = (itemsite_nnqoh + _itemlocdist.qty)
-          FROM itemloc
-          WHERE ((itemloc_itemsite_id=itemsite_id)
-           AND (itemloc_id=_itemlocid));
-        END IF;
-      END IF;
-
     END IF;
 
 --  If, after the distribution, the target itemloc_qty = 0, delete the itemloc
@@ -191,10 +141,7 @@ BEGIN
 
   END LOOP;
 
-  DELETE FROM itemlocdist
-  WHERE (itemlocdist_series=pItemlocSeries);
-
   RETURN _distCounter;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

@@ -4,18 +4,15 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
 
 _ = require('underscore');
 
-var  async = require('async'),
+var async = require('async'),
   dataSource = require('../../node-datasource/lib/ext/datasource').dataSource,
-  buildDatabaseUtil = require('./build_database_util'),
-  exec = require('child_process').exec,
+  explodeManifest = require("./util/process_manifest").explodeManifest,
   fs = require('fs'),
   ormInstaller = require('./orm'),
   dictionaryBuilder = require('./build_dictionary'),
   clientBuilder = require('./build_client'),
   path = require('path'),
-  pg = require('pg'),
-  os = require('os'),
-  winston = require('winston');
+  sendToDatabase = require("./util/send_to_database").sendToDatabase;
 
 (function () {
   "use strict";
@@ -23,14 +20,14 @@ var  async = require('async'),
   /**
     @param {Object} specs Specification for the build process, in the form:
       [ { extensions:
-           [ '/home/user/git/xtuple/enyo-client',
+           [ '/home/user/git/xtuple',
              '/home/user/git/xtuple/enyo-client/extensions/source/crm',
              '/home/user/git/xtuple/enyo-client/extensions/source/sales',
              '/home/user/git/private-extensions/source/incident_plus' ],
           database: 'dev',
           orms: [] },
         { extensions:
-           [ '/home/user/git/xtuple/enyo-client',
+           [ '/home/user/git/xtuple',
              '/home/user/git/xtuple/enyo-client/extensions/source/sales',
              '/home/user/git/xtuple/enyo-client/extensions/source/project' ],
           database: 'dev2',
@@ -44,12 +41,30 @@ var  async = require('async'),
         host: 'localhost' }
   */
   var buildDatabase = exports.buildDatabase = function (specs, creds, masterCallback) {
-    //
-    // The function to generate all the scripts for a database
-    //
+    /**
+     * The function to generate all the scripts for a database
+     */
     var installDatabase = function (spec, databaseCallback) {
       var extensions = spec.extensions,
-        databaseName = spec.database;
+          databaseName = spec.database,
+          commercialRegexp = /inventory/,
+          commercialPos    = _.reduce(extensions, function (memo, path, i) {
+                              return commercialRegexp.test(path) ? i : memo;
+                            }, -1),
+          commercialcorePos = _.reduce(extensions, function (memo, path, i) {
+                              return /commercialcore/.test(path) ? i : memo;
+                            }, -1),
+          commercialcorePath = extensions[commercialPos] // yes, "needs"
+      ;
+
+      // bug 25680 - we added dependencies on a new commercialcore extension.
+      // make sure it's registered for installation if necessary
+      if (commercialPos >= 0 && commercialcorePos < 0) {
+        console.log(extensions);
+        commercialcorePath = commercialcorePath.replace(commercialRegexp, "commercialcore");
+        extensions.splice(commercialPos, 0, commercialcorePath);
+        console.log(extensions);
+      }
 
       //
       // The function to install all the scripts for an extension
@@ -59,39 +74,42 @@ var  async = require('async'),
           extensionCallback(null, "");
           return;
         }
-        // deal with directory structure quirks
+
+        // deal with directory structure quirks. There is a lot of business logic
+        // baked in here to deal with a lot of legacy baggage. This allows
+        // process_manifest to just deal with a bunch of instructions as far as what
+        // to do, without having to worry about the quirks that make those instructions
+        // necessary
         var baseName = path.basename(extension),
+          foundationExtensionRegexp = /commercialcore|inventory|manufacturing|distribution/,
           isFoundation = extension.indexOf("foundation-database") >= 0,
-          isFoundationExtension = extension.indexOf("inventory/foundation-database") >= 0 ||
-            extension.indexOf("manufacturing/foundation-database") >= 0 ||
-            extension.indexOf("distribution/foundation-database") >= 0,
           isLibOrm = extension.indexOf("lib/orm") >= 0,
-          isApplicationCore = extension.indexOf("enyo-client") >= 0 &&
-            extension.indexOf("extension") < 0,
-          isCoreExtension = extension.indexOf("enyo-client") >= 0 &&
-            extension.indexOf("extension") >= 0,
+          isApplicationCore = /xtuple$/.test(extension),
+          isCoreExtension = extension.indexOf("enyo-client") >= 0,
           isPublicExtension = extension.indexOf("xtuple-extensions") >= 0,
           isPrivateExtension = extension.indexOf("private-extensions") >= 0,
-          isNpmExtension = baseName.indexOf("xtuple-") >= 0,
-          dbSourceRoot = (isFoundation || isFoundationExtension) ? extension :
+          isExtension = !isFoundation && !isLibOrm && !isApplicationCore,
+          dbSourceRoot = (isFoundation) ? extension :
             isLibOrm ? path.join(extension, "source") :
             path.join(extension, "database/source"),
+          rootPath = path.resolve(__dirname, "../../.."),
+          extensionPath = isExtension ? path.resolve(dbSourceRoot, "../../") : undefined,
           manifestOptions = {
+            manifestFilename: path.resolve(dbSourceRoot, "manifest.js"),
+            extensionPath: extensionPath,
             useFrozenScripts: spec.frozen,
-            useFoundationScripts: baseName.indexOf('inventory') >= 0 ||
-              baseName.indexOf('manufacturing') >= 0 ||
-              baseName.indexOf('distribution') >= 0,
-            registerExtension: !isFoundation && !isLibOrm && !isApplicationCore,
-            runJsInit: !isFoundation && !isLibOrm,
-            wipeViews: isApplicationCore && spec.wipeViews,
+            useFoundationScripts: fs.existsSync(path.resolve(extension, "foundation-database")),
+            registerExtension: isExtension,
+            wipeViews: isFoundation && spec.wipeViews,
+            wipeOrms: isApplicationCore && spec.wipeViews,
             extensionLocation: isCoreExtension ? "/core-extensions" :
               isPublicExtension ? "/xtuple-extensions" :
               isPrivateExtension ? "/private-extensions" :
-              isNpmExtension ? "npm" : "not-applicable"
+              extensionPath ? extensionPath.substring(rootPath.length) :
+              "not-applicable"
           };
 
-        buildDatabaseUtil.explodeManifest(path.join(dbSourceRoot, "manifest.js"),
-          manifestOptions, extensionCallback);
+        explodeManifest(manifestOptions, extensionCallback);
       };
 
       // We also need to get the sql that represents the queries to generate
@@ -185,28 +203,53 @@ var  async = require('async'),
           return memo + script;
         }, "");
 
-        // Without this, when we delegate to exec psql the err var will not be set even
-        // on the case of error.
-        allSql = "\\set ON_ERROR_STOP TRUE;\n" + allSql;
-
-        if (spec.wasInitialized && !_.isEqual(extensions, ["foundation-database"])) {
-          // give the admin user every extension by default
-          allSql = allSql + "insert into xt.usrext (usrext_usr_username, usrext_ext_id) " +
-            "select '" + creds.username +
-            "', ext_id from xt.ext where ext_location = '/core-extensions' and ext_name NOT LIKE 'oauth2';";
-        }
-
-        winston.info("Applying build to database " + spec.database);
+        // Without this, psql runs all input and returns success even if errors occurred
+        allSql = "\\set ON_ERROR_STOP TRUE\n" + allSql;
+        console.log("Applying build to database " + spec.database);
         credsClone.database = spec.database;
-        buildDatabaseUtil.sendToDatabase(allSql, credsClone, spec, function (err, res) {
+        sendToDatabase(allSql, credsClone, spec, function (err, res) {
+          if (err) {
+            // don't blaze on if the big exec failed!
+            // also: report the error
+            databaseCallback(err);
+            return;
+          }
+          // If the user has included a -p flag to populate the data, parse
+          // and insert any files found at ext/database/source/populate_data.js
+          // This will get done after the rest of the database is built, and
+          // in the load order of the extensions.
+
+          // This method is more portable to hand-inserting the data, because it
+          // makes no assumptions about the username and the encryption key
+
+          // To generate the patches and posts that make up the populate_data.js
+          // file, set 'capture: true' in config.js and then copy/paste the
+          // logged contents of the datasource as you drive around the app creating
+          // and editing objects.
           if (spec.populateData && creds.encryptionKeyFile) {
-            var populateSql = "DO $$ XT.disableLocks = true; $$ language plv8;";
-            var encryptionKey = fs.readFileSync(path.resolve(__dirname, "../../node-datasource", creds.encryptionKeyFile), "utf8");
-            var patches = require(path.join(__dirname, "../../enyo-client/database/source/populate_data")).patches;
-            _.each(patches, function (patch) {
-              patch.encryptionKey = encryptionKey;
-              patch.username = creds.username;
-              populateSql += "select xt.patch(\'" + JSON.stringify(patch) + "\');";
+            var populateSql = "DO $$ " +
+              "if (typeof XT === 'undefined') { plv8.execute('select xt.js_init();'); } " +
+              "XT.disableLocks = true; " +
+              "$$ language plv8;";
+            var encryptionKey = fs.readFileSync(path.resolve(__dirname, "../../node-datasource",
+              creds.encryptionKeyFile), "utf8");
+
+            _.each(spec.extensions, function (ext) {
+              if (fs.existsSync(path.resolve(ext, "database/source/populate_data.js"))) {
+                // look for a populate_data.js file
+                var populatedData = require(path.resolve(ext, "database/source/populate_data"));
+                _.each(populatedData, function (query) {
+                  var verb = query.patches ? "patch" : "post";
+                  query.encryptionKey = encryptionKey;
+                  query.username = creds.username;
+                  populateSql += "select xt." + verb + "(\'" + JSON.stringify(query) + "\');";
+                });
+              }
+              if (fs.existsSync(path.resolve(ext, "database/source/populate_data.sql"))) {
+                // look for a populate_data.sql file
+                populateSql += fs.readFileSync(path.resolve(ext, "database/source/populate_data.sql"));
+              }
+
             });
             populateSql += "DO $$ XT.disableLocks = undefined; $$ language plv8;";
             dataSource.query(populateSql, credsClone, databaseCallback);
@@ -217,11 +260,41 @@ var  async = require('async'),
       });
     };
 
-    //
-    // Step 1:
-    // Okay, before we install the database there is ONE thing we need to check,
-    // which is the pre-installed ORMs. Check that now.
-    //
+
+    /**
+     * Step 1:
+     * Before we install the database check that `plv8.start_proc = 'xt.js_init'`
+     * is set in the postgresql.conf file.
+     */
+    var checkForPlv8StartProc = function (spec, callback) {
+      var curSettingsSql =  "DO $$ " +
+                            "DECLARE msg text = $m$Please add the line, plv8.start_proc = 'xt.js_init', to your postgresql.conf and restart the database server.$m$; " +
+                            "BEGIN " +
+                            "  IF NOT (current_setting('plv8.start_proc') = 'xt.js_init') THEN " +
+                            "    raise exception '%', msg; " +
+                            "  END IF; " +
+                            "  EXCEPTION WHEN sqlstate '42704' THEN " +
+                            "    RAISE EXCEPTION '%', msg; " +
+                            "END; " +
+                            "$$ LANGUAGE plpgsql",
+          credsClone = JSON.parse(JSON.stringify(creds));
+
+      credsClone.database = spec.database;
+
+      dataSource.query(curSettingsSql, credsClone, function (err, res) {
+        if (err) {
+          callback(err);
+        } else {
+          preInstallDatabase(spec, callback);
+        }
+      });
+    };
+
+    /**
+     * Step 2:
+     * Okay, before we install the database there is ONE thing we need to check,
+     * which is the pre-installed ORMs. Check that now.
+     */
     var preInstallDatabase = function (spec, callback) {
       var existsSql = "select relname from pg_class where relname = 'orm'",
         credsClone = JSON.parse(JSON.stringify(creds)),
@@ -253,19 +326,19 @@ var  async = require('async'),
       });
     };
 
-    //
-    // Install all the databases
-    //
-    async.map(specs, preInstallDatabase, function (err, res) {
+    /**
+     * Install all the databases
+     */
+    async.map(specs, checkForPlv8StartProc, function (err, res) {
       if (err) {
-        winston.error(err.message, err.stack, err);
+        console.error(err.message, err.stack, err);
         if (masterCallback) {
           masterCallback(err);
         }
         return;
       }
-      winston.info("Success installing all scripts.");
-      winston.info("Cleaning up.");
+      console.log("Success installing all scripts.");
+      console.log("Cleaning up.");
       clientBuilder.cleanup(specs, function (err) {
         if (masterCallback) {
           masterCallback(err, res);

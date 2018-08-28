@@ -3,7 +3,7 @@
  <title>Purchase Order</title>
  <name>PurchaseOrder</name>
  <description>Selecting an Alt Address on the PO will cause the printed PO to display that address as the Ship To on the printed document.</description>
- <parameter default="999" active="true" listtype="static" type="string" name="pohead_id">
+ <parameter name="pohead_id" type="string" default="999" listtype="static" active="true">
   <description></description>
  </parameter>
  <watermark>
@@ -51,23 +51,26 @@
   <sql>SELECT poitem_linenumber,
        poitem_comments,
        poitem_linenumber AS f_line,
-       item_number,
+       COALESCE(item_number, expcat_code) AS item_number,
        poitem_vend_item_number, 
-       CASE WHEN (LENGTH(TRIM(BOTH '	' FROM poitem_vend_item_descrip)) &lt;= 0) THEN
+       COALESCE(CASE WHEN (LENGTH(TRIM(BOTH '	' FROM poitem_vend_item_descrip)) &lt;= 0) THEN
           (item_descrip1 || '' || item_descrip2)
        ELSE (poitem_vend_item_descrip)
-       END AS itemdescription,
+       END, expcat_descrip) AS itemdescription,
        formatQty(poitem_qty_ordered) AS f_ordered,
        CASE WHEN (poitem_vend_uom LIKE '') THEN (uom_name)
             ELSE (poitem_vend_uom)
        END AS itemuom,
-       formatPurchPrice(poitem_unitprice) AS f_price,
-       formatExtPrice(poitem_unitprice * poitem_qty_ordered) AS f_extended,
+       CASE WHEN (&lt;? value("showcosts") ?>=FALSE) THEN '---'
+            ELSE formatPurchPrice(poitem_unitprice) END AS f_price,
+       CASE WHEN (&lt;? value("showcosts") ?>=FALSE) THEN '---'
+            ELSE  formatExtPrice(poitem_unitprice * poitem_qty_ordered) END AS f_extended,
        formatDate(poitem_duedate) AS f_duedate,
        characteristicsToString('PI', poitem_id, '=', ', ') AS poitem_characteristics
 FROM poitem
 	LEFT OUTER JOIN itemsite ON (poitem_itemsite_id = itemsite_id)
 	LEFT OUTER JOIN (item JOIN uom ON (item_inv_uom_id=uom_id)) ON (itemsite_item_id = item_id)
+          LEFT OUTER JOIN expcat ON (poitem_expcat_id=expcat_id)
 WHERE 	(poitem_pohead_id=&lt;? value("pohead_id") ?>) 
 ORDER BY poitem_linenumber;</sql>
  </querysource>
@@ -323,8 +326,8 @@ WHERE
   </text>
   <label>
    <rect>
-    <x>530</x>
-    <y>325</y>
+    <x>535</x>
+    <y>327</y>
     <width>85</width>
     <height>16</height>
    </rect>
@@ -895,8 +898,8 @@ WHERE
    <height>107</height>
    <field>
     <rect>
-     <x>625</x>
-     <y>25</y>
+     <x>620</x>
+     <y>26</y>
      <width>55</width>
      <height>16</height>
     </rect>
@@ -934,8 +937,8 @@ WHERE
    </text>
    <field>
     <rect>
-     <x>700</x>
-     <y>25</y>
+     <x>685</x>
+     <y>26</y>
      <width>100</width>
      <height>17</height>
     </rect>
@@ -953,8 +956,8 @@ WHERE
    </field>
    <field>
     <rect>
-     <x>700</x>
-     <y>5</y>
+     <x>685</x>
+     <y>6</y>
      <width>92</width>
      <height>16</height>
     </rect>
@@ -991,8 +994,8 @@ WHERE
    </field>
    <field>
     <rect>
-     <x>545</x>
-     <y>25</y>
+     <x>540</x>
+     <y>26</y>
      <width>75</width>
      <height>16</height>
     </rect>
@@ -1010,8 +1013,8 @@ WHERE
    </field>
    <field>
     <rect>
-     <x>555</x>
-     <y>5</y>
+     <x>540</x>
+     <y>6</y>
      <width>75</width>
      <height>16</height>
     </rect>
@@ -1049,7 +1052,7 @@ WHERE
    <text>
     <rect>
      <x>150</x>
-     <y>5</y>
+     <y>6</y>
      <width>350</width>
      <height>17</height>
     </rect>

@@ -11,7 +11,7 @@ DECLARE
 BEGIN
   RETURN itemCharPrice(pItemid, pCharid, pCharValue, pCustid, -1, pQty, baseCurrId(), CURRENT_DATE);
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION itemCharPrice(INTEGER, INTEGER, TEXT, INTEGER, INTEGER, NUMERIC) RETURNS NUMERIC AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
@@ -27,7 +27,7 @@ DECLARE
 BEGIN
   RETURN itemCharPrice(pItemid, pCharid, pCharValue, pCustid, pShiptoid, pQty, baseCurrId(), CURRENT_DATE);
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION itemCharPrice(INTEGER, INTEGER, TEXT, INTEGER, INTEGER, NUMERIC, INTEGER) RETURNS NUMERIC AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
@@ -64,19 +64,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION itemCharPrice(INTEGER, INTEGER, TEXT, INTEGER, INTEGER, NUMERIC, INTEGER, DATE, DATE) RETURNS NUMERIC AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+DROP FUNCTION IF EXISTS itemcharprice(integer, integer, text, integer, integer, numeric, integer, date, date);
+
+CREATE OR REPLACE FUNCTION itemcharprice(pitemid integer, pcharid integer, pcharvalue text, pcustid integer, pshiptoid integer, pqty numeric, pcurrid integer, peffective date, pasof date, pshipzoneid integer DEFAULT (-1), psaletypeid integer DEFAULT (-1))
+  RETURNS numeric AS $$
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pItemid ALIAS FOR $1;
-  pCharid ALIAS FOR $2;
-  pCharValue ALIAS FOR $3;
-  pCustid ALIAS FOR $4;
-  pShiptoid ALIAS FOR $5;
-  pQty ALIAS FOR $6;
-  pCurrid ALIAS FOR $7;
-  pEffective ALIAS FOR $8;
-  pAsOf ALIAS FOR $9;
   _price NUMERIC;
   _sales NUMERIC;
   _item RECORD;
@@ -268,6 +262,64 @@ BEGIN
     RETURN _price;
   END IF;
 
+--  Check for a Shipping Zone Price
+  SELECT currToCurr(ipshead_curr_id, pCurrid, ipsprice_price, pEffective) INTO _price
+  FROM (
+  SELECT ipsitem_ipshead_id AS ipsprice_ipshead_id,
+         itemuomtouom(ipsitem_item_id, ipsitem_qty_uom_id, NULL, ipsitem_qtybreak) AS ipsprice_qtybreak,
+         (ipsitemchar_price * itemuomtouomratio(ipsitem_item_id, NULL, ipsitem_price_uom_id)) * _iteminvpricerat AS ipsprice_price
+    FROM ipsiteminfo,ipsitemchar
+   WHERE ((ipsitem_item_id=pItemid)
+    AND (ipsitemchar_char_id=pCharid)
+    AND (ipsitemchar_value=pCharValue)
+    AND (ipsitemchar_ipsitem_id=ipsitem_id))
+       ) AS
+        ipsprice, ipshead, ipsass
+  WHERE ( (ipsprice_ipshead_id=ipshead_id)
+   AND (ipsass_ipshead_id=ipshead_id)
+   AND (pAsOf BETWEEN ipshead_effective AND (ipshead_expires - 1))
+   AND (ipsprice_qtybreak <= pQty)
+   AND (COALESCE(length(ipsass_shipto_pattern), 0) = 0)
+   AND (ipsass_shipzone_id=pShipZoneid) )
+  ORDER BY ipsprice_qtybreak DESC, ipsprice_price ASC
+  LIMIT 1;
+
+  IF (_price IS NOT NULL) THEN
+    IF ((_sales IS NOT NULL) AND (_sales < _price)) THEN
+      RETURN _sales;
+    END IF;
+    RETURN _price;
+  END IF;  
+
+--  Check for a Sale Type Price
+  SELECT currToCurr(ipshead_curr_id, pCurrid, ipsprice_price, pEffective) INTO _price
+  FROM (
+  SELECT ipsitem_ipshead_id AS ipsprice_ipshead_id,
+         itemuomtouom(ipsitem_item_id, ipsitem_qty_uom_id, NULL, ipsitem_qtybreak) AS ipsprice_qtybreak,
+         (ipsitemchar_price * itemuomtouomratio(ipsitem_item_id, NULL, ipsitem_price_uom_id)) * _iteminvpricerat AS ipsprice_price
+    FROM ipsiteminfo,ipsitemchar
+   WHERE ((ipsitem_item_id=pItemid)
+    AND (ipsitemchar_char_id=pCharid)
+    AND (ipsitemchar_value=pCharValue)
+    AND (ipsitemchar_ipsitem_id=ipsitem_id))
+       ) AS
+        ipsprice, ipshead, ipsass
+  WHERE ( (ipsprice_ipshead_id=ipshead_id)
+   AND (ipsass_ipshead_id=ipshead_id)
+   AND (pAsOf BETWEEN ipshead_effective AND (ipshead_expires - 1))
+   AND (ipsprice_qtybreak <= pQty)
+   AND (COALESCE(length(ipsass_shipto_pattern), 0) = 0)
+   AND (ipsass_saletype_id=pSaleTypeid) )
+  ORDER BY ipsprice_qtybreak DESC, ipsprice_price ASC
+  LIMIT 1;
+
+  IF (_price IS NOT NULL) THEN
+    IF ((_sales IS NOT NULL) AND (_sales < _price)) THEN
+      RETURN _sales;
+    END IF;
+    RETURN _price;
+  END IF;
+  
 -- If we have not found another price yet and we have a
 -- sales price we will use that.
   IF (_sales IS NOT NULL) THEN
@@ -300,5 +352,5 @@ BEGIN
     RETURN 0;
   END IF;
 
-END;
-$$ LANGUAGE 'plpgsql';
+END; 
+$$ LANGUAGE plpgsql;

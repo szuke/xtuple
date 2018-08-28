@@ -37,9 +37,16 @@ BEGIN
     RETURN OLD;
   END IF;
 
+  -- Timestamps
+  IF (TG_OP = 'INSERT') THEN
+    NEW.salesrep_created := now();
+  ELSIF (TG_OP = 'UPDATE') THEN
+    NEW.salesrep_lastupdated := now();
+  END IF;
+
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'salesrepBeforeTrigger');
 CREATE TRIGGER salesrepBeforeTrigger BEFORE INSERT OR UPDATE OR DELETE ON salesrep
@@ -85,46 +92,42 @@ BEGIN
   END IF;
 
   IF (fetchMetricBool('SalesRepChangeLog')) THEN
-      IF (TG_OP = 'INSERT') THEN
-        PERFORM postComment('ChangeLog', 'SR', NEW.salesrep_id, 'Created');
+    IF (TG_OP = 'INSERT') THEN
+      PERFORM postComment('ChangeLog', 'SR', NEW.salesrep_id, 'Created');
 
-      ELSIF (TG_OP = 'UPDATE') THEN
-        IF (OLD.salesrep_active <> NEW.salesrep_active) THEN
-          PERFORM postComment('ChangeLog', 'SR', NEW.salesrep_id,
-                              CASE WHEN NEW.salesrep_active THEN 'Activated'
-                                   ELSE 'Deactivated' END);
-        END IF;
+    ELSIF (TG_OP = 'UPDATE') THEN
+      IF (OLD.salesrep_active <> NEW.salesrep_active) THEN
+        PERFORM postComment('ChangeLog', 'SR', NEW.salesrep_id,
+                            CASE WHEN NEW.salesrep_active THEN 'Activated'
+                                 ELSE 'Deactivated' END);
+      END IF;
 
-        IF (OLD.salesrep_number <> NEW.salesrep_number) THEN
-          PERFORM postComment('ChangeLog', 'SR', NEW.salesrep_id,
-                              'Number changed from "' || OLD.salesrep_number ||
-                              '" to "' || NEW.salesrep_number || '"');
-        END IF;
+      IF (OLD.salesrep_number <> NEW.salesrep_number) THEN
+        PERFORM postComment('ChangeLog', 'SR', NEW.salesrep_id, 'Number',
+                            OLD.salesrep_number, NEW.salesrep_number);
+      END IF;
 
-        IF (OLD.salesrep_name <> NEW.salesrep_name) THEN
-          PERFORM postComment('ChangeLog', 'SR', NEW.salesrep_id,
-                              'Name changed from "' || OLD.salesrep_name ||
-                              '" to "' || NEW.salesrep_name || '"');
-        END IF;
+      IF (OLD.salesrep_name <> NEW.salesrep_name) THEN
+        PERFORM postComment('ChangeLog', 'SR', NEW.salesrep_id, 'Name',
+                            OLD.salesrep_name, NEW.salesrep_name);
+      END IF;
 
-        IF (OLD.salesrep_commission <> NEW.salesrep_commission) THEN
-          PERFORM postComment('ChangeLog', 'SR', NEW.salesrep_id,
-                              'Commission changed from "' || OLD.salesrep_commission ||
-                              '" to "' || NEW.salesrep_commission || '"');
-        END IF;
+      IF (OLD.salesrep_commission <> NEW.salesrep_commission) THEN
+        PERFORM postComment('ChangeLog', 'SR', NEW.salesrep_id, 'Commission',
+                            formatPrcnt(OLD.salesrep_commission), formatPrcnt(NEW.salesrep_commission));
+      END IF;
 
-        IF (OLD.salesrep_method <> NEW.salesrep_method) THEN
-          PERFORM postComment('ChangeLog', 'SR', NEW.salesrep_id,
-                              'Method changed from "' || OLD.salesrep_method ||
-                              '" to "' || NEW.salesrep_method || '"');
-        END IF;
+      IF (OLD.salesrep_method <> NEW.salesrep_method) THEN
+        PERFORM postComment('ChangeLog', 'SR', NEW.salesrep_id, 'Method',
+                            OLD.salesrep_method, NEW.salesrep_method);
+      END IF;
 
     END IF;
   END IF;
 
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'salesrepAfterTrigger');
 CREATE TRIGGER salesrepAfterTrigger AFTER INSERT OR UPDATE ON salesrep

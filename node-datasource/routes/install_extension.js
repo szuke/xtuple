@@ -6,7 +6,6 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
   "use strict";
 
   var async = require("async"),
-    npm = require("npm"),
     path = require("path"),
     buildAll = require("../../scripts/lib/build_all");
 
@@ -35,16 +34,6 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
           }
         });
       },
-      npmLoad = function (callback) {
-        npm.load(callback);
-      },
-      npmInstall = function (callback) {
-        npm.commands.install([extensionName], callback);
-        npm.on("log", function (message) {
-          // log the progress of the installation
-          console.log(message);
-        });
-      },
       buildExtension = function (callback) {
         console.log("extension is", path.join(__dirname, "../../node_modules", extensionName));
         buildAll.build({
@@ -63,8 +52,6 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
     async.series([
       validateInput,
       validateUser,
-      npmLoad,
-      npmInstall,
       buildExtension,
       useClientDir
     ], function (err, results) {

@@ -33,7 +33,7 @@ CREATE OR REPLACE RULE "_INSERT" AS
     )
   VALUES (
     COALESCE(NEW.date,now()),
-    'IS',
+    'I',
     getItemId(NEW.item_number),
     COALESCE(NEW.username,getEffectiveXtUser()),
     getCmntTypeId(NEW.type),

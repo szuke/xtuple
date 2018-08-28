@@ -1,6 +1,5 @@
 SELECT dropIfExists('FUNCTION', 'cntctdups(text, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean)');
-SELECT dropIfExists('TYPE', 'cntctdup');
-
+DROP TYPE IF EXISTS cntctdup CASCADE;
 CREATE TYPE cntctdup AS
 (
     cntct_id integer,

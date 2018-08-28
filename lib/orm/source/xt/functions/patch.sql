@@ -52,7 +52,7 @@ return (function () {
 
   try {
     ret = XT.Rest.patch(dataHash);
-    
+
     return JSON.stringify(ret, null, dataHash.prettyPrint);
   } catch (err) {
     XT.error(err);

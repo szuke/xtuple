@@ -1,0 +1,129 @@
+<!DOCTYPE openRPTDef>
+<report>
+ <title>Item Label</title>
+ <name>itemLabel</name>
+ <description>Includes bar code and item location</description>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
+ <labeltype>Avery 5263</labeltype>
+ <size>Labels</size>
+ <portrait/>
+ <topmargin>10</topmargin>
+ <bottommargin>0</bottommargin>
+ <rightmargin>0</rightmargin>
+ <leftmargin>10</leftmargin>
+ <querysource>
+  <name>detail</name>
+  <sql>SELECT formatDate(current_date) AS date, 
+       item_number AS item_number, 
+       item_descrip1 AS item_descrip1,
+location_name,
+item_upccode AS barcode
+FROM item 
+JOIN itemsite on itemsite_item_id = item_id
+JOIN classcode on classcode_id = item_classcode_id
+LEFT JOIN location ON location_id = itemsite_recvlocation_id 
+WHERE 
+ &lt;? if exists("classcode_id") ?> 
+classcode_id = &lt;? value("classcode_id") ?>
+ &lt;? endif ?> 
+ &lt;? if exists("classcode_pattern") ?>
+classcode_code ~ &lt;? value("classcode_pattern") ?>
+&lt;? endif ?> 
+</sql>
+ </querysource>
+ <section>
+  <name>detail</name>
+  <detail>
+   <key>
+    <query>detail</query>
+   </key>
+   <height>100</height>
+   <field>
+    <rect>
+     <x>35</x>
+     <y>5</y>
+     <width>150</width>
+     <height>15</height>
+    </rect>
+    <font>
+     <face>Open Sans,Helvetica,Verdana,sans-serif</face>
+     <size>12</size>
+     <weight>normal</weight>
+    </font>
+    <left/>
+    <vcenter/>
+    <data>
+     <query>detail</query>
+     <column>item_number</column>
+    </data>
+   </field>
+   <text>
+    <rect>
+     <x>30</x>
+     <y>20</y>
+     <width>250</width>
+     <height>25</height>
+    </rect>
+    <bottompad>0</bottompad>
+    <font>
+     <face>Open Sans,Helvetica,Verdana,sans-serif</face>
+     <size>8</size>
+     <weight>normal</weight>
+    </font>
+    <left/>
+    <top/>
+    <data>
+     <query>detail</query>
+     <column>item_descrip1</column>
+    </data>
+   </text>
+   <field>
+    <rect>
+     <x>210</x>
+     <y>5</y>
+     <width>80</width>
+     <height>15</height>
+    </rect>
+    <font>
+     <face>Open Sans,Helvetica,Verdana,sans-serif</face>
+     <size>10</size>
+     <weight>normal</weight>
+    </font>
+    <right/>
+    <vcenter/>
+    <data>
+     <query>detail</query>
+     <column>location_name</column>
+    </data>
+   </field>
+   <line>
+    <xstart>28.3645</xstart>
+    <ystart>47.0353</ystart>
+    <xend>243.364</xend>
+    <yend>47.0353</yend>
+    <weight>0</weight>
+   </line>
+   <barcode>
+    <rect>
+     <x>30</x>
+     <y>55</y>
+     <width>255</width>
+     <height>40</height>
+    </rect>
+    <format>3of9</format>
+    <maxlength>21</maxlength>
+    <left/>
+    <narrowBarWidth>0.01</narrowBarWidth>
+    <data>
+     <query>detail</query>
+     <column>barcode</column>
+    </data>
+   </barcode>
+  </detail>
+ </section>
+</report>

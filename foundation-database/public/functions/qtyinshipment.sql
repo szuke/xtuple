@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION qtyInShipment(TEXT, INTEGER, INTEGER) RETURNS NUMERIC AS '
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pordertype	ALIAS FOR $1;
@@ -25,7 +25,7 @@ BEGIN
       AND (shiphead_id=pshipheadid));
 
   IF (NOT FOUND) THEN
-    RAISE NOTICE ''Quantity of % item % is 0 because shipment % does not exist.'',
+    RAISE WARNING ''Quantity of % item % is 0 because shipment % does not exist.'',
                   pordertype, plineitemid, pshipheadid;
   END IF;
 

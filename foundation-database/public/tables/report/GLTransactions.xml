@@ -43,7 +43,7 @@
  <querysource>
   <name>detail</name>
   <sql>&lt;? if exists("beginningBalance") ?>
-SELECT -1 AS gltrans_id,
+SELECT -1 AS gltrans_id, 0 AS srt1, &lt;? value("startDate") ?> AS gltrans_date,
        &lt;? value("startDate") ?> AS gltrans_created, formatDate(&lt;? value("startDate") ?>) AS transdate,
        '' AS gltrans_source, '' AS gltrans_doctype, '' AS gltrans_docnumber, '' AS invhist_docnumber,
        'Beginning Balance' AS transnotes,
@@ -57,14 +57,14 @@ SELECT -1 AS gltrans_id,
        &lt;? value("beginningBalance") ?> AS running,
        NULL AS f_posted,
        NULL AS f_deleted,
-       NULL AS f_username,
+       NULL::TEXT AS f_username,
        -1 AS gltrans_sequence
  FROM accnt
  WHERE (accnt_id=&lt;? value("accnt_id") ?>)
 UNION
 &lt;? endif ?>
 
-SELECT gltrans_id,
+SELECT gltrans_id, 1 AS srt1, gltrans_date,
        gltrans_created, formatDate(gltrans_date) AS transdate,
        gltrans_source, gltrans_doctype, gltrans_docnumber, invhist_docnumber,
        firstLine(gltrans_notes) AS transnotes,
@@ -97,7 +97,11 @@ SELECT gltrans_id,
        ELSE 0 END AS running,
        formatBoolYN(gltrans_posted) AS f_posted,
        formatBoolYN(gltrans_deleted) AS f_deleted,
-       gltrans_username AS f_username,
+       &lt;? if exists("showUsernames") ?>
+         gltrans_username AS f_username,
+       &lt;? else ?>
+         NULL::TEXT AS f_username,
+       &lt;? endif ?> 
        gltrans_sequence
 FROM gltrans JOIN accnt ON (gltrans_accnt_id=accnt_id) 
      LEFT OUTER JOIN invhist ON (gltrans_misc_id=invhist_id
@@ -164,8 +168,23 @@ WHERE (
 &lt;? if exists("source") ?>
    AND (gltrans_source=&lt;? value("source") ?>)
 &lt;? endif ?>
-       )
-ORDER BY gltrans_created &lt;? if not exists("beginningBalance") ?> DESC &lt;? endif ?>,
+
+&lt;? if exists("transamt") ?>
+AND (abs(gltrans_amount)=&lt;? value("transamt") ?>)
+&lt;? endif ?>
+&lt;? if exists("journalnum") ?>
+AND (gltrans_journalnumber::text) ~* &lt;? value("journalnum") ?>)
+&lt;? endif ?>
+&lt;? if exists("doctype") ?>
+AND (gltrans_doctype = 'zz'
+&lt;? foreach("doctype") ?>
+OR gltrans_doctype = &lt;? value("doctype") ?>
+&lt;?endforeach ?>
+)
+&lt;? endif ?>
+
+)
+ORDER BY srt1, gltrans_date &lt;? if not exists("beginningBalance") ?> DESC &lt;? endif ?>,
         gltrans_sequence, gltrans_amount
 
 ;</sql>
@@ -341,9 +360,9 @@ ORDER BY gltrans_created &lt;? if not exists("beginningBalance") ?> DESC &lt;? e
   </label>
   <field>
    <rect>
-    <x>900</x>
+    <x>895</x>
     <y>185</y>
-    <width>50</width>
+    <width>55</width>
     <height>15</height>
    </rect>
    <font>
@@ -507,7 +526,7 @@ ORDER BY gltrans_created &lt;? if not exists("beginningBalance") ?> DESC &lt;? e
   <label>
    <rect>
     <x>960</x>
-    <y>25</y>
+    <y>10</y>
     <width>40</width>
     <height>15</height>
    </rect>
@@ -554,9 +573,9 @@ ORDER BY gltrans_created &lt;? if not exists("beginningBalance") ?> DESC &lt;? e
   </label>
   <field>
    <rect>
-    <x>900</x>
+    <x>895</x>
     <y>25</y>
-    <width>50</width>
+    <width>55</width>
     <height>15</height>
    </rect>
    <font>
@@ -603,6 +622,22 @@ ORDER BY gltrans_created &lt;? if not exists("beginningBalance") ?> DESC &lt;? e
    <vcenter/>
    <string>Reference</string>
   </label>
+  <label>
+   <rect>
+    <x>960</x>
+    <y>25</y>
+    <width>40</width>
+    <height>15</height>
+   </rect>
+   <font>
+    <face>Arial</face>
+    <size>8</size>
+    <weight>normal</weight>
+   </font>
+   <left/>
+   <vcenter/>
+   <string>Deleted</string>
+  </label>
  </pghead>
  <section>
   <name>detail</name>
@@ -613,9 +648,9 @@ ORDER BY gltrans_created &lt;? if not exists("beginningBalance") ?> DESC &lt;? e
    <height>30</height>
    <field>
     <rect>
-     <x>900</x>
+     <x>895</x>
      <y>0</y>
-     <width>50</width>
+     <width>55</width>
      <height>15</height>
     </rect>
     <font>
@@ -653,8 +688,8 @@ ORDER BY gltrans_created &lt;? if not exists("beginningBalance") ?> DESC &lt;? e
     <rect>
      <x>960</x>
      <y>0</y>
-     <width>60</width>
-     <height>15</height>
+     <width>40</width>
+     <height>10</height>
     </rect>
     <font>
      <face>Arial</face>
@@ -805,7 +840,7 @@ ORDER BY gltrans_created &lt;? if not exists("beginningBalance") ?> DESC &lt;? e
     <rect>
      <x>960</x>
      <y>15</y>
-     <width>60</width>
+     <width>45</width>
      <height>15</height>
     </rect>
     <font>

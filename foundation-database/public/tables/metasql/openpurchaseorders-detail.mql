@@ -1,15 +1,15 @@
 -- Group: openpurchaseorders
 -- Name:  detail
 -- Notes: 
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT DISTINCT
        pohead_id AS id, COALESCE(pohead_cohead_id, -1) AS altid,
        pohead.*,
        calcPurchaseOrderDueDate(pohead_id) AS min_duedate,
-       calcPurchaseOrderAmt(pohead_id) AS order_total,
-       vend_name, vend_number, vendtype_code,
+       calcPurchaseOrderAmt(pohead_id, pohead_taxzone_id, pohead_orderdate, pohead_curr_id, pohead_freight) AS order_total,
+       vend_name, vend_number, vendtype_code, potype_code, potype_descr,
 <? foreach("char_id_text_list") ?>
        charass_alias<? literal("char_id_text_list") ?>.charass_value AS char<? literal("char_id_text_list") ?>,
 <? endforeach ?>
@@ -28,6 +28,7 @@ SELECT DISTINCT
 FROM pohead 
      JOIN vendinfo ON (pohead_vend_id=vend_id)
      JOIN vendtype ON (vend_vendtype_id=vendtype_id)
+     LEFT OUTER JOIN potype   ON (pohead_potype_id=potype_id)
 <? if exists("pohead_agent_usr_id") ?>
      JOIN usr ON (pohead_agent_username=usr_username)
 <? endif ?> 
@@ -101,6 +102,9 @@ WHERE ( true
 <? endif ?> 
 <? if exists("vendtype_id") ?>
   AND (vend_vendtype_id=<? value("vendtype_id") ?>)
+<? endif ?> 
+<? if exists("potype_id") ?>
+  AND (pohead_potype_id=<? value("potype_id") ?>)
 <? endif ?> 
 <? if exists("vendtype_pattern") ?>
   AND (vendtype_code ~* <? value("vendtype_pattern") ?>)

@@ -1,24 +1,21 @@
 
-CREATE OR REPLACE FUNCTION formatBooSeq(INTEGER, INTEGER) RETURNS TEXT AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION formatBooSeq(pItemid       INTEGER,
+                                        pBooitemSeqId INTEGER) RETURNS TEXT AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pItemid ALIAS FOR $1;
-  pBooitemSeqId ALIAS FOR $2;
   _result TEXT;
   
 BEGIN
 
-  IF (fetchMetricBool('Routings')) THEN
+  IF fetchMetricBool('Routings') AND packageIsEnabled('xtmfg') THEN
     SELECT booitem_seqnumber::text INTO _result
     FROM xtmfg.booitem(pItemid)
     WHERE (booitem_seq_id=pBooitemSeqId);
-
-    RETURN _result;
-  ELSE
-    RETURN NULL;
   END IF;
 
+  RETURN _result;
+
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 

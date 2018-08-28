@@ -36,7 +36,7 @@ SELECT aropen_id, applyid,
            END AS base_balance,
            currConcat(aropen_curr_id) AS currAbbr
      FROM aropen
-    WHERE ( (aropen_cust_id=<? value("cust_id") ?>) 
+    WHERE ( (aropen_cust_id=<? value("cust_id") ?>)
     <? if exists("startDate") ?>
       AND   (aropen_docdate BETWEEN <? value("startDate") ?> AND <? value("endDate") ?>)
     <? endif ?> )
@@ -51,16 +51,7 @@ SELECT aropen_id, applyid,
            NULL AS open,
            CASE WHEN (arapply_source_doctype='C') THEN <? value("creditMemo") ?>
                 WHEN (arapply_source_doctype='R') THEN <? value("cashdeposit") ?>
-                WHEN (arapply_fundstype='C') THEN <? value("check") ?>
-                WHEN (arapply_fundstype='T') THEN <? value("certifiedCheck") ?>
-                WHEN (arapply_fundstype='M') THEN <? value("masterCard") ?>
-                WHEN (arapply_fundstype='V') THEN <? value("visa") ?>
-                WHEN (arapply_fundstype='A') THEN <? value("americanExpres") ?>
-                WHEN (arapply_fundstype='D') THEN <? value("discoverCard") ?>
-                WHEN (arapply_fundstype='R') THEN <? value("otherCreditCard") ?>
-                WHEN (arapply_fundstype='K') THEN <? value("cash") ?>
-                WHEN (arapply_fundstype='W') THEN <? value("wireTransfer") ?>
-                WHEN (arapply_fundstype='O') THEN <? value("other") ?>
+                ELSE getFundsTypeName(arapply_fundstype)
            END AS documenttype,
            COALESCE(cashrcpt_docdate, arapply_postdate) AS docdate,
            arapply_distdate AS duedate,
@@ -116,7 +107,7 @@ SELECT aropen_id, applyid,
            0 AS base_balance,
            currConcat(invchead_curr_id) AS currAbbr
      FROM invchead
-    WHERE ( (invchead_cust_id=<? value("cust_id") ?>) 
+    WHERE ( (invchead_cust_id=<? value("cust_id") ?>)
     <? if exists("startDate") ?>
       AND   (invchead_invcdate BETWEEN <? value("startDate") ?> AND <? value("endDate") ?>)
     <? endif ?>

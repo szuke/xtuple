@@ -169,7 +169,7 @@ INSERT INTO custinfo
 	CASE 
 	  WHEN NEW.balance_method='Balance Forward' THEN
 	    'B'
-	  WHEN NEW.balance_method='Open Items' THEN
+	  WHEN NEW.balance_method='Open Item' THEN
 	    'O'
           ELSE
             COALESCE(FetchMetricText('DefaultBalanceMethod'),'B')
@@ -188,7 +188,7 @@ INSERT INTO custinfo
            'G'
 	END,
         COALESCE(NEW.notes,''),
-        COALESCE(NEW.allow_free_form_billto,false),
+        COALESCE(NEW.allow_free_form_billto, fetchMetricBool('DefaultFreeFormBilltos')),
         COALESCE(NEW.uses_purchase_orders,false),
         COALESCE(UPPER(NEW.customer_number),CAST(fetchCRMAccountNumber() AS text)),
         COALESCE(NEW.credit_status_exceed_warn,false),
@@ -275,7 +275,7 @@ UPDATE custinfo SET
 	  CASE 
 	    WHEN NEW.balance_method='Balance Forward' THEN
 	      'B'
-	    WHEN NEW.balance_method='Open Items' THEN
+	    WHEN NEW.balance_method='Open Item' THEN
 	      'O'
             ELSE
               NULL

@@ -34,5 +34,6 @@ CREATE TYPE bomdata AS (
   bomdata_char_id		integer,
   bomdata_value		        text,
   bomdata_notes			text,
-  bomdata_ref			text
+  bomdata_ref			text,
+  bomdata_seq_ord             text
   );

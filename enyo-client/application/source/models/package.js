@@ -13,11 +13,13 @@ enyo.depends(
   "expense_category.js",
   "file.js",
   "filter.js",
+  "form.js",
   "incident.js",
   "item.js",
   "item_site.js",
   "ledger_account.js",
   "opportunity.js",
+  "printer.js",
   "priority.js",
   "project.js",
   "prospect.js",
@@ -39,6 +41,5 @@ enyo.depends(
   "user_account.js",
   "user_chart.js",
   "vendor.js",
-  "workflow.js",
   "static.js"
 );

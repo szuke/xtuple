@@ -236,6 +236,33 @@ white:true*/
     },
 
     /**
+    Returns sales order hold type as a localized string.
+
+    @returns {String}
+    */
+    formatHoldType: function () {
+      var K = XM.SalesOrderBase,
+        holdType = this.get('holdType');
+
+      switch (holdType)
+      {
+      // Lists don't need to say None. Just return null to avoid need for enyo component formatter.
+      case K.NONE_HOLD_TYPE:
+        return null;
+      case K.CREDIT_HOLD_TYPE:
+        return '_creditHoldType'.loc();
+      case K.PACKING_HOLD_TYPE:
+        return '_packingHoldType'.loc();
+      case K.RETURN_HOLD_TYPE:
+        return '_returnHoldType'.loc();
+      case K.SHIPPING_HOLD_TYPE:
+        return '_shippingHoldType'.loc();
+      case K.TAX_HOLD_TYPE:
+        return '_taxHoldType'.loc();
+      }
+    },
+
+    /**
     Returns quote or sales order status as a localized string.
 
     @returns {String}
@@ -888,12 +915,6 @@ white:true*/
         options = {},
         that = this;
 
-      // In addition to updates to line items, update workflow
-      // items if applicable
-      if (this.updateWorkflowItemShipDate) {
-        this.updateWorkflowItemShipDate();
-      }
-
       if (!lineItems.length) { return; }
 
       options.type = XM.Model.QUESTION;
@@ -1014,7 +1035,7 @@ white:true*/
       // entity and notified the user of mismatch? then there's no
       // abraKadabra('shiptoAddress') if they hit a stray key while tabbing
       // through the form and the on/off problem is solved as a byproduct.
-      // we could address later the problem that the View knows more about which 
+      // we could address later the problem that the View knows more about which
       // attributes are shared in relations than the ORM
       //
       // If the address was manually changed, then clear shipto
@@ -1154,6 +1175,16 @@ white:true*/
       @default N
     */
     RETURN_HOLD_TYPE: "R",
+
+    /**
+      Order hold type is tax.
+
+      @static
+      @constant
+      @type String
+      @default N
+    */
+    TAX_HOLD_TYPE: "T",
 
     /**
       Order hold type is none.
@@ -1322,7 +1353,7 @@ white:true*/
       return XM.Document.prototype.save.apply(this, arguments);
     },
 
-    validate: function () {
+    validate: function (attributes, options) {
       var that = this,
         quantity = this.get("quantity"),
         hasAltQuantity = _.contains(this.getAttributeNames(), this.altQuantityAttribute),

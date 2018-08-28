@@ -4,7 +4,7 @@
 --        and tables so we never miss anything and do not have to maintain the
 --        data
 -- TODO: is there a better sort order?
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT *,
@@ -20,6 +20,7 @@ SELECT *,
             WHEN pkgitem_type='T' THEN <? value("table") ?>
             WHEN pkgitem_type='U' THEN <? value("uiform") ?>
             WHEN pkgitem_type='V' THEN <? value("view") ?>
+            WHEN pkgitem_type='Q' THEN <? value("translation") ?>
             WHEN pkgitem_type='sequence' THEN <? value("sequence") ?>
             WHEN pkgitem_type='index'    THEN <? value("index") ?>
        ELSE pkgitem_type END AS pkgitem_type_qtdisplayrole
@@ -116,7 +117,17 @@ SELECT c.oid AS pkgitem_id, 'V' AS pkgitem_type,
   FROM pg_class c
        JOIN pg_namespace ON (relnamespace=pg_namespace.oid)
  WHERE ((nspname=<? value("pkgname") ?>)
-   AND  (relkind='v'))
+   AND  (relkind IN ('v', 'm')))
+UNION
+SELECT dict_id AS pkgitem_id, 'Q' AS pkgitem_type,
+       dict_id AS pkgitem_item_id,
+       lang_abbr2 || CASE WHEN country_abbr IS NOT NULL THEN
+                               '-' || country_abbr
+                          ELSE '' END AS pkgitem_name,
+       '' AS pkgitem_descrip
+  FROM <? literal("pkgname") ?>.pkgdict
+  JOIN lang ON dict_lang_id=lang_id
+  LEFT OUTER JOIN country ON dict_country_id=country_id
 <? if exists("showsystemdetails") ?>
 UNION
 SELECT c.oid AS pkgitem_id, 'sequence' AS pkgitem_type,

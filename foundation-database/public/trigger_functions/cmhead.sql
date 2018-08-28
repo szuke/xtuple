@@ -59,6 +59,23 @@ BEGIN
   IF ( (NEW.cmhead_misc > 0) AND (NEW.cmhead_misc_accnt_id = -1) ) THEN
     RAISE EXCEPTION 'You may not enter a Misc. Charge without indicating the G/L Sales Account.';
   END IF;
+  
+  IF TG_OP IN ('INSERT', 'UPDATE') THEN
+    NEW.cmhead_billtoaddress1   := COALESCE(NEW.cmhead_billtoaddress1, '');
+    NEW.cmhead_billtoaddress2   := COALESCE(NEW.cmhead_billtoaddress2, '');
+    NEW.cmhead_billtoaddress3   := COALESCE(NEW.cmhead_billtoaddress3, '');
+    NEW.cmhead_billtocity       := COALESCE(NEW.cmhead_billtocity, '');
+    NEW.cmhead_billtocountry    := COALESCE(NEW.cmhead_billtocountry, '');
+    NEW.cmhead_billtostate      := COALESCE(NEW.cmhead_billtostate, '');
+    NEW.cmhead_billtozip        := COALESCE(NEW.cmhead_billtozip, '');
+    NEW.cmhead_shipto_address1  := COALESCE(NEW.cmhead_shipto_address1, '');
+    NEW.cmhead_shipto_address2  := COALESCE(NEW.cmhead_shipto_address2, '');
+    NEW.cmhead_shipto_address3  := COALESCE(NEW.cmhead_shipto_address3, '');
+    NEW.cmhead_shipto_city      := COALESCE(NEW.cmhead_shipto_city, '');
+    NEW.cmhead_shipto_country   := COALESCE(NEW.cmhead_shipto_country, '');
+    NEW.cmhead_shipto_state     := COALESCE(NEW.cmhead_shipto_state, '');
+    NEW.cmhead_shipto_zipcode   := COALESCE(NEW.cmhead_shipto_zipcode, '');
+  END IF;
 
   RETURN NEW;
 END;

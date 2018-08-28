@@ -54,4 +54,4 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 SELECT dropIfExists('TRIGGER', 'todoitemTrigger');
-CREATE TRIGGER todoitemTrigger BEFORE DELETE ON todoitem FOR EACH ROW EXECUTE PROCEDURE _todoitemTrigger();
+CREATE TRIGGER todoitemTrigger AFTER DELETE ON todoitem FOR EACH ROW EXECUTE PROCEDURE _todoitemTrigger();

@@ -3,6 +3,12 @@
  <title>Purchase Order Types</title>
  <name>PurchaseOrderTypes</name>
  <description></description>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
  <size>Letter</size>
  <portrait/>
  <topmargin>50</topmargin>
@@ -12,10 +18,10 @@
  <querysource>
   <name>detail</name>
   <sql>SELECT potype_id,
-       potype_name,
-       potype_descrip
+       potype_code,
+       potype_descr
   FROM potype
-ORDER BY potype_name;</sql>
+ORDER BY potype_code;</sql>
  </querysource>
  <rpthead>
   <height>77</height>
@@ -72,7 +78,7 @@ ORDER BY potype_name;</sql>
    </font>
    <left/>
    <vcenter/>
-   <string>Name</string>
+   <string>Code</string>
   </label>
  </rpthead>
  <pghead>
@@ -95,7 +101,7 @@ ORDER BY potype_name;</sql>
    </font>
    <left/>
    <vcenter/>
-   <string>Name</string>
+   <string>Code</string>
   </label>
   <line>
    <xstart>5</xstart>
@@ -144,7 +150,7 @@ ORDER BY potype_name;</sql>
     <vcenter/>
     <data>
      <query>detail</query>
-     <column>potype_descrip</column>
+     <column>potype_descr</column>
     </data>
    </field>
    <field>
@@ -163,7 +169,7 @@ ORDER BY potype_name;</sql>
     <vcenter/>
     <data>
      <query>detail</query>
-     <column>potype_name</column>
+     <column>potype_code</column>
     </data>
    </field>
   </detail>

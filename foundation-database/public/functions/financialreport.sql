@@ -1334,7 +1334,9 @@ BEGIN
                 flrpt_type_id,
                 flrpt_parent_id,
                 flrpt_accnt_id,
-                formatindent(accnt_descrip,flrpt.flrpt_level) AS flrpt_name,
+                formatindent(CASE WHEN (pShowNumbers) THEN
+                                (formatGLAccount(accnt_id) || '-' || accnt_descrip)
+                        ELSE accnt_descrip END,flrpt.flrpt_level) AS flrpt_name,
                 CASE
                         WHEN (_type IN ('I','C')) THEN
                                 (COALESCE(flrpt_diff,0))

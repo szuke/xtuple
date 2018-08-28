@@ -29,13 +29,23 @@ BEGIN
 
   NEW.vend_number := UPPER(NEW.vend_number);
 
+  -- Timestamps
+  IF (TG_OP = 'INSERT') THEN
+    NEW.vend_created := now();
+  ELSIF (TG_OP = 'UPDATE') THEN
+    NEW.vend_lastupdated := now();
+  END IF;
+
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'vendTrigger');
-CREATE TRIGGER vendTrigger BEFORE INSERT OR UPDATE ON vendinfo
-       FOR EACH ROW EXECUTE PROCEDURE _vendTrigger();
+CREATE TRIGGER vendTrigger
+  BEFORE INSERT OR UPDATE
+  ON vendinfo
+  FOR EACH ROW
+  EXECUTE PROCEDURE _vendTrigger();
 
 CREATE OR REPLACE FUNCTION _vendAfterTrigger () RETURNS TRIGGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
@@ -81,45 +91,39 @@ BEGIN
   END IF;
 
   IF (fetchMetricBool('VendorChangeLog')) THEN
-    SELECT cmnttype_id INTO _cmnttypeid
-      FROM cmnttype
-     WHERE (cmnttype_name='ChangeLog');
+    IF (TG_OP = 'INSERT') THEN
+      PERFORM postComment('ChangeLog', 'V', NEW.vend_id, 'Created');
 
-    IF (_cmnttypeid IS NOT NULL) THEN
-      IF (TG_OP = 'INSERT') THEN
-        PERFORM postComment(_cmnttypeid, 'V', NEW.vend_id, 'Created');
+    ELSIF (TG_OP = 'UPDATE') THEN
 
-      ELSIF (TG_OP = 'UPDATE') THEN
+      IF (OLD.vend_number <> NEW.vend_number) THEN
+        PERFORM postComment('ChangeLog', 'V', NEW.vend_id, 'Number',
+                            OLD.vend_number, NEW.vend_number);
+      END IF;
 
-        IF (OLD.vend_number <> NEW.vend_number) THEN
-          PERFORM postComment(_cmnttypeid, 'V', NEW.vend_id,
-                              ('Number Changed from "' || OLD.vend_number ||
-                               '" to "' || NEW.vend_number || '"') );
-        END IF;
+      IF (OLD.vend_name <> NEW.vend_name) THEN
+        PERFORM postComment('ChangeLog', 'V', NEW.vend_id, 'Name',
+                            OLD.vend_name, NEW.vend_name);
+      END IF;
 
-        IF (OLD.vend_name <> NEW.vend_name) THEN
-          PERFORM postComment( _cmnttypeid, 'V', NEW.vend_id,
-                              ('Name Changed from "' || OLD.vend_name ||
-                               '" to "' || NEW.vend_name || '"') );
-        END IF;
-
-        IF (OLD.vend_active <> NEW.vend_active) THEN
-          PERFORM postComment(_cmnttypeid, 'V', NEW.vend_id,
-                              CASE WHEN NEW.vend_active THEN 'Activated'
-                                   ELSE 'Deactivated' END);
-        END IF;
-
+      IF (OLD.vend_active <> NEW.vend_active) THEN
+        PERFORM postComment('ChangeLog', 'V', NEW.vend_id,
+                            CASE WHEN NEW.vend_active THEN 'Activated'
+                                 ELSE 'Deactivated' END);
       END IF;
     END IF;
   END IF;
 
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'vendAfterTrigger');
-CREATE TRIGGER vendAfterTrigger AFTER INSERT OR UPDATE ON vendinfo
-       FOR EACH ROW EXECUTE PROCEDURE _vendAfterTrigger();
+CREATE TRIGGER vendAfterTrigger
+  AFTER INSERT OR UPDATE
+  ON vendinfo
+  FOR EACH ROW
+  EXECUTE PROCEDURE _vendAfterTrigger();
 
 CREATE OR REPLACE FUNCTION _vendinfoBeforeDeleteTrigger() RETURNS TRIGGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
@@ -145,11 +149,14 @@ BEGIN
    WHERE crmacct_vend_id = OLD.vend_id;
   RETURN OLD;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'vendinfoBeforeDeleteTrigger');
-CREATE TRIGGER vendinfoBeforeDeleteTrigger BEFORE DELETE ON vendinfo
-       FOR EACH ROW EXECUTE PROCEDURE _vendinfoBeforeDeleteTrigger();
+CREATE TRIGGER vendinfoBeforeDeleteTrigger
+  BEFORE DELETE
+  ON vendinfo
+  FOR EACH ROW
+  EXECUTE PROCEDURE _vendinfoBeforeDeleteTrigger();
 
 CREATE OR REPLACE FUNCTION _vendinfoAfterDeleteTrigger () RETURNS TRIGGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
@@ -167,16 +174,22 @@ BEGIN
       AND (taxreg_rel_id=OLD.vend_id));
 
   IF (fetchMetricBool('VendorChangeLog')) THEN
-    PERFORM postComment(cmnttype_id, 'V', OLD.vend_id,
-                        ('Deleted "' || OLD.vend_number || '"'))
-      FROM cmnttype
-     WHERE (cmnttype_name='ChangeLog');
+    PERFORM postComment('ChangeLog', 'V', OLD.vend_id,
+                        ('Deleted "' || OLD.vend_number || '"'));
   END IF;
+
+  DELETE
+  FROM charass
+  WHERE charass_target_type = 'V'
+    AND charass_target_id = OLD.vend_id;
 
   RETURN OLD;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'vendinfoAfterDeleteTrigger');
-CREATE TRIGGER vendinfoAfterDeleteTrigger AFTER DELETE ON vendinfo
-       FOR EACH ROW EXECUTE PROCEDURE _vendinfoAfterDeleteTrigger();
+CREATE TRIGGER vendinfoAfterDeleteTrigger
+  AFTER DELETE
+  ON vendinfo
+  FOR EACH ROW
+  EXECUTE PROCEDURE _vendinfoAfterDeleteTrigger();

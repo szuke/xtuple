@@ -58,3 +58,23 @@ $$	 LANGUAGE 'plpgsql';
 
 SELECT dropIfExists('TRIGGER', 'saletypeBeforeDeleteTrigger');
 CREATE TRIGGER saletypeBeforeDeleteTrigger BEFORE DELETE ON saletype FOR EACH ROW EXECUTE PROCEDURE _saletypeBeforeDeleteTrigger();
+
+
+CREATE OR REPLACE FUNCTION _saletypeaftertrigger() RETURNS trigger AS $$
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
+-- See www.xtuple.com/CPAL for the full text of the software license.
+BEGIN
+--  If this Sale Type is marked "default" set all others to not default
+  IF (NEW.saletype_default) THEN
+    UPDATE saletype SET saletype_default = false
+      WHERE saletype_id <> NEW.saletype_id;
+  END IF;    
+
+  RETURN NEW;
+END;
+$$ LANGUAGE 'plpgsql';
+
+ALTER FUNCTION _saletypeaftertrigger() OWNER TO admin;
+
+SELECT dropIfExists('TRIGGER', 'saletype_after_change');  
+CREATE TRIGGER saletype_after_change AFTER INSERT OR UPDATE ON saletype FOR EACH ROW EXECUTE PROCEDURE _saletypeaftertrigger();

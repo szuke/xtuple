@@ -1,7 +1,7 @@
 -- Group: prices
 -- Name: detail
 -- Notes: used by dspPricesByCustomerType, dspPricesByCustomer, dspPricesByItem
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT itemid, sourcetype, schedulename, type,
@@ -69,7 +69,10 @@ FROM (
          AND (item_price_uom_id=uom_id)
          AND (ipsass_cust_id=<? value("cust_id") ?>)
          <? if exists("item_id") ?>
-         AND (item_id=<? value("item_id") ?>)
+           AND (item_id=<? value("item_id") ?>)
+         <? else ?>
+           AND (item_sold)
+           AND (item_active)
          <? endif ?>
   <? else ?>
          AND (ipsass_cust_id=cust_id)
@@ -143,11 +146,16 @@ FROM (
 <? endif ?>
 <? if exists("byCustomerType") ?>
          AND (ipsass_custtype_id=<? value("custtype_id") ?>)
+         AND (item_sold)
+         AND (item_active)
 <? elseif exists("byCustomer") ?>
          AND (ipsass_custtype_id=cust_custtype_id)
          AND (cust_id=<? value("cust_id") ?>)
          <? if exists("item_id") ?>
-         AND (item_id=<? value("item_id") ?>)
+           AND (item_id=<? value("item_id") ?>)
+         <? else ?>
+           AND (item_sold)
+           AND (item_active)
          <? endif ?>
 <? else ?>
          AND (ipsass_custtype_id=custtype_id)
@@ -219,10 +227,15 @@ FROM (
          AND (custtype_code ~ ipsass_custtype_pattern)
 <? if exists("byCustomerType") ?>
          AND (custtype_id=<? value("custtype_id") ?>)
+         AND (item_sold)
+         AND (item_active)
 <? elseif exists("byCustomer") ?>
          AND (cust_id=<? value("cust_id") ?>)
          <? if exists("item_id") ?>
-         AND (item_id=<? value("item_id") ?>)
+           AND (item_id=<? value("item_id") ?>)
+        <? else ?>
+           AND (item_sold)
+           AND (item_active)
          <? endif ?>
 <? else ?>
          AND (item_id=<? value("item_id") ?>)
@@ -295,6 +308,12 @@ FROM (
   <? endif ?>
 <? else ?>
          AND (ipsprice_item_id=item_id)
+          <? if exists("item_id") ?>
+           AND (item_id=<? value("item_id") ?>)
+        <? else ?>
+           AND (item_sold)
+           AND (item_active)
+         <? endif ?>
   <? if not exists("showExpired") ?>
          AND (ipshead_expires > CURRENT_DATE)
   <? endif ?>
@@ -341,7 +360,49 @@ FROM (
          AND (ipsass_cust_id=cust_id)
          AND (shipto_cust_id=cust_id)
          AND (ipsprice_item_id=item_id)
-         AND (item_id=:item_id)
+         AND (item_id=<? value("item_id") ?>)
+  <? if not exists("showExpired") ?>
+         AND (ipshead_expires > CURRENT_DATE)
+  <? endif ?>
+  <? if not exists("showFuture") ?>
+         AND (ipshead_effective <= CURRENT_DATE)
+  <? endif ?>
+            )
+
+      UNION
+
+      SELECT ipsprice_id AS itemid, 7 AS sourcetype,
+             ipshead_name AS schedulename, <? value("shipZone") ?> AS type,
+             shipzone_name AS typename,
+             ipsprice_qtybreak AS qtybreak, ipsprice_price AS price, ipshead_curr_id AS curr_id
+      FROM ipsass, ipshead, ipsprice, item, shipzone
+      WHERE ((ipsass_ipshead_id=ipshead_id)
+         AND (ipsprice_ipshead_id=ipshead_id)
+         AND (COALESCE(ipsass_shipzone_id,0) > 0)
+         AND (ipsass_shipzone_id=shipzone_id)
+         AND (ipsprice_item_id=item_id)
+         AND (item_id=<? value("item_id") ?>)
+  <? if not exists("showExpired") ?>
+         AND (ipshead_expires > CURRENT_DATE)
+  <? endif ?>
+  <? if not exists("showFuture") ?>
+         AND (ipshead_effective <= CURRENT_DATE)
+  <? endif ?>
+            )
+
+      UNION
+
+      SELECT ipsprice_id AS itemid, 8 AS sourcetype,
+             ipshead_name AS schedulename, <? value("saleType") ?> AS type,
+             saletype_descr AS typename,
+             ipsprice_qtybreak AS qtybreak, ipsprice_price AS price, ipshead_curr_id AS curr_id
+      FROM ipsass, ipshead, ipsprice, item, saletype
+      WHERE ((ipsass_ipshead_id=ipshead_id)
+         AND (ipsprice_ipshead_id=ipshead_id)
+         AND (COALESCE(ipsass_saletype_id,0) > 0)
+         AND (ipsass_saletype_id=saletype_id)
+         AND (ipsprice_item_id=item_id)
+         AND (item_id=<? value("item_id") ?>)
   <? if not exists("showExpired") ?>
          AND (ipshead_expires > CURRENT_DATE)
   <? endif ?>
@@ -358,7 +419,7 @@ FROM (
              item_id AS itemid, 0 AS sourcetype,
              <? value("listPrice") ?> AS schedulename, <? value("na") ?> AS type,
              '' AS typename,
-             -1 AS qtybreak, item_listprice AS price, baseCurrId() AS curr_id
+             -1 AS qtybreak, <? value("list") ?> AS price, baseCurrId() AS curr_id
 <? else ?>
              item_id AS itemid, 0 AS sourcetype,
              '' AS schedulename, <? value("listPrice") ?> AS type,

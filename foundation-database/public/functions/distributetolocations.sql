@@ -1,8 +1,7 @@
-CREATE OR REPLACE FUNCTION distributeToLocations(INTEGER) RETURNS INTEGER AS $$
+CREATE OR REPLACE FUNCTION distributeToLocations(pItemlocdistid INTEGER) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pItemlocdistid ALIAS FOR $1;
   _distCounter INTEGER;
   _itemlocdist RECORD;
   _itemlocid INTEGER;
@@ -107,8 +106,6 @@ BEGIN
       SET itemloc_qty = (itemloc_qty + _itemlocdist.qty)
       WHERE (itemloc_id=_itemlocid);
 
-      PERFORM postInvHist(_itemlocdist.invhistid);
-
 --  Handle reservation data
       IF ( (SELECT fetchMetricBool('EnableSOReservationsByLocation')) AND
            (_itemlocdist.qty < 0) ) THEN
@@ -147,55 +144,9 @@ BEGIN
       END IF;
     END IF;
 
---  Adjust QOH if this itemlocdist is to/from a non-netable location
-    IF ( SELECT (NOT location_netable)
-         FROM itemloc, location
-         WHERE ((itemloc_location_id=location_id)
-          AND (itemloc_id=_itemlocid)) ) THEN
-
---  Record the invhist record for the netable->non-netable (or visaversa)
-      INSERT INTO invhist
-      ( invhist_itemsite_id,
-        invhist_transtype, invhist_invqty,
-        invhist_qoh_before, invhist_qoh_after,
-        invhist_docnumber, invhist_comments,
-        invhist_invuom, invhist_unitcost,
-        invhist_costmethod, invhist_value_before, invhist_value_after,
-        invhist_series )
-      SELECT itemsite_id,
-             'NN', (_itemlocdist.qty * -1),
-             itemsite_qtyonhand, (itemsite_qtyonhand - _itemlocdist.qty),
-             invhist_docnumber, invhist_comments,
-             uom_name, stdCost(item_id),
-             itemsite_costmethod, itemsite_value,
-             (itemsite_value + (_itemlocdist.qty * -1 * CASE WHEN(itemsite_costmethod='A') THEN avgcost(itemsite_id)
-                                                             ELSE stdCost(itemsite_item_id)
-                                                        END)),
-             _itemlocdist.series
-      FROM item, itemsite, invhist, uom
-      WHERE ( (itemsite_item_id=item_id)
-       AND (item_inv_uom_id=uom_id)
-       AND (itemsite_controlmethod <> 'N')
-       AND (itemsite_id=_itemlocdist.itemsiteid)
-       AND (invhist_id=_itemlocdist.invhistid) );
-
---  Update the itemsite_qoh
-      IF (NOT _itemlocdist.itemsite_freeze) THEN
-        UPDATE itemsite
-        SET itemsite_qtyonhand = (itemsite_qtyonhand - _itemlocdist.qty),
-            itemsite_nnqoh = (itemsite_nnqoh + _itemlocdist.qty)
-        FROM itemloc
-        WHERE ((itemloc_itemsite_id=itemsite_id)
-         AND (itemloc_id=_itemlocid));
-      END IF;
-    END IF;
-
 --  Cache the running qty.
     _runningQty := _runningQty + _itemlocdist.qty;
 
---  Dene with the child itemlocdist, so delete it
-    DELETE FROM itemlocdist
-    WHERE (itemlocdist_id=_itemlocdist.itemlocdistid);
 
 --  If the target itemloc is now at qty=0, delete it if its parent
 --  itemsite is not frozen
@@ -207,23 +158,14 @@ BEGIN
 
   END LOOP;
 
---  If the running qty for the detailed distributions is the same as the
---  total qty to distribute indicated by the parent itemlocdist, then the
---  parent itemlocdist has been fully distributed and should be deleted.
-  IF ( ( SELECT itemlocdist_qty
-         FROM itemlocdist
-         WHERE (itemlocdist_id=pItemlocdistid) ) = _runningQty) THEN
-    DELETE FROM itemlocdist
-    WHERE (itemlocdist_id=pItemlocdistid);
-  ELSE
---  There is still some more qty to distribute in the parent itemlocdist.
---  Update the qty to distribute with the qty that has been distributed.
-    UPDATE itemlocdist
-    SET itemlocdist_qty = (itemlocdist_qty - _runningQty)
-    WHERE (itemlocdist_id=pItemlocdistid);
-  END IF;
 
+  --  If There is still some more qty to distribute in the parent itemlocdist.
+  --  Update the qty to distribute with the qty that has been distributed.
+  UPDATE itemlocdist
+  SET itemlocdist_qty = (itemlocdist_qty - _runningQty)
+  WHERE (itemlocdist_id = pItemlocdistid) AND (itemlocdist_qty != _runningQty);
+  
   RETURN _distCounter;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

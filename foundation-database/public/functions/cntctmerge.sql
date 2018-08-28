@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION cntctmerge(integer, integer, boolean) RETURNS boolean AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSourceCntctId ALIAS FOR $1;
@@ -202,12 +202,18 @@ BEGIN
     IF (SELECT (COUNT(cntctmrgd_cntct_id) = 0) 
         FROM cntctmrgd
         WHERE (cntctmrgd_cntct_id=pSourceCntctId)) THEN
-      INSERT INTO cntctmrgd VALUES (pSourceCntctId,false);
+      INSERT INTO cntctmrgd (cntctmrgd_cntct_id, cntctmrgd_error) VALUES (pSourceCntctId,false);
     END IF;
   END IF;
 
  -- Merge field detail to target
-  SELECT * INTO _sel 
+  SELECT cntctsel.*,
+         cntct_id, cntct_crmacct_id, cntct_addr_id, cntct_first_name,
+         cntct_last_name, cntct_honorific, cntct_initials, cntct_active,
+         cntct_phone, cntct_phone2, cntct_fax, cntct_email, cntct_webaddr,
+         cntct_notes, cntct_title, cntct_number, cntct_middle, cntct_suffix,
+         cntct_owner_username, cntct_name
+  INTO _sel 
   FROM cntctsel 
     JOIN cntct ON (cntctsel_cntct_id=cntct_id)
   WHERE (cntctsel_cntct_id=pSourceCntctId);
@@ -376,4 +382,4 @@ BEGIN
 
   RETURN true;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

@@ -1,26 +1,36 @@
-CREATE OR REPLACE FUNCTION voidApopenVoucher(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
--- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  pApopenid ALIAS FOR $1;
-BEGIN
-  RETURN voidApopenVoucher(pApopenid, fetchJournalNumber('AP-VO'));
-END;
-$$ LANGUAGE 'plpgsql';
+SELECT dropIfExists('FUNCTION', 'voidApopenVoucher(integer, integer)', 'public');
 
-CREATE OR REPLACE FUNCTION voidApopenVoucher(INTEGER, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION voidApopenVoucher(pApopenid INTEGER) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+-- See www.xtuple.com/CPAL for the full text of the software license.
+BEGIN
+  RETURN voidApopenVoucher(pApopenid, fetchJournalNumber('AP-VO'), NULL::DATE);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION voidApopenVoucher(pApopenid INTEGER,
+                                             pVoidDate DATE) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+-- See www.xtuple.com/CPAL for the full text of the software license.
+BEGIN
+  RETURN voidApopenVoucher(pApopenid, fetchJournalNumber('AP-VO'), pVoidDate);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION voidApopenVoucher(pApopenid INTEGER,
+                                             pJournalNumber INTEGER,
+                                             pVoidDate DATE) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pApopenid ALIAS FOR $1;
-  pJournalNumber ALIAS FOR $2;
   _apopenid INTEGER;
   _apcreditapplyid INTEGER;
   _reference    TEXT;
   _result INTEGER;
   _sequence INTEGER;
-  _totalAmount_base NUMERIC;
-  _totalAmount NUMERIC;
+  _totalAmount_base NUMERIC :=0;
+  _totalAmount NUMERIC :=0;
+  _totalTax NUMERIC :=0;
   _itemAmount_base NUMERIC;
   _itemAmount NUMERIC;
   _test INTEGER;
@@ -40,8 +50,6 @@ DECLARE
 
 BEGIN
 
-  _totalAmount_base := 0;
-  _totalAmount := 0;
   SELECT fetchGLSequence() INTO _sequence;
 
 --  Cache APOpen Information
@@ -50,7 +58,8 @@ BEGIN
   WHERE ( (apopen_doctype='V')
     AND   (apopen_id=pApopenid) );
   IF (NOT FOUND) THEN
-    RAISE EXCEPTION 'Cannot Void Voucher #% as apopen not found', pApopenid;
+    RAISE EXCEPTION 'Cannot Void Voucher Id % as apopen not found [xtuple: voidAPOpenVoucher, -10, %]',
+			pApopenid, pApopenid;
   END IF;
 
 --  Cache Voucher Infomation
@@ -63,10 +72,22 @@ BEGIN
               LEFT OUTER JOIN pohead ON (vohead_pohead_id = pohead_id)
   WHERE (vohead_number=_n.apopen_docnumber);
   IF (NOT FOUND) THEN
-    RAISE EXCEPTION 'Cannot Void Voucher #% as vohead not found', _n.apopen_docnumber;
+    RAISE EXCEPTION 'Cannot Void Voucher #% as vohead not found [xtuple: voidAPOpenVoucher, -20, %]',
+			_n.apopen_docnumber, _n.apopen_docnumber;
   END IF;
 
-  _glDate := COALESCE(_p.vohead_gldistdate, _p.vohead_distdate);
+--  Check for APApplications
+  SELECT apopen_id INTO _test
+  FROM apopen
+  WHERE (apopen_id=_n.apopen_id
+  AND apopen_paid != 0)
+  LIMIT 1;
+  IF (FOUND) THEN
+    RAISE EXCEPTION 'Cannot Void Voucher #% as applications exist [xtuple: voidAPOpenVoucher, -30, %]',
+			_n.apopen_docnumber, _n.apopen_docnumber;
+  END IF;
+
+  _glDate := COALESCE(pVoidDate, _p.vohead_gldistdate, _p.vohead_distdate);
 
 -- there is no currency gain/loss on items, see issue 3892,
 -- but there might be on freight, which is first encountered at p/o receipt
@@ -75,21 +96,22 @@ BEGIN
   WHERE (recv_vohead_id = _p.vohead_id);
 
 --  Start by handling taxes
-  FOR _r IN SELECT tax_sales_accnt_id, 
+  FOR _r IN SELECT tax_sales_accnt_id,
               round(sum(taxdetail_tax),2) AS tax,
               currToBase(_p.vohead_curr_id, round(sum(taxdetail_tax),2), _p.vohead_docdate) AS taxbasevalue
-            FROM tax 
+            FROM tax
              JOIN calculateTaxDetailSummary('VO', _p.vohead_id, 'T') ON (taxdetail_tax_id=tax_id)
 	    GROUP BY tax_id, tax_sales_accnt_id LOOP
 
     PERFORM insertIntoGLSeries( _sequence, 'A/P', 'VO', _p.vohead_number,
-                                _r.tax_sales_accnt_id, 
+                                _r.tax_sales_accnt_id,
                                 (_r.taxbasevalue * -1),
                                 _glDate, _p.glnotes );
 
     _totalAmount_base := (_totalAmount_base - _r.taxbasevalue);
     _totalAmount := (_totalAmount - _r.tax);
-     
+    _totalTax := (_totalTax + _r.tax);
+
   END LOOP;
 
 --  Loop through the vodist records for the passed vohead that
@@ -99,7 +121,7 @@ BEGIN
                             COALESCE(itemsite_id, -1) AS itemsiteid,
                             COALESCE(itemsite_costcat_id, -1) AS costcatid,
                             COALESCE(itemsite_item_id, -1) AS itemsite_item_id,
-                            (SELECT SUM(value) 
+                            (SELECT SUM(value)
                              FROM (
                                 SELECT SUM(recv_value) AS value
                                 FROM recv
@@ -130,7 +152,8 @@ BEGIN
        AND (expcat_liability_accnt_id=lb.accnt_id)
        AND (expcat_id=_g.poitem_expcat_id) );
       IF (NOT FOUND) THEN
-        RAISE EXCEPTION 'Cannot Void Voucher #% due to unassigned G/L Accounts.', _p.vohead_number;
+        RAISE EXCEPTION 'Cannot Void Voucher #% due to unassigned G/L Accounts [xtuple: voidAPOpenVoucher, -40, %]',
+			_p.vohead_number, _p.vohead_number;
       END IF;
     ELSE
       SELECT pp.accnt_id AS pp_accnt_id,
@@ -140,7 +163,8 @@ BEGIN
        AND (costcat_liability_accnt_id=lb.accnt_id)
        AND (costcat_id=_g.costcatid) );
       IF (NOT FOUND) THEN
-        RAISE EXCEPTION 'Cannot Void Voucher #% due to unassigned G/L Accounts.', _p.vohead_number;
+        RAISE EXCEPTION 'Cannot Void Voucher #% due to unassigned G/L Accounts [xtuple: voidAPOpenVoucher, -50, %]',
+			_p.vohead_number, _p.vohead_number;
       END IF;
     END IF;
 
@@ -283,7 +307,8 @@ BEGIN
   WHERE ( (findAPAccount(vohead_vend_id)=0 OR accnt_id > 0) -- G/L interface might be disabled
     AND   (vohead_id=_p.vohead_id) );
   IF (NOT FOUND) THEN
-    RAISE EXCEPTION 'Cannot Void Voucher #% due to an unassigned A/P Account.', _p.vohead_number;
+    RAISE EXCEPTION 'Cannot Void Voucher #% due to an unassigned A/P Account [xtuple: voidAPOpenVoucher, -60, %]',
+			_p.vohead_number, _p.vohead_number;
   END IF;
 
   PERFORM postGLSeries(_sequence, pJournalNumber);
@@ -302,6 +327,13 @@ BEGIN
          apopen_amount - apopen_paid, 0, TRUE, _reference, TRUE, apopen_curr_rate
     FROM apopen
    WHERE (apopen_id=_n.apopen_id);
+
+-- Create Credit Memo tax (if necessary)
+  IF (_totalTax <> 0) THEN
+    PERFORM updatememotax('AP', 'C', _apopenid, _p.vohead_taxzone_id, _glDate, apopen_curr_id, apopen_amount, apopen_curr_rate, TRUE)
+      FROM apopen
+      WHERE (apopen_id=_n.apopen_id);
+  END IF;
 
   SELECT apcreditapply_id INTO _apcreditapplyid
     FROM apcreditapply
@@ -323,7 +355,8 @@ BEGIN
   SELECT postAPCreditMemoApplication(_apopenid) INTO _result;
 
   IF (_result < 0) THEN
-    RAISE EXCEPTION 'Credit application failed with result %.', _result;
+    RAISE EXCEPTION 'Credit application failed with result % [xtuple: voidAPOpenVoucher, -70, %]',
+			_result, _result;
   END IF;
 
 --  Reopen all of the P/O Items that were closed by this Voucher
@@ -339,6 +372,10 @@ BEGIN
   SET pohead_status='O'
   WHERE (pohead_id=_p.vohead_pohead_id);
 
+--  Delete any apselect approval records to prevent incorrect payment runs
+  DELETE FROM apselect
+   WHERE (apselect_apopen_id=_n.apopen_id);
+
 --  Mark as voided
   UPDATE apopen
   SET apopen_void=TRUE
@@ -347,4 +384,4 @@ BEGIN
   RETURN pJournalNumber;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

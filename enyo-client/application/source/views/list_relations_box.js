@@ -49,6 +49,13 @@ trailing:true, white:true*/
       this.$.attachButton.hide();
       this.$.detachButton.hide();
       this.$.openButton.hide();
+      /**
+        Disable this feature (newButton) instead of repair it. Credit cards can be added to a
+        customer through the CustomerWorkspace which uses a different kind (XV.CreditCardsBox).
+        re: https://github.com/xtuple/xtuple/issues/1814
+      */
+      this.$.newButton.setDisabled(true);
+      this.$.newButton.hide();
       this.createComponent({
         kind: "XV.InputWidget",
         name: "ccv",

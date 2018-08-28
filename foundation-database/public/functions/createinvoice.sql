@@ -1,6 +1,6 @@
 
 CREATE OR REPLACE FUNCTION createInvoice(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pCobmiscid ALIAS FOR $1;
@@ -9,7 +9,9 @@ DECLARE
   _qtyToInvoice	NUMERIC;
   _r		RECORD;
   _s		RECORD;
-  _lastlinenumber INTEGER := 1;
+  _lastlinenumber INTEGER := 0;
+  _lastsubnumber INTEGER := 0;
+  _lastcoitemline INTEGER;
   
 BEGIN
 
@@ -73,15 +75,16 @@ BEGIN
           (charass_target_type, charass_target_id, charass_char_id, charass_value, charass_default, charass_price)
     SELECT 'INV', _invcheadid, charass_char_id, charass_value, charass_default, charass_price
       FROM cobmisc JOIN cohead ON (cohead_id=cobmisc_cohead_id)
-                   JOIN charass ON ((charass_target_type='SO') AND (charass_target_id=cohead_id))
-                   JOIN char ON (char_id=charass_char_id AND char_invoices)
-    WHERE (cobmisc_id=pCobmiscid);
+                   JOIN charass ON charass_target_type = 'SO' AND charass_target_id = cohead_id
+                   JOIN char    ON char_id = charass_char_id
+                   JOIN charuse ON char_id = charuse_char_id AND charuse_target_type = 'INV'
+    WHERE cobmisc_id = pCobmiscid;
 
 --  Create the Invoice items
   FOR _r IN SELECT coitem_id, coitem_linenumber, coitem_subnumber, coitem_custpn,
                    coitem_qtyord, cobill_qty,
                    coitem_qty_uom_id, coitem_qty_invuomratio,
-                   coitem_custprice, coitem_price,
+                   coitem_custprice, coitem_price, coitem_listprice,
                    coitem_price_uom_id, coitem_price_invuomratio,
                    coitem_memo, coitem_rev_accnt_id,
                    itemsite_item_id, itemsite_warehous_id,
@@ -93,6 +96,15 @@ BEGIN
              AND (cobill_cobmisc_id=pCobmiscid) )
             ORDER BY coitem_linenumber, coitem_subnumber LOOP
 
+    IF (COALESCE(_lastcoitemline, -1)!=_r.coitem_linenumber) THEN
+      _lastlinenumber := _lastlinenumber + 1;
+      _lastsubnumber := 0;
+    ELSE
+      _lastsubnumber := _lastsubnumber + 1;
+    END IF;
+
+    _lastcoitemline = _r.coitem_linenumber;
+
     SELECT NEXTVAL('invcitem_invcitem_id_seq') INTO _invcitemid;
     INSERT INTO invcitem
     ( invcitem_id, invcitem_invchead_id,
@@ -100,10 +112,11 @@ BEGIN
       invcitem_custpn, invcitem_number, invcitem_descrip,
       invcitem_ordered, invcitem_billed,
       invcitem_qty_uom_id, invcitem_qty_invuomratio,
-      invcitem_custprice, invcitem_price,
+      invcitem_custprice, invcitem_price, invcitem_listprice,
       invcitem_price_uom_id, invcitem_price_invuomratio,
       invcitem_notes, invcitem_taxtype_id,
-      invcitem_coitem_id, invcitem_rev_accnt_id )
+      invcitem_coitem_id, invcitem_rev_accnt_id,
+      invcitem_subnumber )
     VALUES
     ( _invcitemid, _invcheadid,
       _lastlinenumber,
@@ -111,10 +124,20 @@ BEGIN
       _r.coitem_custpn, '', '',
       _r.coitem_qtyord, _r.cobill_qty,
       _r.coitem_qty_uom_id, _r.coitem_qty_invuomratio,
-      _r.coitem_custprice, _r.coitem_price,
+      _r.coitem_custprice, _r.coitem_price, _r.coitem_listprice,
       _r.coitem_price_uom_id, _r.coitem_price_invuomratio,
       _r.coitem_memo, _r.cobill_taxtype_id,
-      _r.coitem_id, _r.coitem_rev_accnt_id );
+      _r.coitem_id, _r.coitem_rev_accnt_id,
+      _lastsubnumber );
+
+--  Create the Invoice Item Characteristic Assignments
+    INSERT INTO charass
+          (charass_target_type, charass_target_id, charass_char_id, charass_value, charass_default, charass_price)
+    SELECT 'INVI', _invcitemid, charass_char_id, charass_value, charass_default, charass_price
+    FROM coitem
+      JOIN charass ON charass_target_type = 'SI' AND charass_target_id = coitem_id
+      JOIN charuse ON charass_char_id = charuse_char_id AND charuse_target_type = 'INVI'
+    WHERE coitem_id = _r.coitem_id;
 
 --  Find and mark any Lot/Serial invdetail records associated with this bill
     UPDATE invdetail SET invdetail_invcitem_id = _invcitemid
@@ -150,13 +173,13 @@ BEGIN
 		      cobill_invcitem_id=invcitem_id
     FROM invcitem, coitem, cobmisc
     WHERE ((invcitem_linenumber=_lastlinenumber)
+      AND  (invcitem_subnumber=_lastsubnumber)
+      AND  (coitem_id=_r.coitem_id)
       AND  (coitem_id=cobill_coitem_id)
       AND  (cobmisc_id=cobill_cobmisc_id)
       AND  (cobill_cobmisc_id=pCobmiscid)
       AND  (invcitem_invchead_id=_invcheadid));
     
-    _lastlinenumber := _lastlinenumber + 1;
-
   END LOOP;
 
 --  Close all requested coitem's
@@ -177,6 +200,15 @@ BEGIN
      AND (coitem_status <> 'X')
      AND (cobill_toclose)
      AND (cobill_cobmisc_id=pCobmiscid) );
+
+-- close Job Costed W/O
+    UPDATE wo SET wo_status = 'C'
+    FROM cobill
+    WHERE ( (cobill_toclose)
+     AND (cobill_cobmisc_id=pCobmiscid)
+     AND (wo_ordid=cobill_coitem_id)
+     AND (wo_ordtype='S')
+     AND (wo_qtyrcv >= wo_qtyord) );
   END IF;
 
 --  Mark the cobmisc as posted

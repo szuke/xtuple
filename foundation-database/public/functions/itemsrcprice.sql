@@ -5,17 +5,10 @@ CREATE OR REPLACE FUNCTION itemsrcPrice(pItemsrcid INTEGER,
                                         pEffective DATE) RETURNS NUMERIC AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  _price NUMERIC := 0.0;
-
 BEGIN
-
-  SELECT itemsrcPrice(pItemsrcid, -1, FALSE, pQty, pCurrid, pEffective) INTO _price;
-
-  RETURN _price;
-
+  RETURN itemsrcPrice(pItemsrcid, -1, FALSE, pQty, pCurrid, pEffective);
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION itemsrcPrice(pItemsrcid INTEGER,
                                         pSiteid INTEGER,
@@ -31,11 +24,17 @@ DECLARE
   _effective DATE;
 
 BEGIN
+
+-- Sometimes NULL itemsrc is passed (#25898)
+  IF (pItemsrcid IS NULL) THEN 
+    RETURN NULL;
+  END IF; 
+
 -- If no pEffective passed, use current date
   _effective := COALESCE(pEffective, CURRENT_DATE);
 
 --  Cache Itemsrc and Item
-  SELECT *
+  SELECT itemsrc_id, item_listcost
   INTO _r
   FROM itemsrc JOIN item ON (item_id=itemsrc_item_id)
   WHERE (itemsrc_id=pItemsrcid);
@@ -46,7 +45,7 @@ BEGIN
 --  Determine price
   SELECT currToCurr(itemsrcp_curr_id, pCurrid, price, _effective) INTO _price
   FROM (
-    SELECT *,
+    SELECT itemsrcp_curr_id,
            CASE WHEN (itemsrcp_dropship) THEN 0
                 ELSE 1
            END AS seq,
@@ -67,5 +66,5 @@ BEGIN
   RETURN _price;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 

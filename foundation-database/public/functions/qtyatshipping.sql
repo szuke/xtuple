@@ -1,27 +1,27 @@
-CREATE OR REPLACE FUNCTION qtyAtShipping(INTEGER) RETURNS NUMERIC AS $$
+CREATE OR REPLACE FUNCTION qtyAtShipping(plineitemid INTEGER) RETURNS NUMERIC AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
-  RETURN qtyAtShipping('SO', $1);
+  RETURN qtyAtShipping('SO', plineitemid);
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql STABLE;
 
-CREATE OR REPLACE FUNCTION qtyAtShipping(TEXT, INTEGER) RETURNS NUMERIC AS $$
+CREATE OR REPLACE FUNCTION qtyAtShipping(pordertype TEXT,
+                                         plineitemid INTEGER) RETURNS NUMERIC AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
-  RETURN qtyAtShipping($1, $2, 'U');
+  RETURN qtyAtShipping(pordertype, plineitemid, 'U');
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql STABLE;
 
-CREATE OR REPLACE FUNCTION qtyAtShipping(TEXT, INTEGER, TEXT) RETURNS NUMERIC AS $$
+CREATE OR REPLACE FUNCTION qtyAtShipping(pordertype TEXT,
+                                         plineitemid INTEGER,
+                                         pstatus TEXT) RETURNS NUMERIC AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pordertype	ALIAS FOR $1;
-  plineitemid	ALIAS FOR $2;
-  pstatus       ALIAS FOR $3;
-  _qty NUMERIC  := 0.0;
+  _qty         NUMERIC  := 0.0;
 
 BEGIN
 
@@ -44,7 +44,7 @@ BEGIN
     AND  (shipitem_orderitem_id=plineitemid)
     AND  (((shiphead_shipped) AND (pstatus IN ('S', 'B'))) OR ((NOT shiphead_shipped) AND (pstatus IN ('U', 'B'))))  );
 
-  RETURN _qty;
+  RETURN COALESCE(_qty, 0.0);
 
 END;
-$$ LANGUAGE 'plpgsql' STABLE;
+$$ LANGUAGE plpgsql STABLE;

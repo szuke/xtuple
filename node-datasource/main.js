@@ -10,14 +10,17 @@ _ = require("underscore");
 jsonpatch = require("json-patch");
 SYS = {};
 XT = { };
-var express = require('express');
-var app;
+
+var express = require('express'),
+  async = require("async"),
+  app;
 
 (function () {
   "use strict";
 
   var options = require("./lib/options"),
     authorizeNet,
+    fs = require('fs'),
     schemaSessionOptions = {},
     privSessionOptions = {};
 
@@ -52,9 +55,9 @@ var app;
 
   // Load other xTuple libraries using X.depends above.
   require("backbone-relational");
-  X.relativeDependsPath = X.path.join(X.basePath, "../lib/tools/source");
+  X.relativeDependsPath = X.path.join(process.cwd(), "../lib/tools/source");
   require("../lib/tools");
-  X.relativeDependsPath = X.path.join(X.basePath, "../lib/backbone-x/source");
+  X.relativeDependsPath = X.path.join(process.cwd(), "../lib/backbone-x/source");
   require("../lib/backbone-x");
   Backbone.XM = XM;
 
@@ -91,7 +94,6 @@ var app;
     }
   });
 
-
   XT.session = Object.create(XT.Session);
   XT.session.schemas.SYS = false;
 
@@ -102,7 +104,15 @@ var app;
       "/core-extensions": X.path.join(__dirname, "../enyo-client/extensions/source", extension.name),
       "npm": X.path.join(__dirname, "../node_modules", extension.name)
     };
-    return dirMap[extension.location];
+
+    if (dirMap[extension.location]) {
+      return dirMap[extension.location];
+    } else if (extension.location !== 'not-applicable') {
+      return X.path.join(__dirname, "../..", extension.location);
+    } else {
+      X.err("Cannot get a path for extension: " + extension.name + " Invalid location: " + extension.location);
+      return;
+    }
   };
   var useClientDir = X.useClientDir = function (path, dir) {
     path = path.indexOf("npm") === 0 ? "/" + path : path;
@@ -112,20 +122,37 @@ var app;
   };
   var loadExtensionClientside = function (extension) {
     var extensionLocation = extension.location === "npm" ? extension.location : extension.location + "/source";
+    // add static assets in client folder
     useClientDir(extensionLocation + "/" + extension.name + "/client", X.path.join(getExtensionDir(extension), "client"));
+    // add static assets in public folder
+    useClientDir(extensionLocation + "/" + extension.name + "/public", X.path.join(getExtensionDir(extension), "public"));
   };
-  var loadExtensionRoutes = function (extension) {
-    var manifest = JSON.parse(X.fs.readFileSync(X.path.join(getExtensionDir(extension),
-        "database/source/manifest.js")));
+  var loadExtensionServerside = function (extension) {
+    var packagePath = X.path.join(getExtensionDir(extension), "package.json");
+    var packageJson = X.fs.existsSync(packagePath) ? require(packagePath) : undefined;
+    var manifestPath = X.path.join(getExtensionDir(extension), "database/source/manifest.js");
+    var manifest = X.fs.existsSync(manifestPath) ? JSON.parse(X.fs.readFileSync(manifestPath)) : {};
+    var version = packageJson ? packageJson.version : manifest.version;
+    X.versions[extension.name] = version || "none"; // XXX the "none" is temporary until we have core extensions in npm
+
+    // TODO: be able to define routes in package.json
     _.each(manifest.routes || [], function (routeDetails) {
       var verb = (routeDetails.verb || "all").toLowerCase(),
-        func = require(X.path.join(getExtensionDir(extension),
-          "node-datasource", routeDetails.filename))[routeDetails.functionName];
+        filePath = X.path.join(getExtensionDir(extension), "node-datasource", routeDetails.filename),
+        func = routeDetails.functionName ? require(filePath)[routeDetails.functionName] : null;
 
-      if (_.contains(["all", "get", "post", "patch", "delete"], verb)) {
-        app[verb]('/:org/' + routeDetails.path, func);
+      if (_.contains(["all", "get", "post", "patch", "delete", "use"], verb)) {
+        if (func) {
+          app[verb]('/:org/' + routeDetails.path, func);
+        } else {
+          _.each(X.options.datasource.databases, function (orgValue, orgKey, orgList) {
+            app[verb]("/" + orgValue + "/" + routeDetails.path, express.static(filePath, { maxAge: 86400000 }));
+          });
+        }
+      } else if (verb === "no-route") {
+        func();
       } else {
-        console.log("Invalid verb for extension-defined route " + routeDetails.path);
+        console.log("Invalid verb (" + verb + ") for extension-defined route " + routeDetails.path);
       }
     });
   };
@@ -149,7 +176,7 @@ var app;
           return;
         }
         useClientDir("/client", "../enyo-client/application");
-        _.each(results, loadExtensionRoutes);
+        _.each(results, loadExtensionServerside);
         _.each(results, loadExtensionClientside);
       }
     });
@@ -160,6 +187,34 @@ var app;
   privSessionOptions.database = X.options.datasource.databases[0];
   XT.session.loadSessionObjects(XT.session.PRIVILEGES, privSessionOptions);
 
+  var cacheCount = 0;
+  var cacheShareUsersWarmed = function (err, result) {
+    if (err) {
+      X.log("Share Users Cache warming errors:", err);
+      console.trace("Share Users Cache warming errors:");
+    } else {
+      cacheCount++;
+      if (cacheCount === X.options.datasource.databases.length) {
+        X.log("All Share Users Caches have been warmed.");
+      }
+    }
+  };
+
+  var warmCacheShareUsers = function (dbVal, callback) {
+    var cacheShareUsersOptions = {
+      user: X.options.databaseServer.user,
+      port: X.options.databaseServer.port,
+      hostname: X.options.databaseServer.hostname,
+      database: dbVal,
+      password: X.options.databaseServer.password
+    };
+
+    X.log("Warming Share Users Cache for database " + dbVal + "...");
+    datasource.api.query('select xt.refresh_share_user_cache()', cacheShareUsersOptions, cacheShareUsersWarmed);
+  };
+
+  async.map(X.options.datasource.databases, warmCacheShareUsers);
+
 }());
 
 
@@ -168,11 +223,9 @@ var app;
  */
 
 var packageJson = X.fs.readFileSync("../package.json");
-try {
-  X.version = JSON.parse(packageJson).version;
-} catch (error) {
-
-}
+X.versions = {
+  core: JSON.parse(packageJson).version
+};
 
 /**
  * Module dependencies.
@@ -291,10 +344,13 @@ var conditionalExpressSession = function (req, res, next) {
   // The 'assets' folder and login page are sessionless.
   if ((/^api/i).test(req.path.split("/")[2]) ||
       (/^\/assets/i).test(req.path) ||
-      req.path === "/" ||
-      req.path === "/favicon.ico" ||
-      req.path === "/forgot-password" ||
-      req.path === "/recover") {
+      (/^\/javascript/i).test(req.path) ||
+      (/^\/stylesheets/i).test(req.path) ||
+      req.path === '/' ||
+      req.path === '/favicon.ico' ||
+      req.path === '/forgot-password' ||
+      req.path === '/assets' ||
+      req.path === '/recover') {
 
     next();
   } else {
@@ -361,6 +417,7 @@ app.configure(function () {
 
   // gzip all static files served.
   app.use(express.compress());
+
   // Add a basic view engine that will render files from "views" directory.
   app.set('view engine', 'ejs');
 
@@ -368,7 +425,16 @@ app.configure(function () {
   //app.use(express.logger());
 
   app.use(express.cookieParser());
-  app.use(express.bodyParser());
+  if (X.options.datasource.useBodyParser) {
+    X.warn('Starting insecure Express.js app() server using bodyParser().');
+    X.warn('This should be avoided. Set "useBodyParser: false" in config.js');
+    X.warn('See: https://groups.google.com/forum/#!msg/express-js/iP2VyhkypHo/5AXQiYN3RPcJ');
+
+    app.use(express.bodyParser());
+  } else {
+    app.use(express.json({limit: X.options.datasource.jsonLimit || '1mb'}));
+    app.use(express.urlencoded({limit: X.options.datasource.urlencodeLimit || '1mb'}));
+  }
 
   // Conditionally load session packages. Based off these examples:
   // http://stackoverflow.com/questions/9348505/avoiding-image-logging-in-express-js/9351428#9351428
@@ -391,8 +457,11 @@ require('./oauth2/passport');
  */
 var that = this;
 
-app.use(express.favicon(__dirname + '/views/login/assets/favicon.ico'));
-app.use('/assets', express.static('views/login/assets', { maxAge: 86400000 }));
+/* Static assets */
+app.use(express.favicon(__dirname + '/views/assets/favicon.ico'));
+app.use('/assets', express.static('views/assets', { maxAge: 86400000 }));
+app.use('/javascript', express.static('views/javascript', { maxAge: 86400000 }));
+app.use('/stylesheets', express.static('views/stylesheets', { maxAge: 86400000 }));
 
 app.get('/:org/dialog/authorize', oauth2.authorization);
 app.post('/:org/dialog/authorize/decision', oauth2.decision);
@@ -408,6 +477,11 @@ app.post('/:org/api/v1alpha1/services/:service/:id', routes.restRouter);
 app.all('/:org/api/v1alpha1/resources/:model/:id', routes.restRouter);
 app.all('/:org/api/v1alpha1/resources/:model', routes.restRouter);
 app.all('/:org/api/v1alpha1/resources/*', routes.restRouter);
+
+app.post('/:org/browser-api/v1/services/:service/:id', routes.restBrowserRouter);
+app.all('/:org/browser-api/v1/resources/:model/:id', routes.restBrowserRouter);
+app.all('/:org/browser-api/v1/resources/:model', routes.restBrowserRouter);
+app.all('/:org/browser-api/v1/resources/*', routes.restBrowserRouter);
 
 app.get('/', routes.loginForm);
 app.post('/login', routes.login);
@@ -436,9 +510,7 @@ app.get('/:org/reset-password', routes.resetPassword);
 app.post('/:org/oauth/revoke-token', routes.revokeOauthToken);
 app.all('/:org/vcfExport', routes.vcfExport);
 
-
 // Set up the other servers we run on different ports.
-
 var redirectServer = express();
 redirectServer.get(/.*/, routes.redirect); // RegEx for "everything"
 redirectServer.listen(X.options.datasource.redirectPort, X.options.datasource.bindAddress);
@@ -638,10 +710,10 @@ io.of('/clientsock').authorization(function (handshakeData, callback) {
           data: session.passport.user,
           code: 1,
           debugging: X.options.datasource.debugging,
-          biAvailable: _.isObject(X.options.biServer) && !_.isEmpty(X.options.biServer),
           emailAvailable: _.isString(X.options.datasource.smtpHost) && X.options.datasource.smtpHost !== "",
+          // TODO - printAvailable is deprecated after issues #1806 & #1807 are pulled in.
           printAvailable: _.isString(X.options.datasource.printer) && X.options.datasource.printer !== "",
-          version: X.version
+          versions: X.versions
         });
       callback(callbackObj);
     }, data && data.payload);

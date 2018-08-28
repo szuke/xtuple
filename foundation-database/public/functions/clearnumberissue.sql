@@ -66,7 +66,8 @@ BEGIN
   BEGIN
     _castpnumber  := CAST(pnumber AS INTEGER);
   EXCEPTION WHEN cannot_coerce OR
-                 invalid_text_representation
+                 invalid_text_representation OR
+                 numeric_value_out_of_range
   THEN
     RAISE DEBUG 'clearNumberIssue(%, %) received an unexpected pnumber',
                   psequence, pnumber;

@@ -64,38 +64,30 @@ trailing:true, white:true*/
         {name: "quoteList", kind: "XV.QuoteList"},
         {name: "salesOrderList", kind: "XV.SalesOrderList"},
         {name: "sales_activityList", kind: "XV.ActivityList"}
-      ]
+      ],
+      actions: [
+        {name: "printForm", label: "_printSalesOrderForm".loc(), privilege: "ViewSalesOrders",
+          method: "doPrintForm", isViewMethod: true, notify: false}
+      ],
+      doPrintForm: function (inSender, inEvent) {
+        var doWorkspaceObj = {
+          workspace: "XV.PrintSalesOrderFormWorkspace",
+          allowNew: false,
+          attributes: {
+            key: "SO"
+          }
+        };
+        inSender.bubbleUp("onWorkspace", doWorkspaceObj, inSender);
+      }
     };
 
     if (XT.session.settings.get("DashboardLite")) {
-      // TODO if we commit to this approach it would make sense to move this code into
-      // XT.app.$.postbooks.insertDashboardCharts() or something like it
-      var newActions = [
+      var charts = [
         {name: "salesHistory", label: "_salesHistory".loc(), item: "XV.SalesHistoryTimeSeriesChart"},
-        {name: "bookings", label: "_bookings".loc(), item: "XV.SalesOrderTimeSeriesChart"}
+        {name: "pastDueSalesOrders", label: "_pastDueSalesOrders".loc(), item: "XV.PastDueSalesOrderTimeSeriesChart"},
+        {name: "salesOrder", label: "_salesOrders".loc(), item: "XV.SalesOrderTimeSeriesChart"}
       ];
-      var preExistingDashboard = _.find(XT.app.$.postbooks.modules, function (module) {
-        return module.name === "dashboardLite";
-      });
-
-      if (preExistingDashboard) {
-        preExistingDashboard.panels[0].newActions = _.union(preExistingDashboard.panels[0].newActions, newActions);
-
-      } else {
-        var dashboardModule = {
-          name: "dashboardLite",
-          label: "_dashboard".loc(),
-          panels: [
-            {
-              name: "dashboardLite",
-              kind: "XV.DashboardLite",
-              newActions: newActions
-            }
-          ]
-        };
-
-        XT.app.$.postbooks.insertModule(dashboardModule, 0);
-      }
+      XT.app.$.postbooks.insertDashboardCharts(charts);
     }
 
     XT.app.$.postbooks.insertModule(module, 0);

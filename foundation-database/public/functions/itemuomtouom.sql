@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION itemuomtouom(INTEGER, INTEGER, INTEGER, NUMERIC) RETURNS NUMERIC STABLE AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   RETURN itemuomtouom($1, $2, $3, $4, 'qty');
@@ -11,7 +11,7 @@ CREATE OR REPLACE FUNCTION itemuomtouom(pItemid INTEGER,
                                         pUomidTo INTEGER,
                                         pQtyFrom NUMERIC,
                                         pLocale TEXT) RETURNS NUMERIC STABLE AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _uomidFrom INTEGER;
@@ -23,6 +23,9 @@ DECLARE
   _item      RECORD;
   _conv      RECORD;
   _frac      BOOLEAN := FALSE;
+  _itemNumb  TEXT;
+  _uom1      TEXT;
+  _uom2      TEXT;
 BEGIN
 
   SELECT item_inv_uom_id, item_fractional
@@ -87,9 +90,12 @@ BEGIN
          OR (itemuomconv_from_uom_id=_uomidInv AND itemuomconv_to_uom_id=_uomidFrom))
        AND (itemuomconv_item_id=pItemid));
     IF(NOT FOUND) THEN
-      RAISE EXCEPTION 'A conversion for item_id % from uom_id % to inv_uom_id % was not found.', pItemid, _uomidFrom, _uomidInv;
+      _itemNumb := (SELECT item_number FROM item WHERE item_id=pItemid);
+      _uom1     := (SELECT uom_name FROM uom WHERE uom_id=_uomidFrom);
+      _uom2     := (SELECT uom_name FROM uom WHERE uom_id=_uomidInv);
+      RAISE EXCEPTION 'A conversion for item % from uom % to uom % was not found.', _itemNumb, _uom1, _uom2;
     END IF;
-    IF(_conv.itemuomconv_from_uom_id=_uomidInv) THEN
+    IF(_conv.itemuomconv_to_uom_id=_uomidInv) THEN
       _valueFrom := _conv.itemuomconv_from_value;
       _valueTo := _conv.itemuomconv_to_value;
     ELSE
@@ -110,7 +116,10 @@ BEGIN
          OR (itemuomconv_from_uom_id=_uomidTo AND itemuomconv_to_uom_id=_uomidInv))
        AND (itemuomconv_item_id=pItemid));
     IF(NOT FOUND) THEN
-      RAISE EXCEPTION 'A conversion for item_id % from uom_id % to inv_uom_id % was not found.', pItemid, _uomidTo, _uomidInv;
+      _itemNumb := (SELECT item_number FROM item WHERE item_id=pItemid);
+      _uom1     := (SELECT uom_name FROM uom WHERE uom_id=_uomidFrom);
+      _uom2     := (SELECT uom_name FROM uom WHERE uom_id=_uomidInv);
+      RAISE EXCEPTION 'A conversion for item % from uom % to uom % was not found.', _itemNumb, _uom1, _uom2;
     END IF;
     IF(_conv.itemuomconv_from_uom_id=_uomidInv) THEN
       _valueFrom := _conv.itemuomconv_from_value;

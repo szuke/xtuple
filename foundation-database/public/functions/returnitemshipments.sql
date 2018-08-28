@@ -1,28 +1,29 @@
 CREATE OR REPLACE FUNCTION returnItemShipments(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   RETURN returnItemShipments('SO', $1, 0, CURRENT_TIMESTAMP);
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 
 CREATE OR REPLACE FUNCTION returnItemShipments(INTEGER, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   RETURN returnItemShipments('SO', $1, $2, CURRENT_TIMESTAMP);
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION returnItemShipments(TEXT, INTEGER, INTEGER, TIMESTAMP WITH TIME ZONE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION returnItemShipments(pordertype TEXT, 
+                                               pitemid INTEGER, 
+                                               pItemlocSeries INTEGER, 
+                                               pTimestamp TIMESTAMP WITH TIME ZONE)
+RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pordertype		ALIAS FOR $1;
-  pitemid		ALIAS FOR $2;
-  _itemlocSeries	INTEGER				:= $3;
-  _timestamp		TIMESTAMP WITH TIME ZONE	:= $4;
+  _itemlocSeries	INTEGER := pItemlocSeries;
   _invhistid INTEGER;
   _r RECORD;
 
@@ -41,15 +42,11 @@ BEGIN
       AND  (shipitem_orderitem_id=pitemid))
   LOOP
 
-    SELECT returnShipmentTransaction(_r.shipitem_id, _itemlocSeries, _timestamp) INTO _itemlocSeries;
-
-    IF (_itemlocSeries < 0) THEN
-      RETURN _itemlocSeries;
-    END IF;
+    PERFORM returnShipmentTransaction(_r.shipitem_id, _itemlocSeries, pTimestamp);
 
   END LOOP;
 
   RETURN _itemlocSeries;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

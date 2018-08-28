@@ -1,7 +1,7 @@
 -- Group: taxBreakdown
 -- Name: detail
 -- Notes: 
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 <? if exists("invchead_id") ?>
@@ -212,40 +212,92 @@
           FROM (
             SELECT ROUND(SUM(taxdetail_tax),2) AS tax 
             FROM tax 
-              JOIN calculateTaxDetailSummary('PO', <? value("pohead_id") ?>, 'T') ON (taxdetail_tax_id=tax_id)
+              JOIN calculateTaxDetailSummary('PO', <? value("pohead_id") ?>, 'S') ON (taxdetail_tax_id=tax_id)
             GROUP BY tax_id) data
-         ) as total_tax,
-         (COALESCE(SUM(poitem_freight),0)+COALESCE(pohead_freight,0)) AS freight,
+         ) AS total_tax,
+         (COALESCE(pohead_freight,0)+COALESCE(SUM(poitem_freight),0)) AS freight,
          taxtype_id AS freightTax,
-         0 AS freighttaxamt
+         COALESCE(ROUND(calculateTax(pohead_taxzone_id, getfreighttaxtypeid(), pohead_orderdate, pohead_curr_id, pohead_freight+SUM(poitem_freight)),2),0) AS freighttaxamt
   FROM pohead 
     LEFT OUTER JOIN poitem ON (poitem_pohead_id=pohead_id)
     LEFT OUTER JOIN taxzone ON (pohead_taxzone_id=taxzone_id) 
     LEFT OUTER JOIN taxtype ON (taxtype_id=getFreightTaxTypeId())
   WHERE (poitem_pohead_id=<? value("pohead_id") ?>)
   GROUP BY number, pohead_taxzone_id, curr_id, tax_curr_id,
-         date, pohead_freight, freightTax;
+         date, pohead_freight, freightTax
+<? elseif exists("poitem_id") ?>
+  SELECT pohead_number AS number,
+         pohead_taxzone_id AS taxzone_id,
+         pohead_curr_id AS curr_id,
+         pohead_curr_id AS tax_curr_id,
+         pohead_orderdate AS date,
+         COALESCE(ROUND(SUM(poitem_unitprice * poitem_qty_ordered), 2),0) AS line,
+         (SELECT SUM(tax) AS tax 
+          FROM (
+            SELECT ROUND(SUM(taxdetail_tax),2) AS tax 
+            FROM tax 
+              JOIN calculateTaxDetailSummary('PI', <? value("poitem_id") ?>, 'S') ON (taxdetail_tax_id=tax_id)
+            GROUP BY tax_id) data
+         ) as total_tax,
+         COALESCE(poitem_freight,0) AS freight,
+         taxtype_id AS freightTax,
+         COALESCE(ROUND(calculateTax(pohead_taxzone_id, getfreighttaxtypeid(), pohead_orderdate, pohead_curr_id, poitem_freight),2),0) AS freighttaxamt
+  FROM pohead 
+    LEFT OUTER JOIN poitem ON (poitem_pohead_id=pohead_id)
+    LEFT OUTER JOIN taxzone ON (pohead_taxzone_id=taxzone_id) 
+    LEFT OUTER JOIN taxtype ON (taxtype_id=getFreightTaxTypeId())
+  WHERE (poitem_id=<? value("poitem_id") ?>)
+  GROUP BY number, pohead_taxzone_id, curr_id, tax_curr_id,
+         date, poitem_freight, freightTax
 <? elseif exists("vohead_id") ?>
   SELECT head.*, linetax.*, adjtax.* 
   FROM
   (SELECT 
       vohead_number AS number, vohead_taxzone_id AS taxzone_id, 
       vohead_curr_id AS curr_id, vohead_curr_id AS tax_curr_id, vohead_docdate AS date, 
-      COALESCE(SUM(ROUND(voitem_qty * poitem_unitprice, 2)), 0) AS line, 
-      COALESCE(SUM(voitem_freight), 0) AS freight,  
+      COALESCE(SUM(ROUND((vodist_amount), 2)), 0) AS line, 
+      COALESCE(MIN(vohead_freight)+(SELECT SUM(voitem_freight) FROM voitem WHERE voitem_vohead_id=vohead_id), 0) AS freight,  
+      COALESCE(ROUND(calculateTax(vohead_taxzone_id, getfreighttaxtypeid(), vohead_docdate, baseCurrId(), MIN(vohead_freight)+
+                (SELECT SUM(voitem_freight) FROM voitem WHERE voitem_vohead_id=vohead_id)),2),0) AS freighttaxamt,
+      getAdjustmentTaxTypeId() AS adjTax 
+  FROM vohead 
+  LEFT OUTER JOIN vodist ON (vodist_vohead_id=vohead_id)
+  WHERE (vodist_vohead_id=<? value("vohead_id") ?>) 
+  AND (vodist_tax_id = -1)
+  GROUP BY vohead_id, number, taxzone_id, curr_id, tax_curr_id, date, vohead_freight, adjTax) head, 
+
+  (SELECT SUM(taxhist_tax * -1) AS total_tax  
+   FROM (SELECT SUM(taxhist_tax) AS taxhist_tax FROM voitemtax 
+         LEFT OUTER JOIN voitem ON (taxhist_parent_id = voitem_id) 
+         WHERE (voitem_vohead_id=<? value("vohead_id") ?>)
+          AND taxhist_taxtype_id <> getfreighttaxtypeid()
+         UNION SELECT SUM(taxhist_tax) FROM voheadtax
+         WHERE taxhist_parent_id=<? value("vohead_id") ?>
+          AND taxhist_taxtype_id <> getfreighttaxtypeid()) foo) linetax,
+
+  (SELECT  SUM(taxhist_tax * -1) AS adjtaxamt 
+   FROM vohead 
+    LEFT OUTER JOIN voheadtax ON (taxhist_parent_id = vohead_id 
+                                AND taxhist_taxtype_id = getadjustmenttaxtypeid())
+   WHERE vohead_id=<? value("vohead_id") ?>) adjtax
+<? elseif exists("voitem_id") ?>
+  SELECT head.*, linetax.* 
+  FROM  
+  (SELECT 
+      vohead_number AS number, vohead_taxzone_id AS taxzone_id, 
+      vohead_curr_id AS curr_id, vohead_curr_id AS tax_curr_id, vohead_docdate AS date, 
+      COALESCE(ROUND(voitem_qty * poitem_unitprice, 2), 0) AS line, 
+      COALESCE(voitem_freight, 0) AS freight,  
+      COALESCE(ROUND(SUM(calculateTax(vohead_taxzone_id, getfreighttaxtypeid(), vohead_docdate, baseCurrId(), voitem_freight)),2),0) AS freighttaxamt,
       getAdjustmentTaxTypeId() AS adjTax 
   FROM voitem 
       LEFT OUTER JOIN poitem ON (voitem_poitem_id=poitem_id) 
       LEFT OUTER JOIN vohead ON (voitem_vohead_id=vohead_id) 
-  WHERE (voitem_vohead_id=<? value("vohead_id") ?>) 
-  GROUP BY number, taxzone_id, curr_id, tax_curr_id, date, adjTax) head, 
+  WHERE (voitem_id=<? value("voitem_id") ?>) 
+  GROUP BY number, taxzone_id, curr_id, tax_curr_id, date, line, freight, adjTax) head, 
   (SELECT SUM(voitemtax.taxhist_tax * -1) AS total_tax 
    FROM voitemtax 
     LEFT OUTER JOIN voitem ON (taxhist_parent_id = voitem_id) 
-   WHERE (voitem_vohead_id=<? value("vohead_id") ?>)) linetax,
-  (SELECT  SUM(taxhist_tax * -1) AS adjtaxamt 
-   FROM vohead 
-    LEFT OUTER JOIN voheadtax ON (taxhist_parent_id = vohead_id 
-                                AND taxhist_taxtype_id = getadjustmenttaxtypeid()) 
-   WHERE vohead_id=<? value("vohead_id") ?>) adjtax;
+   WHERE (voitem_id=<? value("voitem_id") ?>)
+   AND taxhist_taxtype_id <> getfreighttaxtypeid()) linetax
 <? endif ?>;

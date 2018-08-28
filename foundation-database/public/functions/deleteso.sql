@@ -1,6 +1,6 @@
 
 CREATE OR REPLACE FUNCTION deleteSo(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSoheadid    ALIAS FOR $1;
@@ -9,8 +9,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION deleteSo(INTEGER, TEXT) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION deleteSo(integer, text) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSoheadid	ALIAS FOR $1;
@@ -22,10 +22,25 @@ DECLARE
   _poStatus     INTEGER := 0;
 
 BEGIN
+-- These elements can be created before cohead record exists
+  DELETE FROM docass WHERE docass_source_id = pSoheadid AND docass_source_type = 'S';
+  DELETE FROM docass WHERE docass_target_id = pSoheadid AND docass_target_type = 'S';
+
+  DELETE FROM comment
+  WHERE ( (comment_source='S')
+   AND (comment_source_id=pSoheadid) );
+
+  DELETE FROM charass
+  WHERE (charass_target_type='SO')
+    AND (charass_target_id=pSoheadid);
+
 -- Get cohead
   SELECT * INTO _r FROM cohead WHERE (cohead_id=pSoheadid);
 
    IF (NOT FOUND) THEN
+     IF (COALESCE(pSonumber,'') != '') THEN
+       _result := releaseSoNumber(pSonumber);
+     END IF;  
      RETURN 0;
    END IF;
 
@@ -67,10 +82,6 @@ BEGIN
 
   DELETE FROM pack
   WHERE (pack_head_id=pSoheadid and pack_head_type = 'SO');
-
-  DELETE FROM charass
-  WHERE (charass_target_type='SO')
-    AND (charass_target_id=pSoheadid);
 
   DELETE FROM cohead
   WHERE (cohead_id=pSoheadid);

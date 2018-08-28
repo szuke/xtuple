@@ -1,10 +1,9 @@
-CREATE OR REPLACE FUNCTION changeWoQty(INTEGER, NUMERIC, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION changeWoQty(pWoid INTEGER,
+                                       pQty NUMERIC,
+                                       changeChildren BOOLEAN) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pWoid ALIAS FOR $1;
-  pQty ALIAS FOR $2;
-  changeChildren ALIAS FOR $3;
   _r RECORD;
   _result INTEGER := 1;
 
@@ -20,7 +19,7 @@ BEGIN
   END IF;
 
   IF (NOT _r.wo_status IN ('O','E','R','I')) THEN
-    RETURN 1;
+      RAISE EXCEPTION 'Work Order is closed [xtuple: changeWoQty, -1]';
   END IF;
 
   IF (_r.wo_status IN ('R','I')) THEN
@@ -45,7 +44,7 @@ BEGIN
     AND  (womatl_itemsite_id=itemsite_id)
     AND  (wo_id=pWoid));
 
-  IF (fetchMetricBool('Routings')) THEN
+  IF fetchMetricBool('Routings') AND packageIsEnabled('xtmfg') THEN
 
       UPDATE xtmfg.wooper
          SET wooper_rntime = CASE WHEN ((booitem_rnqtyper = 0) OR (booitem_invproduomratio = 0)) THEN 0
@@ -61,8 +60,11 @@ BEGIN
   END IF;
 
   IF (changeChildren) THEN
-    _result := ( SELECT MIN(changeWoQty(wo_id, womatl_qtyreq, TRUE))
-                 FROM womatl, wo
+    _result := ( SELECT MIN(changeWoQty(wo_id,
+                                        itemuomtouom(item_id, womatl_uom_id, item_inv_uom_id, womatl_qtyreq),
+                                        TRUE))
+                 FROM womatl JOIN itemsite ON (itemsite_id=womatl_itemsite_id)
+                             JOIN item ON (item_id=itemsite_item_id), wo
                  WHERE ((womatl_itemsite_id=wo_itemsite_id)
                   AND (wo_ordtype='W')
                   AND (womatl_wo_id=pWoid)
@@ -71,4 +73,4 @@ BEGIN
 
   RETURN _result;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

@@ -2,16 +2,9 @@
 CREATE OR REPLACE FUNCTION _packBeforeTrigger() RETURNS TRIGGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  _cmnttypeid INTEGER;
 BEGIN
-  SELECT cmnttype_id INTO _cmnttypeid
-    FROM cmnttype
-    WHERE (cmnttype_name='ChangeLog');
-  IF (FOUND) THEN
-    IF ((TG_OP = 'INSERT') AND (NEW.pack_head_id) IS NOT NULL)THEN
-      PERFORM postComment(_cmnttypeid, 'S', NEW.pack_head_id, 'Added to Packing List Batch');
-    END IF;
+  IF ((TG_OP = 'INSERT') AND (NEW.pack_head_id) IS NOT NULL)THEN
+    PERFORM postComment('ChangeLog', 'S', NEW.pack_head_id, 'Added to Packing List Batch');
   END IF;
   IF ((TG_OP = 'INSERT') OR (TG_OP = 'UPDATE')) THEN
     IF (NEW.pack_shiphead_id IS NOT NULL
@@ -42,9 +35,16 @@ BEGIN
 
   END IF;
 
+  -- Timestamps
+  IF (TG_OP = 'INSERT') THEN
+    NEW.pack_head_created := now();
+  ELSIF (TG_OP = 'UPDATE') THEN
+    NEW.pack_head_lastupdated := now();
+  END IF;
+
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS packBeforeTrigger ON pack;
 CREATE TRIGGER packBeforeTrigger BEFORE INSERT OR UPDATE ON pack FOR EACH ROW EXECUTE PROCEDURE _packBeforeTrigger();

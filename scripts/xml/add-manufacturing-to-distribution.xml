@@ -1,0 +1,14 @@
+<package id        = "add-manufacturing-to-distribution-4.11.3"
+         version   = "4.11.3"
+         developer = "xTuple"
+         descrip   = "load Manufacturing resources"
+         updater   = "2.2.4" >
+
+  <add-prerequisites/>
+  <all-prerequisites/>
+
+  <script file="manufacturing-install.sql" />
+  <script file="manufacturing-upgrade.sql" />
+  <xtmfg-translations/>
+
+</package>

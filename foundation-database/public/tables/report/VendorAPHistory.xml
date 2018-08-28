@@ -3,6 +3,12 @@
  <title>Vendor AP History</title>
  <name>VendorAPHistory</name>
  <description></description>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
  <size>Letter</size>
  <portrait/>
  <topmargin>50</topmargin>
@@ -11,79 +17,28 @@
  <leftmargin>50</leftmargin>
  <querysource>
   <name>head</name>
-  <sql>SELECT vend_number,
-       vend_name,
-       formatDate(&lt;? value("startDate") ?>, 'Earliest') AS startdate,
-       formatDate(&lt;? value("endDate") ?>, 'Latest') AS enddate
+  <sql>SELECT formatDate(&lt;? value('startDate') ?>, 'Earliest') AS startdate,
+       formatDate(&lt;? value('endDate')   ?>, 'Latest')   AS enddate
+&lt;? if exists('vend_id') ?>
+     , vend_number,
+       vend_name
   FROM vendinfo
- WHERE (vend_id=&lt;? value("vend_id") ?>);</sql>
+ WHERE vend_id= &lt;? value('vend_id') ?>
+&lt;? elseif exists('vendtype_id') ?>
+     , vendtype_code AS vend_number,
+      'Vendor Type'  AS vend_name
+  FROM vendtype
+ WHERE vendtype_id = &lt;? value('vendtype_id') ?>
+&lt;? elseif exists('vendtype_pattern') ?>
+     , &lt;? value('vendtype_pattern') ?> AS vend_number,
+       'Vendor Types'                  AS vend_name
+&lt;? endif ?>
+;</sql>
  </querysource>
- <querysource>
+ <querysource loadFromDb="true">
   <name>detail</name>
-  <sql>SELECT 1 AS type, apopen_id, -1 AS applyid,
-       apopen_docdate AS sortdate, apopen_docnumber AS sortnumber,
-       apopen_docnumber AS docnumber,
-       formatBoolYN(apopen_open) AS f_open,
-       CASE WHEN (apopen_doctype='V') THEN text('Voucher')
-            WHEN (apopen_doctype='C') THEN text('C/M')
-            WHEN (apopen_doctype='D') THEN text('D/M')
-            ELSE text('Other')
-       END AS documenttype,
-       apopen_invcnumber AS invoicenumber,
-       apopen_ponumber AS ponumber,
-       formatDate(apopen_docdate) AS f_docdate,
-       formatDate(apopen_duedate) AS f_duedate,
-       formatMoney(apopen_amount) AS f_amount,
-       formatMoney((apopen_amount - apopen_paid)) AS f_balance
-FROM apopen
-WHERE ( (apopen_vend_id=&lt;? value("vend_id") ?>)
- AND (apopen_docdate BETWEEN &lt;? value("startDate") ?> AND &lt;? value("endDate") ?>) )
-
-UNION
-SELECT 2 AS type, apopen_id, apapply_source_apopen_id AS applyid,
-       apopen_docdate AS sortdate, apopen_docnumber AS sortnumber,
-       apapply_source_docnumber AS docnumber,
-       '' AS f_open,
-       CASE WHEN (apapply_source_doctype='C') THEN text('C/M')
-            WHEN (apapply_source_doctype='K') THEN text('Check')
-            ELSE text('Other')
-       END AS documenttype,
-       '' AS invoicenumber,
-       '' AS ponumber,
-       formatDate(apapply_postdate) AS f_docdate,
-       '' AS f_duedate,
-       formatMoney(apapply_amount) AS f_amount,
-       '' AS f_balance
-FROM apapply, apopen
-WHERE ( (apapply_target_apopen_id=apopen_id)
- AND (apapply_vend_id=&lt;? value("vend_id") ?>)
- AND (apopen_vend_id=&lt;? value("vend_id") ?>)
- AND (apopen_docdate BETWEEN &lt;? value("startDate") ?> AND &lt;? value("endDate") ?>) )
-
-UNION
-SELECT 3 AS type, apopen_id, apapply_target_apopen_id AS applyid,
-       apopen_docdate AS sortdate, apopen_docnumber AS sortnumber,
-       apapply_target_docnumber AS docnumber,
-       '' AS f_open,
-       CASE WHEN (apapply_target_doctype='V') THEN text('Voucher')
-            WHEN (apapply_target_doctype='D') THEN text('D/M')
-            ELSE text('Other')
-       END AS documenttype,
-       apopen_invcnumber AS invoicenumber,
-       '' AS ponumber,
-       formatDate(apapply_postdate) AS f_docdate,
-       '' AS f_duedate,
-       formatMoney(apapply_amount) AS f_amount,
-       '' AS f_balance
-FROM apapply, apopen
-WHERE ( (apapply_source_doctype IN ('C', 'K'))
- AND (apapply_source_doctype=apopen_doctype)
- AND (apapply_source_docnumber=apopen_docnumber)
- AND (apapply_vend_id=&lt;? value("vend_id") ?>)
- AND (apopen_vend_id=&lt;? value("vend_id") ?>)
- AND (apopen_docdate BETWEEN &lt;? value("startDate") ?> AND &lt;? value("endDate") ?>) )
-
-ORDER BY sortdate, apopen_id, type;</sql>
+  <mqlgroup>vendorAPHistory</mqlgroup>
+  <mqlname>detail</mqlname>
  </querysource>
  <rpthead>
   <height>162</height>

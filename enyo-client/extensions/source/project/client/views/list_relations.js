@@ -120,18 +120,6 @@ trailing:true, white:true, strict:false*/
       formatExpenses: XV.ProjectList.prototype.formatExpenses
     });
 
-    enyo.kind({
-      name: "XV.ProjectWorkflowListRelations",
-      kind: "XV.WorkflowListRelations",
-      parentKey: "project",
-    });
-
-    enyo.kind({
-      name: "XV.ProjectTypeWorkflowListRelations",
-      kind: "XV.WorkflowListRelations",
-      parentKey: "project"
-    });
-
     // ..........................................................
     // TASK RESOURCE
     //

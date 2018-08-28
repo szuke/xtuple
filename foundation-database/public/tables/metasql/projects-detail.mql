@@ -296,7 +296,7 @@ SELECT quhead_id AS id,
        NULL::text AS prj_owner_username,
        NULL::text AS item,
        NULL::text AS descrip,
-       cust_name AS customer,
+       COALESCE(cust_name, prospect_name) AS customer,
        NULL::text AS contact,
        NULL::text AS city,
        NULL::text AS state,
@@ -318,10 +318,11 @@ SELECT quhead_id AS id,
        2 AS xtindentrole
   FROM quhead
   JOIN prj() ON (quhead_prj_id=prj_id)
-  JOIN custinfo ON (quhead_cust_id=cust_id)
+  LEFT OUTER JOIN custinfo ON (quhead_cust_id=cust_id)
+  LEFT OUTER JOIN prospect ON (quhead_cust_id=prospect_id)
     JOIN quitem ON (quitem_quhead_id = quhead_id)
  WHERE (1=1)
-GROUP BY prj_id, quhead_id, quhead_number, quhead_status, quhead_expire, quhead_freight, quhead_misc, custinfo.cust_name
+GROUP BY prj_id, quhead_id, quhead_number, quhead_status, quhead_expire, quhead_freight, quhead_misc, custinfo.cust_name, prospect_name
 
 UNION ALL
 

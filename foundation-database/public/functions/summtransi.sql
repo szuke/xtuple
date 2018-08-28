@@ -1,5 +1,5 @@
-CREATE OR REPLACE FUNCTION summTransI (INTEGER, DATE, DATE) RETURNS NUMERIC AS '
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION summTransI (INTEGER, DATE, DATE) RETURNS NUMERIC AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pItemsiteid ALIAS FOR $1;
@@ -12,7 +12,7 @@ BEGIN
   SELECT SUM(invhist_invqty) INTO _value
   FROM invhist
   WHERE ((invhist_transdate::DATE BETWEEN pStartDate AND pEndDate)
-   AND (invhist_transtype IN (''IM'', ''IC''))
+   AND (invhist_transtype IN ('IM', 'IC', 'IB', 'IT'))
    AND (invhist_itemsite_id=pItemsiteid));
 
   IF (_value IS NULL) THEN
@@ -22,11 +22,11 @@ BEGIN
   RETURN _value;
 
 END;
-' LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION summTransI(INTEGER, INTEGER) RETURNS NUMERIC AS '
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION summTransI(INTEGER, INTEGER) RETURNS NUMERIC AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pItemsiteid ALIAS FOR $1;
@@ -40,4 +40,4 @@ BEGIN
   RETURN _value;
 
 END;
-' LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

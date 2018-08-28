@@ -112,6 +112,7 @@ select xt.install_js('XT','Orm','xtuple', $$
         "N": ["Cost", "ExtendedPrice", "Hours", "Money", "Number", "Percent",
           "PurchasePrice", "Quantity", "QuantityPer", "SalesPrice", "UnitRatio", "Weight"],
         "S": ["String", "Phone", "Url", "Email"],
+        "T": ["Interval"],
         "U": ["String"], /* e.g. char */
         "X": ["Null"]
       };
@@ -444,6 +445,60 @@ select xt.install_js('XT','Orm','xtuple', $$
   };
 
   /**
+   * Get the ORM property of a path attribute. e.g. `contact.address.city`
+   *
+   * @param orm {Object} The ORM to start from.
+   * @param path {String} The path attribute.
+   * @return {Object} The property of a path attribute.
+   */
+  XT.Orm.getPathProperty = function getPathProperty(orm, path) {
+    var pathParts = path.split('.');
+    if (pathParts.length === 1) {
+      return XT.Orm.getProperty(orm, path);
+    }
+
+    var parentProp = XT.Orm.getProperty(orm, pathParts[0]);
+
+    if (parentProp.toOne || parentProp.toMany){
+      var childType = parentProp.toOne ? parentProp.toOne.type : parentProp.toMany.type;
+      var childOrm = XT.Data.fetchOrm(orm.nameSpace, childType);
+
+      // Recurse into child ORM.
+      pathParts.shift();
+      return XT.Orm.getPathProperty(childOrm, pathParts.join('.'));
+    } else {
+      plv8.elog(ERROR, 'Invalid path query:', path);
+    }
+  };
+
+  /**
+   * Get the ORM of a path attribute. e.g. `contact.address.city` returns `AddressInfo` ORM
+   *
+   * @param orm {Object} The ORM to start from.
+   * @param path {String} The path attribute.
+   * @return {Object} The ORM of a path attribute.
+   */
+  XT.Orm.getPathOrm = function getPathOrm (orm, path) {
+    var pathParts = path.split('.');
+    var parentProp = XT.Orm.getProperty(orm, pathParts[0]);
+
+    if (parentProp.toOne || parentProp.toMany){
+      var childType = parentProp.toOne ? parentProp.toOne.type : parentProp.toMany.type;
+      var childOrm = XT.Data.fetchOrm(orm.nameSpace, childType);
+
+      if (pathParts.length > 1) {
+        // Recurse into child ORM.
+        pathParts.shift();
+        return XT.Orm.getPathOrm(childOrm, pathParts.join('.'));
+      } else {
+        return childOrm;
+      }
+    } else {
+      return orm;
+    }
+  };
+
+  /**
     Create the PostgreSQL view and associated rules for an ORM.
 
     @param {Object} orm
@@ -463,7 +518,8 @@ select xt.install_js('XT','Orm','xtuple', $$
       processOrm,
       schemaName,
       tableName,
-      res;
+      res,
+      uuidColAdded = false;
 
     // ..........................................................
     // METHODS
@@ -587,10 +643,7 @@ select xt.install_js('XT','Orm','xtuple', $$
 
               /* Add inheritance and constraints where applicable */
               if (!isView) {
-                // TODO: We cannot use inheritance.
-                //query = "select xt.add_inheritance('{table}', 'xt.obj'); " +
-                //        "select xt.add_constraint('{tableName}', '{tableName}_obj_uui_id','unique(obj_uuid)', '{schemaName}'); ";
-                query = "select xt.add_constraint('{tableName}', '{tableName}_obj_uui_id','unique(obj_uuid)', '{schemaName}'); ";
+                query = "select xt.add_constraint('{tableName}', '{tableName}_obj_uuid_id','unique(obj_uuid)', '{schemaName}'); ";
                 query = query.replace(/{table}/, orm.table)
                              .replace(/{tableName}/g, tableName)
                              .replace(/{schemaName}/, schemaName || 'public');
@@ -602,6 +655,10 @@ select xt.install_js('XT','Orm','xtuple', $$
             if (prop.attr ||
                (prop.toOne.isNested === undefined && !nkey)) {
               cols.push(col);
+
+              if (alias === 'uuid') {
+                uuidColAdded = true;
+              }
             }
           }
 
@@ -627,7 +684,7 @@ select xt.install_js('XT','Orm','xtuple', $$
           /* handle the nested and natural key cases */
           if (prop.toOne.isNested === true || nkey) {
             col = col.replace('{select}',
-               SELECT.replace('{columns}',  prop.toOne.isNested ? '"' + type + '"' : nkey)
+               SELECT.replace('{columns}',  prop.toOne.isNested ? '"' + type + '"' : '"' + nkey + '"')
                      .replace('{table}',  table)
                      .replace('{conditions}', conditions))
                      .replace('{alias}', alias)
@@ -646,7 +703,7 @@ select xt.install_js('XT','Orm','xtuple', $$
           iorm = Orm.fetch(base.nameSpace, toMany.type, {superUser: true});
           pkey = Orm.primaryKey(iorm);
           nkey = Orm.naturalKey(iorm);
-          column = toMany.isNested ? type : nkey;
+          column = toMany.isNested ? type : '"' + nkey + '"';
           col = 'array({select}) as "{alias}"',
           orderBy2 = 'order by ' + pkey;
 
@@ -659,6 +716,16 @@ select xt.install_js('XT','Orm','xtuple', $$
           } else {
             conditions = toMany.column ? type + '."' + inverse + '" = ' +
               (toMany.isBase ? "t1" : tblAlias) + '.' + toMany.column : 'true';
+
+            /*
+              Document associations have a second key that must be joined on here,
+              to avoid different business objects with the same ID picking up
+              each other's document associations
+            */
+            if (toMany.sourceType) {
+              conditions = conditions + " AND " + type + ".\"sourceType\" = '" +
+                toMany.sourceType + "'";
+            }
           }
 
           /* build select */
@@ -759,35 +826,55 @@ select xt.install_js('XT','Orm','xtuple', $$
     /* do the heavy lifting here. This recursively processes extensions */
     processOrm(orm);
 
+    if (!uuidColAdded) {
+      /*
+       * If `base.table` has an `obj_uuid` column and it wasn't added by the ORM above,
+       * add it here. This is joined on by the Share User Access JOIN.
+       */
+      schemaName = orm.table.indexOf(".") === -1 ? 'public' : orm.table.beforeDot();
+      tableName = orm.table.indexOf(".") === -1 ? orm.table : orm.table.afterDot();
+
+      query = "select count(a.attname) " +
+              "from pg_class c, pg_namespace n, pg_attribute a, pg_type t " +
+              "where c.relname = $1 " +
+              " and n.nspname = $2 " +
+              " and n.oid = c.relnamespace " +
+              " and a.attnum > 0 " +
+              " and a.attname = 'obj_uuid' " +
+              " and a.attrelid = c.oid " +
+              " and a.atttypid = t.oid; ";
+
+      if (DEBUG) {
+        XT.debug('createView check obj_uuid sql2 = ', query);
+        XT.debug('createView values = ', [tableName, schemaName]);
+      }
+      res = plv8.execute(query, [tableName, schemaName]);
+
+      if (res[0].count === 1) {
+        cols.push('t1.obj_uuid AS uuid');
+      }
+    }
+
     /* Validate colums */
     if(!cols.length) { throw new Error('There must be at least one column defined on the map.'); }
 
     /* Build query to create the new view */
-    query = 'create view {name} as select {columns} from {tables} {where} {order};'
-            .replace('{name}', viewName)
-            .replace('{columns}', cols.join(', '))
-            .replace('{tables}', tbls.join(' '))
-            .replace('{where}', clauses.length ? 'where ' + clauses.join(' and ') : '')
-            .replace('{order}', orderBy.length ? 'order by ' + orderBy.join(' , ') : '');
+    var viewSql = 'select {columns} from {tables} {where} {order};'
+                  .replace('{columns}', cols.join(', '))
+                  .replace('{tables}', tbls.join(' '))
+                  .replace('{where}', clauses.length ? 'where ' + clauses.join(' and ') : '')
+                  .replace('{order}', orderBy.length ? 'order by ' + orderBy.join(' , ') : '');
+    query = 'SELECT xt.create_view($1, $2, false);';
 
     if (DEBUG) {
       XT.debug('createView sql = ', query);
     }
-    plv8.execute(query);
+    plv8.execute(query, [viewName, viewSql]);
 
     /* Add comment */
     query = "comment on view {name} is '{comments}'"
             .replace('{name}', viewName)
             .replace('{comments}', comments);
-    plv8.execute(query);
-
-    /* Grant access to xtrole */
-    query = 'grant all on {view} to xtrole'
-            .replace('{view}', viewName);
-
-    if (DEBUG) {
-      XT.debug('createView grant sql = ', query);
-    }
     plv8.execute(query);
 
     /* clean up triggers that we may or may not want to be there */

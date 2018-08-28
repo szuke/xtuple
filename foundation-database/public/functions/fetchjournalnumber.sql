@@ -1,8 +1,8 @@
-CREATE OR REPLACE FUNCTION fetchjournalnumber(TEXT) RETURNS INTEGER AS $$
+DROP FUNCTION IF EXISTS fetchjournalnumber(TEXT);
+CREATE OR REPLACE FUNCTION fetchjournalnumber(pUse TEXT, pDate DATE DEFAULT NULL) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pUse ALIAS FOR $1;
   _number INTEGER;
 
 BEGIN
@@ -12,7 +12,7 @@ BEGIN
   INSERT INTO jrnluse
   (jrnluse_date, jrnluse_number, jrnluse_use)
   VALUES
-  (CURRENT_TIMESTAMP, _number, pUse);
+  (COALESCE(pDate, CURRENT_TIMESTAMP), _number, pUse);
 
   RETURN _number;
   

@@ -3,6 +3,12 @@
  <title>Sample Check Format - 3 Part - MC - Remit - Multi Page</title>
  <name>CheckMultiPage</name>
  <description>Sample Check Format - 3 Part - MC - Uses primary Vendor or address with names: REMIT, Remit, or remit if one exists. Multi-Page.</description>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
  <size>Letter</size>
  <portrait/>
  <topmargin>50</topmargin>
@@ -15,7 +21,7 @@
 checkhead_id, checkhead_number, checkhead_for AS memo,
 formatDate(checkhead_checkdate) AS f_checkdate,
 formatMoney(checkhead_amount) AS f_amount,
-INITCAP(spellAmount(checkhead_amount, curr_id)) AS f_words,
+spellAmount(checkhead_amount, curr_id) AS f_words,
 CASE WHEN(checkhead_void) THEN TEXT('V O I D')
      ELSE TEXT('')
 END AS f_void,
@@ -95,7 +101,7 @@ WHERE ((checkhead_curr_id = curr_id)
   <group>
    <name>Line Detail</name>
    <column>checkdata_page</column>
-   <pagebreak when="after foot" />
+   <pagebreak when="after foot"/>
    <head>
     <height>351</height>
     <field>

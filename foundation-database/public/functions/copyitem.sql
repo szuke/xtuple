@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION copyItem(INTEGER, TEXT) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSItemid ALIAS FOR $1;
@@ -17,15 +17,16 @@ BEGIN
     item_active, item_picklist, item_sold, item_fractional,
     item_maxcost, item_prodweight, item_packweight,
     item_prodcat_id,item_exclusive, item_listprice, item_listcost,
-    item_config, item_comments, item_extdescrip,
+    item_config, item_comments, item_extdescrip, item_warrdays,
     item_upccode, item_inv_uom_id, item_price_uom_id )
   SELECT _itemid, pTItemNumber, item_descrip1, item_descrip2,
          item_classcode_id, item_type,
          item_active, item_picklist, item_sold, item_fractional,
          item_maxcost, item_prodweight, item_packweight,
          item_prodcat_id, item_exclusive, item_listprice, item_listcost,
-         item_config, item_comments, item_extdescrip,
-         item_upccode, item_inv_uom_id, item_price_uom_id
+         item_config, item_comments, item_extdescrip, item_warrdays,
+         CASE WHEN fetchmetricbool('EnforceUniqueBarcodes') THEN NULL::TEXT ELSE item_upccode END,
+         item_inv_uom_id, item_price_uom_id
   FROM item
   WHERE (item_id=pSItemid);
 
@@ -35,7 +36,7 @@ BEGIN
   FROM imageass
   WHERE ((imageass_source_id=pSItemid)
   AND (imageass_source='I'));
-  
+
   INSERT INTO url
   (url_source_id, url_source, url_title, url_url)
   SELECT _itemid, 'I', url_title, url_url
@@ -56,6 +57,12 @@ BEGIN
   FROM charass
   WHERE ( (charass_target_type='I')
    AND (charass_target_id=pSItemid) );
+
+  INSERT INTO locitem
+  ( locitem_location_id, locitem_item_id )
+  SELECT locitem_location_id, _itemid
+  FROM locitem
+  WHERE (locitem_item_id=pSItemid);
 
   FOR _r IN SELECT itemuomconv_id,
                    itemuomconv_from_uom_id,
@@ -89,7 +96,7 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION copyItem(INTEGER, TEXT, BOOLEAN, BOOLEAN, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSItemid ALIAS FOR $1;
@@ -98,13 +105,13 @@ DECLARE
   pCopyBOO ALIAS FOR $4;        -- deprecated - xtmfg-specific
   pCopyCosts ALIAS FOR $5;
 BEGIN
-  RAISE NOTICE 'copyItem(INTEGER, TEXT, BOOLEAN, BOOLEAN, BOOLEAN) has been deprecated.  Use copyItem(INTEGER, TEXT) or copyItem(INTEGER, TEXT, BOOLEAN, BOOLEAN) or a package-specific version instead.';
+  RAISE WARNING 'copyItem(INTEGER, TEXT, BOOLEAN, BOOLEAN, BOOLEAN) has been deprecated.  Use copyItem(INTEGER, TEXT) or copyItem(INTEGER, TEXT, BOOLEAN, BOOLEAN) or a package-specific version instead.';
   RETURN copyItem(pSItemid, pTItemNumber, pCopyBOM, pCopyCosts);
 END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION copyItem(INTEGER, TEXT, BOOLEAN, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSItemid      ALIAS FOR $1;
@@ -139,7 +146,7 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION copyItem(INTEGER, TEXT, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSItemid ALIAS FOR $1;

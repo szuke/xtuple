@@ -11,8 +11,11 @@ SELECT cntct_id,
     ELSE
       4 -- Already merged contact, but still has relationships
   END AS status,
-  cntct.*,crmacct_number,crmacct_name,addr.*, 
- 0 AS xtindentrole,
+  cntct.*,
+  crmacct_number,crmacct_name,
+  addr_id, addr_line1, addr_line2, addr_line3, addr_city, addr_state,
+  addr_postalcode, addr_country, addr_active, addr_notes, addr_number,
+  0 AS xtindentrole,
   CASE
     WHEN (cntctUsed(cntctmrgd_cntct_id)=false) THEN
       'warning' -- Already merged contact

@@ -53,7 +53,7 @@ BEGIN
    AND (target.itemlocdist_itemsite_id=source.itemlocdist_itemsite_id)
    AND (COALESCE(target.itemlocdist_ls_id)=COALESCE(source.itemlocdist_ls_id))
    AND (target.itemlocdist_expiration=source.itemlocdist_expiration)
-   AND (target.itemlocdist_itemlocdist_id=source.itemlocdist_itemlocdist_id)
+   AND (target.itemlocdist_itemlocdist_id=source.itemlocdist_id)
    AND (target.itemlocdist_itemsite_id=itemsite_id)
    AND (source.itemlocdist_id=pItemlocdistid) );
 

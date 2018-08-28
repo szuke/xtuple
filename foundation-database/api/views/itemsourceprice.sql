@@ -4,7 +4,10 @@ SELECT dropIfExists('VIEW', 'itemsourceprice', 'api');
 
 CREATE VIEW api.itemsourceprice AS
   SELECT item.item_number::VARCHAR AS item_number, 
-	 vendinfo.vend_number::VARCHAR AS vendor, 
+         vendinfo.vend_number::VARCHAR AS vendor,
+         itemsrc.itemsrc_vend_item_number AS vendor_item_number, 
+         itemsrc.itemsrc_effective AS effective,
+         itemsrc.itemsrc_expires AS expires,
          itemsrcp.itemsrcp_qtybreak AS qty_break,
          CASE WHEN (itemsrcp.itemsrcp_type='N') THEN 'Nominal'
               ELSE 'Discount'
@@ -45,7 +48,7 @@ CREATE OR REPLACE RULE "_INSERT" AS
     itemsrcp_discntprcnt,
     itemsrcp_fixedamtdiscount) 
     VALUES(
-    getItemSrcId(new.item_number,new.vendor),
+    getItemSrcId(new.item_number,new.vendor,new.vendor_item_number,new.effective,new.expires),
     new.qty_break,
     new.price_per_unit,
     getCurrId(new.currency),
@@ -73,12 +76,12 @@ CREATE OR REPLACE RULE "_UPDATE" AS
                        ELSE 'N' END,
     itemsrcp_discntprcnt=(COALESCE(new.discount_percent, 0.0) / 100.0),
     itemsrcp_fixedamtdiscount=new.discount_fixed_amount
-  WHERE (itemsrcp_itemsrc_id=getItemSrcId(old.item_number,new.vendor)
+  WHERE (itemsrcp_itemsrc_id=getItemSrcId(old.item_number,old.vendor,old.vendor_item_number,old.effective,old.expires)
   AND (itemsrcp_qtybreak=old.qty_break));
 
 CREATE OR REPLACE RULE "_DELETE" AS 
     ON DELETE TO api.itemsourceprice DO INSTEAD
     
   DELETE FROM itemsrcp
-  WHERE (itemsrcp_itemsrc_id=getItemSrcId(old.item_number,old.vendor)
+  WHERE (itemsrcp_itemsrc_id=getItemSrcId(old.item_number,old.vendor,old.vendor_item_number,old.effective,old.expires)
   AND (itemsrcp_qtybreak=old.qty_break));

@@ -1,8 +1,14 @@
 <!DOCTYPE openRPTDef>
 <report>
- <title>Return Edit List</title>
+ <title>Sales Credit Edit List</title>
  <name>CreditMemoEditList</name>
  <description></description>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
  <size>Letter</size>
  <portrait/>
  <topmargin>50</topmargin>
@@ -47,7 +53,7 @@ ORDER BY ordernumber, linenumber;</sql>
    </font>
    <right/>
    <vcenter/>
-   <string>Return Edit List</string>
+   <string>Sales Credit Edit List</string>
   </label>
   <label>
    <rect>

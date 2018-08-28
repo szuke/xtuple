@@ -1,4 +1,4 @@
-create or replace function xt.install_js(name_space text, type_name text, context text, javascript text, is_extension boolean default false) returns void as $$                                
+create or replace function xt.install_js(name_space text, type_name text, context text, javascript text, is_extension boolean default false) returns void as $$
 
   if(!name_space) throw new Error("A name space is required");
   if(!type_name) throw new Error("A type is required");
@@ -18,16 +18,19 @@ create or replace function xt.install_js(name_space text, type_name text, contex
                                                         .replace(/{namespace}/, name_space)
                                                         .replace(/{type}/, type_name)
                                                         .replace(/{context}/, context));
-    
+
     sql = 'update xt.js set '
         + ' js_text = $1 '
         + 'where js_id = $2';
 
-    plv8.execute(sql, [javascript, js.id]);   
-  } else { 
+    plv8.execute(sql, [javascript, js.id]);
+  } else {
     sql = 'insert into xt.js ( js_namespace, js_type, js_context, js_text, js_ext ) values ($1, $2, $3, $4, $5)';
 
-    plv8.execute(sql, [name_space, type_name, context, javascript, is_extension]); 
+    plv8.execute(sql, [name_space, type_name, context, javascript, is_extension]);
   }
-  
+
+  // Reinitialize our plv8 code now that is has changed.
+  plv8.execute("SELECT xt.js_init(false, true)");
+
 $$ language plv8;

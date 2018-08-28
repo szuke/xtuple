@@ -12,6 +12,12 @@
  <parameter default="-1" active="true" listtype="static" type="integer" name="docTypeRC">
   <description></description>
  </parameter>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
  <size>Letter</size>
  <portrait/>
  <topmargin>50</topmargin>
@@ -20,24 +26,24 @@
  <leftmargin>50</leftmargin>
  <querysource>
   <name>head</name>
-  <sql>SELECT aropen_cust_id, aropen_docdate, aropen_duedate, 
+  <sql>SELECT aropen_cust_id, aropen_docdate, aropen_duedate,
 aropen_doctype,
 CASE WHEN (aropen_doctype = 'C' AND ((SELECT COUNT(*) AS num_rows FROM cmhead, aropen WHERE cmhead_number = aropen_ordernumber AND aropen_id = &lt;? value("aropen_id") ?> ) = 0)) THEN 'Misc. Credit Memo'
      WHEN (aropen_doctype = 'D' AND ((SELECT COUNT(*) AS num_rows FROM cmhead, aropen WHERE cmhead_number = aropen_ordernumber AND aropen_id = &lt;? value("aropen_id") ?> ) = 0)) THEN 'Misc. Debit Memo'
      WHEN (aropen_doctype = 'C' AND ((SELECT COUNT(*) AS num_rows FROM cmhead, aropen WHERE cmhead_number = aropen_ordernumber AND aropen_id = &lt;? value("aropen_id") ?> ) > 0)) THEN 'Credit Memo'
      WHEN (aropen_doctype = 'D' AND ((SELECT COUNT(*) AS num_rows FROM cmhead, aropen WHERE cmhead_number = aropen_ordernumber AND aropen_id = &lt;? value("aropen_id") ?> ) > 0)) THEN 'Debit Memo'
-     END AS doc_name, 
-aropen_docnumber, 
-aropen_ordernumber, aropen_journalnumber, 
-aropen_amount, aropen_amount, 
-aropen_paid, 
-(aropen_amount - aropen_paid) AS f_balance, 
-aropen_terms_id, aropen_salesrep_id, 
-aropen_commission_due, 
-aropen_notes, aropen_rsncode_id, aropen_salescat_id, 
-aropen_accnt_id, aropen_curr_id, cust_name, salesrep_name, terms_code, 
-rsncode_code, formatboolyn(aropen_commission_paid) AS commission_paid 
-FROM aropen 
+     END AS doc_name,
+aropen_docnumber,
+aropen_ordernumber, aropen_journalnumber,
+aropen_amount, aropen_amount,
+aropen_paid,
+(aropen_amount - aropen_paid) AS f_balance,
+aropen_terms_id, aropen_salesrep_id,
+aropen_commission_due,
+aropen_notes, aropen_rsncode_id, aropen_salescat_id,
+aropen_accnt_id, aropen_curr_id, cust_name, salesrep_name, terms_code,
+rsncode_code, formatboolyn(aropen_commission_paid) AS commission_paid
+FROM aropen
 JOIN custinfo ON(cust_id = aropen_cust_id)
 LEFT OUTER JOIN salesrep ON(aropen_salesrep_id = salesrep_id)
 LEFT OUTER JOIN terms ON(terms_id = aropen_terms_id)
@@ -50,46 +56,37 @@ WHERE (aropen_id=&lt;? value("aropen_id") ?>)</sql>
 SELECT arapply_id, arapply_source_aropen_id,
      CASE WHEN (arapply_source_doctype = 'C') THEN &lt;? value("creditMemo") ?>
        WHEN (arapply_source_doctype = 'R') THEN &lt;? value("cashdeposit") ?>
-       WHEN (arapply_fundstype='C') THEN &lt;? value("check") ?>
-       WHEN (arapply_fundstype='T') THEN &lt;? value("certifiedCheck") ?>
-       WHEN (arapply_fundstype='M') THEN &lt;? value("masterCard") ?>
-       WHEN (arapply_fundstype='V') THEN &lt;? value("visa") ?>
-       WHEN (arapply_fundstype='A') THEN &lt;? value("americanExpress") ?>
-       WHEN (arapply_fundstype='D') THEN &lt;? value("discoverCard") ?>       
-       WHEN (arapply_fundstype='R') THEN &lt;? value("otherCreditCard") ?>
-       WHEN (arapply_fundstype='K') THEN &lt;? value("cash") ?>
-       WHEN (arapply_fundstype='W') THEN &lt;? value("wireTransfer") ?>
-       WHEN (arapply_fundstype='O') THEN &lt;? value("other") ?>
+       ELSE getFundsTypeName(arapply_fundstype)
      END AS doctype,
      CASE WHEN (arapply_source_doctype IN ('C','R')) THEN arapply_source_docnumber
      WHEN (arapply_source_doctype = 'K') THEN arapply_refnumber
      ELSE 'Other'
      END AS docnumber,
-arapply_postdate, arapply_applied, 
-currConcat(arapply_curr_id) AS currabbr, 
-currToBase(arapply_curr_id, arapply_applied, arapply_postdate) AS baseapplied, 
-'curr' AS arapply_applied_xtnumericrole, 
-'curr' AS baseapplied_xtnumericrole 
-FROM arapply 
-WHERE (arapply_target_aropen_id=&lt;? value("aropen_id") ?> ) 
+arapply_postdate, arapply_applied,
+currConcat(arapply_curr_id) AS currabbr,
+currToBase(arapply_curr_id, arapply_applied, arapply_postdate) AS baseapplied,
+'curr' AS arapply_applied_xtnumericrole,
+'curr' AS baseapplied_xtnumericrole
+FROM arapply
+WHERE (arapply_target_aropen_id=&lt;? value("aropen_id") ?> )
 ORDER BY arapply_postdate
 
 &lt;? elseif exists("docTypeRC") ?>
 
-SELECT arapply_id, arapply_target_aropen_id, 
+SELECT arapply_id, arapply_target_aropen_id,
      CASE WHEN (arapply_target_doctype = 'I') THEN &lt;? value("invoice") ?>
       WHEN (arapply_target_doctype = 'D') THEN &lt;? value("debitMemo") ?>
       WHEN (arapply_target_doctype = 'K') THEN &lt;? value("apcheck") ?>
       WHEN (arapply_target_doctype = 'R') THEN &lt;? value("cashreceipt") ?>
       ELSE &lt;? value("other") ?>
-     END AS doctype, 
-arapply_target_docnumber AS docnumber, 
-arapply_postdate, arapply_applied, 
-currConcat(arapply_curr_id) AS currabbr, 
-currToBase(arapply_curr_id, arapply_applied, arapply_postdate) AS baseapplied, 
-'curr' AS arapply_applied_xtnumericrole, 
-'curr' AS baseapplied_xtnumericrole 
-FROM arapply 
+     END AS doctype,
+arapply_target_docnumber AS docnumber,
+arapply_postdate, arapply_applied,
+currConcat(arapply_curr_id) AS currabbr,
+currToBase(arapply_curr_id, arapply_applied, arapply_postdate) AS baseapplied,
+'curr' AS arapply_applied_xtnumericrole,
+'curr' AS baseapplied_xtnumericrole
+FROM arapply
 WHERE (arapply_source_aropen_id=&lt;? value("aropen_id") ?> )
 ORDER BY arapply_postdate
 
@@ -99,14 +96,14 @@ ORDER BY arapply_postdate
   <height>445</height>
   <field>
    <rect>
-    <x>492.06</x>
-    <y>160.717</y>
+    <x>530</x>
+    <y>160</y>
     <width>196</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <left/>
@@ -118,14 +115,14 @@ ORDER BY arapply_postdate
   </field>
   <field>
    <rect>
-    <x>491.06</x>
-    <y>184.717</y>
+    <x>530</x>
+    <y>185</y>
     <width>195</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <left/>
@@ -137,14 +134,14 @@ ORDER BY arapply_postdate
   </field>
   <field>
    <rect>
-    <x>167.902</x>
-    <y>68.2357</y>
+    <x>140</x>
+    <y>70</y>
     <width>201</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <left/>
@@ -156,14 +153,14 @@ ORDER BY arapply_postdate
   </field>
   <label>
    <rect>
-    <x>34.5239</x>
-    <y>44.9813</y>
+    <x>5</x>
+    <y>45</y>
     <width>126.032</width>
     <height>18.3</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <right/>
@@ -172,14 +169,14 @@ ORDER BY arapply_postdate
   </label>
   <label>
    <rect>
-    <x>18.2</x>
-    <y>184.717</y>
+    <x>-10</x>
+    <y>185</y>
     <width>142</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <right/>
@@ -188,14 +185,14 @@ ORDER BY arapply_postdate
   </label>
   <label>
    <rect>
-    <x>60.5562</x>
-    <y>91.1645</y>
+    <x>30</x>
+    <y>90</y>
     <width>100</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <right/>
@@ -204,14 +201,14 @@ ORDER BY arapply_postdate
   </label>
   <field>
    <rect>
-    <x>169.06</x>
-    <y>233</y>
-    <width>175</width>
+    <x>140</x>
+    <y>235</y>
+    <width>250</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <left/>
@@ -223,14 +220,14 @@ ORDER BY arapply_postdate
   </field>
   <label>
    <rect>
-    <x>399.729</x>
-    <y>91.8</y>
-    <width>85.8</width>
+    <x>430</x>
+    <y>90</y>
+    <width>95.8</width>
     <height>19.6</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <right/>
@@ -239,14 +236,14 @@ ORDER BY arapply_postdate
   </label>
   <label>
    <rect>
-    <x>434.029</x>
-    <y>68.9</y>
-    <width>51.5</width>
+    <x>460</x>
+    <y>70</y>
+    <width>66.5</width>
     <height>18.4</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <right/>
@@ -255,14 +252,14 @@ ORDER BY arapply_postdate
   </label>
   <field>
    <rect>
-    <x>492.06</x>
-    <y>136</y>
+    <x>530</x>
+    <y>135</y>
     <width>216</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <left/>
@@ -274,14 +271,14 @@ ORDER BY arapply_postdate
   </field>
   <field>
    <rect>
-    <x>494.06</x>
-    <y>68.8712</y>
-    <width>247.562</width>
+    <x>535</x>
+    <y>70</y>
+    <width>210</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <left/>
@@ -293,14 +290,14 @@ ORDER BY arapply_postdate
   </field>
   <label>
    <rect>
-    <x>416</x>
+    <x>440</x>
     <y>185</y>
-    <width>67</width>
+    <width>82</width>
     <height>18.2</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <right/>
@@ -309,14 +306,14 @@ ORDER BY arapply_postdate
   </label>
   <label>
    <rect>
-    <x>8.84</x>
-    <y>160.717</y>
+    <x>-20</x>
+    <y>160</y>
     <width>152</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <right/>
@@ -325,14 +322,14 @@ ORDER BY arapply_postdate
   </label>
   <field>
    <rect>
-    <x>169.06</x>
-    <y>160.717</y>
-    <width>176</width>
+    <x>140</x>
+    <y>160</y>
+    <width>210</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <left/>
@@ -344,14 +341,14 @@ ORDER BY arapply_postdate
   </field>
   <field>
    <rect>
-    <x>167.902</x>
-    <y>91.1813</y>
+    <x>140</x>
+    <y>90</y>
     <width>216</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <left/>
@@ -363,14 +360,14 @@ ORDER BY arapply_postdate
   </field>
   <field>
    <rect>
-    <x>167.902</x>
-    <y>44.9813</y>
+    <x>140</x>
+    <y>45</y>
     <width>432.315</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <left/>
@@ -382,14 +379,14 @@ ORDER BY arapply_postdate
   </field>
   <label>
    <rect>
-    <x>17.3649</x>
-    <y>68.2645</y>
+    <x>-15</x>
+    <y>70</y>
     <width>143.191</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <right/>
@@ -398,14 +395,14 @@ ORDER BY arapply_postdate
   </label>
   <label>
    <rect>
-    <x>14.2</x>
-    <y>233</y>
+    <x>-15</x>
+    <y>235</y>
     <width>146</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <right/>
@@ -414,14 +411,14 @@ ORDER BY arapply_postdate
   </label>
   <label>
    <rect>
-    <x>352</x>
-    <y>209</y>
+    <x>390</x>
+    <y>210</y>
     <width>131</width>
     <height>18.8</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <right/>
@@ -430,14 +427,14 @@ ORDER BY arapply_postdate
   </label>
   <field>
    <rect>
-    <x>169.06</x>
-    <y>136</y>
+    <x>140</x>
+    <y>135</y>
     <width>175</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <left/>
@@ -456,7 +453,7 @@ ORDER BY arapply_postdate
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <wordwrap/>
@@ -469,14 +466,14 @@ ORDER BY arapply_postdate
   </field>
   <field>
    <rect>
-    <x>169.06</x>
-    <y>209</y>
+    <x>140</x>
+    <y>210</y>
     <width>177</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <left/>
@@ -488,14 +485,14 @@ ORDER BY arapply_postdate
   </field>
   <label>
    <rect>
-    <x>31.3131</x>
-    <y>136</y>
+    <x>0</x>
+    <y>135</y>
     <width>133</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <right/>
@@ -504,14 +501,14 @@ ORDER BY arapply_postdate
   </label>
   <field>
    <rect>
-    <x>490</x>
-    <y>233</y>
+    <x>530</x>
+    <y>235</y>
     <width>199</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <left/>
@@ -523,14 +520,14 @@ ORDER BY arapply_postdate
   </field>
   <label>
    <rect>
-    <x>422</x>
-    <y>136</y>
-    <width>61.4</width>
+    <x>435</x>
+    <y>135</y>
+    <width>86.4</width>
     <height>17.2</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <right/>
@@ -539,14 +536,14 @@ ORDER BY arapply_postdate
   </label>
   <label>
    <rect>
-    <x>441</x>
-    <y>161</y>
-    <width>42.6</width>
+    <x>470</x>
+    <y>160</y>
+    <width>52.6</width>
     <height>19.9</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <right/>
@@ -555,14 +552,14 @@ ORDER BY arapply_postdate
   </label>
   <field>
    <rect>
-    <x>494.06</x>
-    <y>91.8168</y>
-    <width>242.264</width>
+    <x>535</x>
+    <y>90</y>
+    <width>210</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <left/>
@@ -574,14 +571,14 @@ ORDER BY arapply_postdate
   </field>
   <label>
    <rect>
-    <x>351</x>
-    <y>233</y>
+    <x>390</x>
+    <y>235</y>
     <width>132</width>
     <height>20.8</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <right/>
@@ -590,14 +587,14 @@ ORDER BY arapply_postdate
   </label>
   <field>
    <rect>
-    <x>491.06</x>
-    <y>209</y>
+    <x>530</x>
+    <y>210</y>
     <width>198</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <left/>
@@ -609,14 +606,14 @@ ORDER BY arapply_postdate
   </field>
   <field>
    <rect>
-    <x>169.06</x>
-    <y>184.717</y>
+    <x>140</x>
+    <y>185</y>
     <width>176</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <left/>
@@ -635,7 +632,7 @@ ORDER BY arapply_postdate
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>14</size>
+    <size>10</size>
     <weight>bold</weight>
    </font>
    <left/>
@@ -644,14 +641,14 @@ ORDER BY arapply_postdate
   </label>
   <label>
    <rect>
-    <x>-5.68</x>
-    <y>209</y>
+    <x>-35</x>
+    <y>210</y>
     <width>166</width>
     <height>25</height>
    </rect>
    <font>
     <face>Sans Serif</face>
-    <size>12</size>
+    <size>10</size>
     <weight>normal</weight>
    </font>
    <right/>
@@ -661,7 +658,7 @@ ORDER BY arapply_postdate
   <label>
    <rect>
     <x>9</x>
-    <y>416.355</y>
+    <y>417.355</y>
     <width>100</width>
     <height>20</height>
    </rect>
@@ -676,9 +673,9 @@ ORDER BY arapply_postdate
   </label>
   <label>
    <rect>
-    <x>123</x>
-    <y>416.355</y>
-    <width>100</width>
+    <x>125</x>
+    <y>417.355</y>
+    <width>110</width>
     <height>20</height>
    </rect>
    <font>
@@ -709,7 +706,7 @@ ORDER BY arapply_postdate
   <label>
    <rect>
     <x>351</x>
-    <y>416.355</y>
+    <y>417.355</y>
     <width>100</width>
     <height>20</height>
    </rect>
@@ -725,7 +722,7 @@ ORDER BY arapply_postdate
   <label>
    <rect>
     <x>470</x>
-    <y>416.355</y>
+    <y>417.355</y>
     <width>100</width>
     <height>20</height>
    </rect>
@@ -741,8 +738,8 @@ ORDER BY arapply_postdate
   <label>
    <rect>
     <x>608</x>
-    <y>416.355</y>
-    <width>100</width>
+    <y>418.355</y>
+    <width>120</width>
     <height>19</height>
    </rect>
    <font>

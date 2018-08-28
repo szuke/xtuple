@@ -1,6 +1,6 @@
 
 CREATE OR REPLACE FUNCTION createAccountingPeriod(DATE, DATE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pStartDate ALIAS FOR $1;
@@ -14,7 +14,7 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION createaccountingperiod(DATE, DATE, INTEGER, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pStartDate ALIAS FOR $1;
@@ -89,6 +89,16 @@ BEGIN
             WHERE ( (NOT gltrans_posted)
              AND (gltrans_date BETWEEN pStartDate AND pEndDate) ) LOOP
     PERFORM postIntoTrialBalance(_r.gltrans_sequence);
+  END LOOP;
+
+--  Forward Update Accounting Periods for all G/L Accounts
+  FOR _r IN
+    SELECT DISTINCT ON (trialbal_accnt_id) trialbal_id
+    FROM trialbal
+    JOIN period ON (period_id=trialbal_period_id)
+    ORDER BY trialbal_accnt_id, period_end DESC
+  LOOP
+    PERFORM forwardupdatetrialbalance(_r.trialbal_id);
   END LOOP;
 
   RETURN _periodid;

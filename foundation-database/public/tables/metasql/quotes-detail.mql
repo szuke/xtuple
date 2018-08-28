@@ -5,7 +5,7 @@
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT quhead.*, firstline(quhead_ordercomments) AS notes, quhead_id AS id,
-       calcQuoteAmt(quhead_id) AS ordertotal,
+       calcQuoteAmt(quhead_id, quhead_taxzone_id, quhead_quotedate, quhead_curr_id, quhead_freight, quhead_misc) AS ordertotal,
        'extprice' AS ordertotal_xtnumericrole,
        <? foreach("char_id_text_list") ?>
          charass_alias<? literal("char_id_text_list") ?>.charass_value AS char<? literal("char_id_text_list") ?>,
@@ -29,7 +29,7 @@ SELECT quhead.*, firstline(quhead_ordercomments) AS notes, quhead_id AS id,
   CASE WHEN (quhead_expire < current_date) THEN
     'error'
    END AS quhead_expire_qtforegroundrole
-FROM quhead
+FROM quhead LEFT OUTER JOIN site() ON (quhead_warehous_id=warehous_id)
 <? if not exists("customersOnly") ?>
   LEFT OUTER 
 <? endif ?>
@@ -58,7 +58,8 @@ FROM quhead
   LEFT OUTER JOIN char char_alias<? literal("char_id_date_list") ?> 
              ON (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=char_alias<? literal("char_id_date_list") ?>.char_id)
 <? endforeach ?>
-WHERE (checkQuoteSitePrivs(quhead_id, <? value("warehous_id") ?>))
+WHERE (quhead_warehous_id=warehous_id OR quhead_warehous_id IS NULL)
+      AND (checkQuoteSitePrivs(quhead_id, <? value("warehous_id") ?>))
 <? if exists("owner_username") ?> 
   AND (quhead_owner_username=<? value("owner_username") ?>) 
 <? elseif exists("owner_usr_pattern") ?>

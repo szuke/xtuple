@@ -32,60 +32,40 @@ BEGIN
                      _fullname, FALSE);
   END IF;
 
+  SELECT shipto_num INTO _candidate
+  FROM
+  (SELECT DISTINCT first_value(shipto_num) OVER (PARTITION BY namematch) AS shipto_num, namematch,
+                   COUNT(*) OVER (PARTITION BY namematch) AS count
+     FROM
+   (SELECT shipto_num, UPPER(shipto_name)=UPPER(_fullname) AS namematch
+      FROM shiptoinfo
+      JOIN custinfo ON shipto_cust_id=cust_id
+      JOIN addr ON shipto_addr_id=addr_id
+      WHERE UPPER(cust_name)=UPPER(_custname)
+        AND (COALESCE(shipto_name, '')='' OR COALESCE(_fullname, '')=''
+             OR UPPER(shipto_name)=UPPER(_fullname))
+        AND (COALESCE(addr_country, '')='' OR COALESCE(_country, '')=''
+             OR UPPER(addr_country)=UPPER(_country))
+        AND (COALESCE(addr_state, '')='' OR COALESCE(_state, '')=''
+             OR UPPER(addr_state)=UPPER(_state))
+        AND (COALESCE(addr_city, '')='' OR COALESCE(_city, '')=''
+             OR UPPER(addr_city)=UPPER(_city))
+        AND (COALESCE(addr_postalcode, '')='' OR COALESCE(_postalcode, '')=''
+             OR UPPER(addr_postalcode)=UPPER(_postalcode))
+        AND (COALESCE(addr_line1, '')='' OR COALESCE(_addr1, '')=''
+             OR UPPER(addr_line1)=UPPER(_addr1))
+        AND (COALESCE(addr_line2, '')='' OR COALESCE(_addr2, '')=''
+             OR UPPER(addr_line2)=UPPER(_addr2))
+        AND (COALESCE(addr_line3, '')='' OR COALESCE(_addr3, '')=''
+             OR UPPER(addr_line3)=UPPER(_addr3))
+   ) sub
+  ) sub2
+  WHERE count=1
+  ORDER BY namematch desc
+  LIMIT 1;
 
-  SELECT COUNT(*) INTO _counter
-  FROM custinfo, shiptoinfo, addr
-  WHERE ((UPPER(cust_name)=UPPER(_custname))
-    AND UPPER(shipto_name)=UPPER(_fullname)
-    AND (cust_id=shipto_cust_id)
-    AND (shipto_addr_id=addr_id));
-
-  IF (_counter = 1) THEN
-    SELECT shipto_num INTO _candidate
-    FROM custinfo, shiptoinfo, addr
-    WHERE ((UPPER(cust_name)=UPPER(_custname))
-      AND UPPER(shipto_name)=UPPER(_fullname)
-      AND (cust_id=shipto_cust_id)
-      AND (shipto_addr_id=addr_id));
-
+  IF (FOUND) THEN
     RETURN _candidate;
-
-  ELSE
-
-    SELECT COUNT(*) INTO _counter
-    FROM custinfo, shiptoinfo, addr
-    WHERE ((UPPER(cust_name)=UPPER(_custname))
-      AND (cust_id=shipto_cust_id)
-      AND (shipto_addr_id=addr_id));
-
-    IF (_counter = 1) THEN
-      SELECT shipto_num INTO _candidate
-      FROM custinfo, shiptoinfo, addr
-      WHERE ((UPPER(cust_name)=UPPER(_custname))
-        AND (cust_id=shipto_cust_id)
-        AND (shipto_addr_id=addr_id));
-
-      RETURN _candidate;
-
-    ELSIF (_counter > 1) THEN
-      SELECT shipto_num,
-         CASE WHEN (UPPER(addr_country) = _country) THEN 1 ELSE 0 END +
-         CASE WHEN (UPPER(addr_postalcode) = _postalcode) THEN 1 ELSE 0 END +
-         CASE WHEN (UPPER(addr_state) = _state) THEN 1 ELSE 0 END +
-         CASE WHEN (UPPER(addr_city) = _city) THEN 1 ELSE 0 END +
-         CASE WHEN (UPPER(addr_line3) = _addr3) THEN 1 ELSE 0 END +
-         CASE WHEN (UPPER(addr_line2) = _addr2) THEN 1 ELSE 0 END +
-         CASE WHEN (UPPER(addr_line1) = _addr1) THEN 1 ELSE 0 END
-         AS maxquotient INTO _candidate, _counter
-      FROM custinfo, shiptoinfo, addr
-      WHERE ((UPPER(cust_name)=_custname)
-        AND (cust_id=shipto_cust_id)
-        AND (shipto_addr_id=addr_id))
-      ORDER BY maxquotient desc
-      LIMIT 1;
-
-      RETURN _candidate;
-    END IF;
   END IF;
 
   IF (_generate) THEN

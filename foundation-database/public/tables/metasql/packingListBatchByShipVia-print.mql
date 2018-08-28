@@ -4,7 +4,7 @@
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
-SELECT DISTINCT pack_head_id, pack_head_type, pack_shiphead_id, getSoStatus(cohead_id) AS orderhead_status,
+SELECT DISTINCT pack_head_id, pack_head_type, pack_shiphead_id, cohead_status AS orderhead_status,
        COALESCE(shipform_report_name, findCustomerForm(cohead_cust_id, 'P')) AS packform,
        findCustomerForm(cohead_cust_id, 'L') AS pickform
 FROM pack JOIN cohead ON (cohead_id=pack_head_id)
@@ -13,7 +13,7 @@ FROM pack JOIN cohead ON (cohead_id=pack_head_id)
           LEFT OUTER JOIN shipform ON (shipform_id=cohead_shipform_id)
 WHERE ( (NOT pack_printed)
   AND   (pack_head_type='SO')
-  AND   (getSoStatus(cohead_id) <> 'C') 
+  AND   (cohead_status <> 'C') 
 <? if exists("shipvia") ?>
   AND   (cohead_shipvia=<? value("shipvia") ?>)
 <? endif ?>

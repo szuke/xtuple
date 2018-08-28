@@ -1,8 +1,7 @@
 CREATE OR REPLACE FUNCTION _quheadtrigger() RETURNS "trigger" AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  _cmnttypeid INTEGER;
   _oldHoldType TEXT;
   _newHoldType TEXT;
   _p RECORD;
@@ -32,11 +31,11 @@ BEGIN
         IF ((NEW.quhead_number IS NOT NULL) AND (_numGen='A')) THEN
           RAISE EXCEPTION 'You may not supply a new Quote Number xTuple will generate the number.';
         ELSE
-          IF ((NEW.quhead_number IS NULL) AND (_numGen='O')) THEN
-            SELECT fetchqunumber() INTO NEW.quhead_number;
+          IF ((NEW.quhead_number IS NULL) AND (_numGen='S')) THEN
+            SELECT fetchsonumber() INTO NEW.quhead_number;
           ELSE
             IF (NEW.quhead_number IS NULL) THEN
-              SELECT fetchsonumber() INTO NEW.quhead_number;
+              SELECT fetchqunumber() INTO NEW.quhead_number;
             END IF;
           END IF;
         END IF;
@@ -66,21 +65,34 @@ BEGIN
       SELECT cust_number,cust_usespos,cust_blanketpos,cust_ffbillto,
 	     cust_ffshipto,cust_name,cust_salesrep_id,cust_terms_id,cust_shipvia,
 	     cust_commprcnt,cust_curr_id,cust_taxzone_id,
-  	     addr_line1,addr_line2,addr_line3,addr_city,addr_state,addr_postalcode,addr_country,
+  	     addr.addr_line1,addr.addr_line2,addr.addr_line3,addr.addr_city,addr.addr_state,
+             addr.addr_postalcode,addr.addr_country,
 	     shipto_id,shipto_addr_id,shipto_name,shipto_salesrep_id,shipto_shipvia,
-	     shipto_shipchrg_id,shipto_shipform_id,shipto_commission,shipto_taxzone_id
+	     shipto_shipchrg_id,shipto_shipform_id,shipto_commission,shipto_taxzone_id,
+             shiptoaddr.addr_line1 AS shiptoaddr_line1,shiptoaddr.addr_line2 AS shiptoaddr_line2,
+             shiptoaddr.addr_line3 AS shiptoaddr_line3,shiptoaddr.addr_city AS shiptoaddr_city,
+             shiptoaddr.addr_state AS shiptoaddr_state,
+             shiptoaddr.addr_postalcode AS shiptoaddr_postalcode,
+             shiptoaddr.addr_country AS shiptoaddr_country
       FROM custinfo
         LEFT OUTER JOIN cntct ON (cust_cntct_id=cntct_id)
         LEFT OUTER JOIN addr ON (cntct_addr_id=addr_id)
         LEFT OUTER JOIN shiptoinfo ON ((cust_id=shipto_cust_id) AND shipto_default)
+        LEFT OUTER JOIN addr shiptoaddr ON shipto_addr_id=shiptoaddr.addr_id
       WHERE (cust_id=NEW.quhead_cust_id)
       UNION
       SELECT prospect_number,false,false,true,
 	     true,prospect_name,prospect_salesrep_id,null,null,
 	     null,null,prospect_taxzone_id,
-  	     addr_line1,addr_line2,addr_line3,addr_city,addr_state,addr_postalcode,addr_country,
+  	     addr_line1,addr_line2,addr_line3,addr_city,addr_state,
+             addr_postalcode,addr_country,
 	     null,null,null,null,null,
-	     null,null,null,null
+	     null,null,null,null,
+             null, null,
+             null, null,
+             null,
+             null,
+             null
       FROM prospect
         LEFT OUTER JOIN cntct ON (prospect_cntct_id=cntct_id)
         LEFT OUTER JOIN addr ON (cntct_addr_id=addr_id)
@@ -89,14 +101,22 @@ BEGIN
       SELECT cust_creditstatus,cust_number,cust_usespos,cust_blanketpos,cust_ffbillto,
 	     cust_ffshipto,cust_name,cust_salesrep_id,cust_terms_id,cust_shipvia,
 	     cust_shipchrg_id,cust_shipform_id,cust_commprcnt,cust_curr_id,cust_taxzone_id,
-  	     addr_line1,addr_line2,addr_line3,addr_city,addr_state,addr_postalcode,addr_country,
+  	     addr.addr_line1,addr.addr_line2,addr.addr_line3,addr.addr_city,addr.addr_state,
+             addr.addr_postalcode,addr.addr_country,
 	     shipto_id,shipto_addr_id,shipto_name,shipto_salesrep_id,shipto_shipvia,
-	     shipto_shipchrg_id,shipto_shipform_id,shipto_commission,shipto_taxzone_id INTO _p
-      FROM shiptoinfo,custinfo
+	     shipto_shipchrg_id,shipto_shipform_id,shipto_commission,shipto_taxzone_id,
+             shiptoaddr.addr_line1 AS shiptoaddr_line1, shiptoaddr.addr_line2 AS shiptoaddr_line2, 
+             shiptoaddr.addr_line3 AS shiptoaddr_line3, shiptoaddr.addr_city AS shiptoaddr_city, 
+             shiptoaddr.addr_state AS shiptoaddr_state, 
+             shiptoaddr.addr_postalcode AS shiptoaddr_postalcode, 
+             shiptoaddr.addr_country AS shiptoaddr_country INTO _p
+      FROM custinfo
+        CROSS JOIN shiptoinfo
         LEFT OUTER JOIN cntct ON (cust_cntct_id=cntct_id)
         LEFT OUTER JOIN addr ON (cntct_addr_id=addr_id)
+        JOIN addr shiptoaddr ON shipto_addr_id=shiptoaddr.addr_id
       WHERE ((cust_id=NEW.quhead_cust_id)
-      AND (shipto_id=shipto_id));
+      AND (shipto_id=NEW.quhead_shipto_id));
     END IF;
 
     -- If there is customer data, then we can get to work
@@ -104,7 +124,18 @@ BEGIN
       -- Only check PO number for imports because UI checks when whole quote is saved
       IF (TG_OP = 'INSERT') THEN
           -- Set to defaults if values not provided
-          NEW.quhead_shipto_id		:= COALESCE(NEW.quhead_shipto_id,_p.shipto_id);
+          IF (NEW.quhead_shipto_id IS NULL) THEN
+            NEW.quhead_shipto_id := _p.shipto_id;
+            NEW.quhead_shiptoname := _p.shipto_name;
+            NEW.quhead_shiptoaddress1 := _p.shiptoaddr_line1;
+            NEW.quhead_shiptoaddress2 := _p.shiptoaddr_line2;
+            NEW.quhead_shiptoaddress3 := _p.shiptoaddr_line3;
+            NEW.quhead_shiptocity := _p.shiptoaddr_city;
+            NEW.quhead_shiptostate := _p.shiptoaddr_state;
+            NEW.quhead_shiptozipcode := _p.shiptoaddr_postalcode;
+            NEW.quhead_shiptocountry := _p.shiptoaddr_country;
+          END IF;
+
 	  NEW.quhead_salesrep_id 	:= COALESCE(NEW.quhead_salesrep_id,_p.shipto_salesrep_id,_p.cust_salesrep_id);
           NEW.quhead_terms_id		:= COALESCE(NEW.quhead_terms_id,_p.cust_terms_id);
           NEW.quhead_shipvia		:= COALESCE(NEW.quhead_shipvia,_p.shipto_shipvia,_p.cust_shipvia);
@@ -211,10 +242,9 @@ BEGIN
           _shiptoId := NEW.quhead_shipto_id;
         END IF;
 
-        SELECT * INTO _a
-        FROM shiptoinfo, addr
-        WHERE ((shipto_id=_shiptoId)
-        AND (addr_id=shipto_addr_id));
+        SELECT addr.*, shipto_name INTO _a
+        FROM shiptoinfo JOIN addr ON (addr_id=shipto_addr_id)
+        WHERE (shipto_id=_shiptoId);
 
         NEW.quhead_shiptoname := COALESCE(_p.shipto_name,'');
         NEW.quhead_shiptoaddress1 := COALESCE(_a.addr_line1,'');
@@ -240,15 +270,25 @@ BEGIN
             NEW.quhead_shiptocountry,
             'CHANGEONE') INTO _addrId;
           SELECT shipto_addr_id INTO _shiptoid FROM shiptoinfo WHERE (shipto_id=NEW.quhead_shipto_id);
-           -- If the address passed doesn't match shipto address, then it's something else
-           IF (_shiptoid <> _addrId) THEN
-             NEW.quhead_shipto_id := NULL;
+           -- If the address passed doesn't match shipto address, then something is wrong
+           IF (SELECT NOT
+                      (UPPER(addr1.addr_line1)      = UPPER(COALESCE(addr2.addr_line1, ''))      AND
+                       UPPER(addr1.addr_line2)      = UPPER(COALESCE(addr2.addr_line2, ''))      AND
+                       UPPER(addr1.addr_line3)      = UPPER(COALESCE(addr2.addr_line3, ''))      AND
+                       UPPER(addr1.addr_city)       = UPPER(COALESCE(addr2.addr_city, ''))       AND
+                       UPPER(addr1.addr_state)      = UPPER(COALESCE(addr2.addr_state, ''))      AND
+                       UPPER(addr1.addr_postalcode) = UPPER(COALESCE(addr2.addr_postalcode, '')) AND
+                       UPPER(addr1.addr_country)    = UPPER(COALESCE(addr2.addr_country, '')))
+                 FROM addr addr1, addr addr2
+                WHERE addr1.addr_id=_addrId
+                  AND addr2.addr_id=_shiptoid) THEN
+             RAISE WARNING 'Shipto does not match Shipto address information';
            END IF;
         ELSE
           SELECT quhead_shipto_id INTO _shiptoid FROM quhead WHERE (quhead_id=NEW.quhead_id);
           -- Get the shipto address
             IF (COALESCE(NEW.quhead_shipto_id,-1) <> COALESCE(_shiptoid,-1)) THEN
-            SELECT * INTO _a
+            SELECT addr.*, shipto_name, cntct_phone INTO _a
             FROM shiptoinfo
             LEFT OUTER JOIN cntct ON (shipto_cntct_id=cntct_id)
             LEFT OUTER JOIN addr ON (shipto_addr_id=addr_id)
@@ -272,50 +312,78 @@ BEGIN
         END IF;
       END IF;
     END IF;
+
+    NEW.quhead_billtoaddress1   := COALESCE(NEW.quhead_billtoaddress1, '');
+    NEW.quhead_billtoaddress2   := COALESCE(NEW.quhead_billtoaddress2, '');
+    NEW.quhead_billtoaddress3   := COALESCE(NEW.quhead_billtoaddress3, '');
+    NEW.quhead_billtocity       := COALESCE(NEW.quhead_billtocity, '');
+    NEW.quhead_billtostate      := COALESCE(NEW.quhead_billtostate, '');
+    NEW.quhead_billtozip        := COALESCE(NEW.quhead_billtozip, '');
+    NEW.quhead_billtocountry    := COALESCE(NEW.quhead_billtocountry, '');
+    NEW.quhead_shiptoaddress1   := COALESCE(NEW.quhead_shiptoaddress1, '');
+    NEW.quhead_shiptoaddress2   := COALESCE(NEW.quhead_shiptoaddress2, '');
+    NEW.quhead_shiptoaddress3   := COALESCE(NEW.quhead_shiptoaddress3, '');
+    NEW.quhead_shiptocity       := COALESCE(NEW.quhead_shiptocity, '');
+    NEW.quhead_shiptostate      := COALESCE(NEW.quhead_shiptostate, '');
+    NEW.quhead_shiptozipcode    := COALESCE(NEW.quhead_shiptozipcode, '');
+    NEW.quhead_shiptocountry    := COALESCE(NEW.quhead_shiptocountry, '');
+
   END IF;
 
-  IF ( SELECT (metric_value='t')
-       FROM metric
-       WHERE (metric_name='SalesOrderChangeLog') ) THEN
+  IF (fetchMetricBool('SalesOrderChangeLog')) THEN
+    IF (TG_OP = 'INSERT') THEN
+      PERFORM postComment('ChangeLog', 'Q', NEW.quhead_id, 'Created');
 
---  Cache the cmnttype_id for ChangeLog
-    SELECT cmnttype_id INTO _cmnttypeid
-    FROM cmnttype
-    WHERE (cmnttype_name='ChangeLog');
-    IF (FOUND) THEN
-      IF (TG_OP = 'INSERT') THEN
-        PERFORM postComment(_cmnttypeid, 'Q', NEW.quhead_id, 'Created');
+    ELSIF (TG_OP = 'UPDATE') THEN
 
-      ELSIF (TG_OP = 'UPDATE') THEN
-
-        IF (OLD.quhead_terms_id <> NEW.quhead_terms_id) THEN
-          PERFORM postComment( _cmnttypeid, 'Q', NEW.quhead_id,
-                               ('Terms Changed from "' || oldterms.terms_code || '" to "' || newterms.terms_code || '"') )
-          FROM terms AS oldterms, terms AS newterms
-          WHERE ( (oldterms.terms_id=OLD.quhead_terms_id)
-           AND (newterms.terms_id=NEW.quhead_terms_id) );
-        END IF;
-
-      ELSIF (TG_OP = 'DELETE') THEN
-        DELETE FROM comment
-        WHERE ( (comment_source='Q')
-         AND (comment_source_id=OLD.quhead_id) );
+      IF (OLD.quhead_terms_id <> NEW.quhead_terms_id) THEN
+        PERFORM postComment('ChangeLog', 'Q', NEW.quhead_id, 'Terms',
+                            (SELECT terms_code FROM terms WHERE terms_id=OLD.quhead_terms_id),
+                            (SELECT terms_code FROM terms WHERE terms_id=NEW.quhead_terms_id));
       END IF;
     END IF;
   END IF;
 
-  IF (TG_OP = 'DELETE') THEN
-    RETURN OLD;
-  ELSE
-    RETURN NEW;
+  -- Timestamps
+  IF (TG_OP = 'INSERT') THEN
+    NEW.quhead_created := now();
+  ELSIF (TG_OP = 'UPDATE') THEN
+    NEW.quhead_lastupdated := now();
   END IF;
 
+  RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS quheadtrigger ON quhead;
 CREATE TRIGGER quheadtrigger
-  BEFORE INSERT OR UPDATE OR DELETE
+  BEFORE INSERT OR UPDATE
   ON quhead
   FOR EACH ROW
   EXECUTE PROCEDURE _quheadtrigger();
+
+CREATE OR REPLACE FUNCTION _quheadAfterDeleteTrigger() RETURNS TRIGGER AS $$
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- See www.xtuple.com/CPAL for the full text of the software license.
+DECLARE
+
+BEGIN
+
+  DELETE FROM charass
+  WHERE charass_target_type = 'QU'
+    AND charass_target_id = OLD.quhead_id;
+
+  DELETE FROM comment
+   WHERE ( (comment_source='Q')
+     AND (comment_source_id=OLD.quhead_id) );
+
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT dropIfExists('TRIGGER', 'quheadAfterDeleteTrigger');
+CREATE TRIGGER quheadAfterDeleteTrigger
+  AFTER DELETE
+  ON quhead
+  FOR EACH ROW
+  EXECUTE PROCEDURE _quheadAfterDeleteTrigger();

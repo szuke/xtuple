@@ -1,8 +1,8 @@
 -- Group: gltransactions
 -- Name:  detail
 -- Notes: 
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
--- See www.xtuple.com/CPAL for the full text of the software license.
+--        Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+--        See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT gltrans_id, gltrans_accnt_id,gltrans_date,gltrans_created,gltrans_source,
        gltrans_doctype,gltrans_journalnumber,gltrans_posted,gltrans_username,
@@ -26,6 +26,9 @@ SELECT gltrans_id, gltrans_accnt_id,gltrans_date,gltrans_created,gltrans_source,
        'curr' AS credit_xtnumericrole,
        'curr' AS running_xtnumericrole,
        0 AS running_xtrunningrole,
+
+       0 AS credit_xttotalrole, 0 AS debit_xttotalrole,
+
        gltrans_deleted AS xtdeletedrole,
 <? value("beginningBalance") ?> AS running_xtrunninginit 
 FROM gltrans JOIN accnt ON (gltrans_accnt_id=accnt_id) 
@@ -61,6 +64,12 @@ WHERE (
                          AND endoftime())
   <? endif ?>
 <? endif ?>
+<? if exists("cStartDate") ?>
+    AND gltrans_created::date >= <? value("cStartDate") ?>::date
+<? endif ?>
+<? if exists("cEndDate") ?>
+    AND gltrans_created::date <= <? value("cEndDate") ?>::date
+<? endif ?>
 <? if not exists("showDeleted") ?>
    AND (NOT gltrans_deleted)
 <? endif ?>
@@ -93,6 +102,23 @@ WHERE (
 <? if exists("source") ?>
    AND (gltrans_source=<? value("source") ?>)
 <? endif ?>
+
+<? if exists("transamt") ?>
+AND (abs(gltrans_amount)=COALESCE(NULLIF(<? value("transamt") ?>,'')::NUMERIC, 0.00))
+<? endif ?>
+<? if exists("journalnum") ?>
+AND ((gltrans_journalnumber::text) ~* <? value("journalnum") ?>)
+<? endif ?>
+<? if exists("doctype") ?>
+AND (gltrans_doctype = 'zz'
+<? foreach("doctype") ?>
+OR gltrans_doctype = <? value("doctype") ?>
+<?endforeach ?>
+)
+<? endif ?>
+
+
+
 ) 
 ORDER BY
 <? if exists("beginningBalance") ?>

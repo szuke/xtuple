@@ -89,7 +89,7 @@ BEGIN
     IF NOT EXISTS(SELECT period_id
                   FROM period
                   WHERE (_glseries.glseries_distdate BETWEEN period_start AND period_end)) THEN
-      RAISE EXCEPTION 'Cannot post to nonexistent period (%).', pDistDate;
+      RAISE EXCEPTION 'Cannot post to nonexistent period (%).', _glseries.glseries_distdate;
     END IF;
 
     IF (fetchMetricBool('UseJournals')) THEN

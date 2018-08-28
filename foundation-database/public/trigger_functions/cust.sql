@@ -33,19 +33,28 @@ BEGIN
 
   NEW.cust_number := UPPER(NEW.cust_number);
 
+  -- Timestamps
+  IF (TG_OP = 'INSERT') THEN
+    NEW.cust_created := now();
+  ELSIF (TG_OP = 'UPDATE') THEN
+    NEW.cust_lastupdated := now();
+  END IF;
+
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'custTrigger');
-CREATE TRIGGER custTrigger BEFORE INSERT OR UPDATE ON custinfo
-       FOR EACH ROW EXECUTE PROCEDURE _custTrigger();
+CREATE TRIGGER custTrigger
+  BEFORE INSERT OR UPDATE
+  ON custinfo
+  FOR EACH ROW
+  EXECUTE PROCEDURE _custTrigger();
 
 CREATE OR REPLACE FUNCTION _custAfterTrigger () RETURNS TRIGGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  _cmnttypeid INTEGER;
   _whsId      INTEGER := -1;
 
 BEGIN
@@ -99,101 +108,88 @@ BEGIN
   END IF;
 
   IF (fetchMetricBool('CustomerChangeLog')) THEN
-    SELECT cmnttype_id INTO _cmnttypeid
-      FROM cmnttype
-     WHERE (cmnttype_name='ChangeLog');
+    IF (TG_OP = 'INSERT') THEN
+      PERFORM postComment('ChangeLog', 'C', NEW.cust_id, 'Created');
 
-    IF (_cmnttypeid IS NOT NULL) THEN
-      IF (TG_OP = 'INSERT') THEN
-        PERFORM postComment(_cmnttypeid, 'C', NEW.cust_id, 'Created');
+    ELSIF (TG_OP = 'UPDATE') THEN
 
-      ELSIF (TG_OP = 'UPDATE') THEN
+      IF (OLD.cust_number <> NEW.cust_number) THEN
+        PERFORM postComment('ChangeLog', 'C', NEW.cust_id, 'Number',
+                            OLD.cust_number, NEW.cust_number);
+      END IF;
 
-        IF (OLD.cust_number <> NEW.cust_number) THEN
-          PERFORM postComment( _cmnttypeid, 'C', NEW.cust_id,
-                              ('Number changed from "' || OLD.cust_number ||
-                               '" to "' || NEW.cust_number || '"') );
-        END IF;
+      IF (OLD.cust_name <> NEW.cust_name) THEN
+        PERFORM postComment('ChangeLog', 'C', NEW.cust_id, 'Name',
+                            OLD.cust_name, NEW.cust_name);
+      END IF;
 
-        IF (OLD.cust_name <> NEW.cust_name) THEN
-          PERFORM postComment( _cmnttypeid, 'C', NEW.cust_id,
-                              ('Name changed from "' || OLD.cust_name ||
-                               '" to "' || NEW.cust_name || '"') );
-        END IF;
-
-        IF (OLD.cust_active <> NEW.cust_active) THEN
-          PERFORM postComment(_cmnttypeid, 'C', NEW.cust_id,
+      IF (OLD.cust_active <> NEW.cust_active) THEN
+        PERFORM postComment('ChangeLog', 'C', NEW.cust_id,
                               CASE WHEN NEW.cust_active THEN 'Activated'
                                    ELSE 'Deactivated' END);
-        END IF;
-
-        IF (OLD.cust_discntprcnt <> NEW.cust_discntprcnt) THEN
-          PERFORM postComment(_cmnttypeid, 'C', NEW.cust_id,
-                              ('Discount changed from "' ||
-                               formatprcnt(OLD.cust_discntprcnt) || '%" to "' ||
-                               formatprcnt(NEW.cust_discntprcnt) || '%"') );
-        END IF;
-
-        IF (OLD.cust_creditlmt <> NEW.cust_creditlmt) THEN
-          PERFORM postComment(_cmnttypeid, 'C', NEW.cust_id,
-                              ('Credit Limit changed from ' || formatMoney(OLD.cust_creditlmt) ||
-                               ' to ' || formatMoney(NEW.cust_creditlmt)));
-        END IF;
-
-        IF (OLD.cust_creditstatus <> NEW.cust_creditstatus) THEN
-          PERFORM postComment(_cmnttypeid, 'C', NEW.cust_id,
-                              ('Credit Status Changed from "' ||
-                               CASE OLD.cust_creditstatus
-                                    WHEN 'G' THEN 'In Good Standing'
-                                    WHEN 'W' THEN 'Credit Warning'
-                                    WHEN 'H' THEN 'Credit Hold'
-                                    ELSE 'Unknown/Error'
-                               END || '" to "' ||
-                               CASE NEW.cust_creditstatus
-                                    WHEN 'G' THEN 'In Good Standing'
-                                    WHEN 'W' THEN 'Credit Warning'
-                                    WHEN 'H' THEN 'Credit Hold'
-                                    ELSE 'Unknown/Error'
-                               END || '"') );
-        END IF;
-
-        IF (OLD.cust_custtype_id <> NEW.cust_custtype_id) THEN
-          PERFORM postComment(_cmnttypeid, 'C', NEW.cust_id,
-                              ('Customer type changed from "' ||
-                               (SELECT custtype_code FROM custtype
-                                 WHERE custtype_id = OLD.cust_custtype_id) || '" to "' ||
-                               (SELECT custtype_code FROM custtype
-                                 WHERE custtype_id = NEW.cust_custtype_id) || '"') );
-        END IF;
-
-        IF (COALESCE(OLD.cust_gracedays,-1) <> COALESCE(NEW.cust_gracedays,-1)) THEN
-          PERFORM postComment(_cmnttypeid, 'C', NEW.cust_id,
-                              ('Grace Days changed from "' ||
-                               COALESCE(TEXT(OLD.cust_gracedays), 'Default') ||
-                               '" to "' ||
-                               COALESCE(TEXT(NEW.cust_gracedays), 'Default') || '"'));
-        END IF;
-
-        IF (OLD.cust_terms_id <> NEW.cust_terms_id) THEN
-          PERFORM postComment(_cmnttypeid, 'C', NEW.cust_id,
-                              ('Terms changed from "' ||
-                               (SELECT terms_code FROM terms
-                                 WHERE terms_id = OLD.cust_terms_id) || '" to "' ||
-                               (SELECT terms_code FROM terms
-                                 WHERE terms_id = NEW.cust_terms_id) || '"'));
-        END IF;
-
       END IF;
+
+      IF (OLD.cust_discntprcnt <> NEW.cust_discntprcnt) THEN
+        PERFORM postComment('ChangeLog', 'C', NEW.cust_id, 'Discount %',
+                            formatprcnt(OLD.cust_discntprcnt), formatprcnt(NEW.cust_discntprcnt));
+      END IF;
+
+      IF (OLD.cust_creditlmt <> NEW.cust_creditlmt) THEN
+        PERFORM postComment('ChangeLog', 'C', NEW.cust_id, 'Credit Limit',
+                            formatMoney(OLD.cust_creditlmt), formatMoney(NEW.cust_creditlmt));
+      END IF;
+
+      IF (OLD.cust_creditstatus <> NEW.cust_creditstatus) THEN
+        PERFORM postComment('ChangeLog', 'C', NEW.cust_id, 'Credit Status',
+                            CASE OLD.cust_creditstatus
+                                    WHEN 'G' THEN 'In Good Standing'
+                                    WHEN 'W' THEN 'Credit Warning'
+                                    WHEN 'H' THEN 'Credit Hold'
+                                    ELSE 'Unknown/Error'
+                            END,
+                            CASE NEW.cust_creditstatus
+                                    WHEN 'G' THEN 'In Good Standing'
+                                    WHEN 'W' THEN 'Credit Warning'
+                                    WHEN 'H' THEN 'Credit Hold'
+                                    ELSE 'Unknown/Error'
+                            END);
+      END IF;
+
+      IF (OLD.cust_custtype_id <> NEW.cust_custtype_id) THEN
+        PERFORM postComment('ChangeLog', 'C', NEW.cust_id, 'Customer Type',
+                            (SELECT custtype_code FROM custtype
+                             WHERE custtype_id = OLD.cust_custtype_id),
+                            (SELECT custtype_code FROM custtype
+                             WHERE custtype_id = NEW.cust_custtype_id));
+      END IF;
+
+      IF (COALESCE(OLD.cust_gracedays,-1) <> COALESCE(NEW.cust_gracedays,-1)) THEN
+        PERFORM postComment('ChangeLog', 'C', NEW.cust_id, 'Grace Days',
+                            COALESCE(TEXT(OLD.cust_gracedays), 'Default'),
+                            COALESCE(TEXT(NEW.cust_gracedays), 'Default'));
+      END IF;
+
+      IF (OLD.cust_terms_id <> NEW.cust_terms_id) THEN
+        PERFORM postComment('ChangeLog', 'C', NEW.cust_id, 'Terms',
+                            (SELECT terms_code FROM terms
+                              WHERE terms_id = OLD.cust_terms_id),
+                            (SELECT terms_code FROM terms
+                              WHERE terms_id = NEW.cust_terms_id));
+      END IF;
+
     END IF;
   END IF;
 
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'custAfterTrigger');
-CREATE TRIGGER custAfterTrigger AFTER INSERT OR UPDATE ON custinfo
-       FOR EACH ROW EXECUTE PROCEDURE _custAfterTrigger();
+CREATE TRIGGER custAfterTrigger
+  AFTER INSERT OR UPDATE
+  ON custinfo
+  FOR EACH ROW
+  EXECUTE PROCEDURE _custAfterTrigger();
 
 CREATE OR REPLACE FUNCTION _custinfoBeforeDeleteTrigger() RETURNS TRIGGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
@@ -208,11 +204,14 @@ BEGIN
 
   RETURN OLD;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'custinfoBeforeDeleteTrigger');
-CREATE TRIGGER custinfoBeforeDeleteTrigger BEFORE DELETE ON custinfo
-       FOR EACH ROW EXECUTE PROCEDURE _custinfoBeforeDeleteTrigger();
+CREATE TRIGGER custinfoBeforeDeleteTrigger
+  BEFORE DELETE
+  ON custinfo
+  FOR EACH ROW
+  EXECUTE PROCEDURE _custinfoBeforeDeleteTrigger();
 
 CREATE OR REPLACE FUNCTION _custinfoAfterDeleteTrigger() RETURNS TRIGGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
@@ -252,17 +251,23 @@ BEGIN
   DELETE FROM docass WHERE docass_source_id = OLD.cust_id AND docass_source_type = 'C';
   DELETE FROM docass WHERE docass_target_id = OLD.cust_id AND docass_target_type = 'C';
 
+  DELETE
+  FROM charass
+  WHERE charass_target_type = 'C'
+    AND charass_target_id = OLD.cust_id;
+
   IF (fetchMetricBool('CustomerChangeLog')) THEN
-    PERFORM postComment(cmnttype_id, 'C', OLD.cust_id,
-                        ('Deleted "' || OLD.cust_number || '"'))
-      FROM cmnttype
-     WHERE (cmnttype_name='ChangeLog');
+    PERFORM postComment('ChangeLog', 'C', OLD.cust_id,
+                        ('Deleted "' || OLD.cust_number || '"'));
   END IF;
 
   RETURN OLD;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'custinfoAfterDeleteTrigger');
-CREATE TRIGGER custinfoAfterDeleteTrigger AFTER DELETE ON custinfo
-       FOR EACH ROW EXECUTE PROCEDURE _custinfoAfterDeleteTrigger();
+CREATE TRIGGER custinfoAfterDeleteTrigger
+  AFTER DELETE
+  ON custinfo
+  FOR EACH ROW
+  EXECUTE PROCEDURE _custinfoAfterDeleteTrigger();

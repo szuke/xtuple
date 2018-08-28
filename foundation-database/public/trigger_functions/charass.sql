@@ -40,21 +40,23 @@ select dropIfExists('TRIGGER', 'charassTrigger');
 CREATE TRIGGER charassTrigger AFTER INSERT OR UPDATE ON charass FOR EACH ROW EXECUTE PROCEDURE _charassTrigger();
 
 CREATE OR REPLACE FUNCTION _charassHistoryTrigger () RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   IF(TG_OP = 'DELETE') THEN
     IF (OLD.charass_target_type = 'INCDT') THEN
-      INSERT INTO incdthist
-            (incdthist_incdt_id, incdthist_descrip)
-      VALUES(OLD.charass_target_id,
-             ('Characteristic ' || 
-               COALESCE((SELECT char_name 
-                           FROM char
+      IF (EXISTS(SELECT 1 fROM incdt WHERE incdt_id=OLD.charass_target_id)) THEN
+        INSERT INTO incdthist
+              (incdthist_incdt_id, incdthist_descrip)
+        VALUES(OLD.charass_target_id,
+              ('Characteristic ' ||
+               COALESCE((SELECT char_name
+                          FROM char
                           WHERE (char_id=OLD.charass_char_id)), '')
-              || ' Deleted: "' || 
-              COALESCE(OLD.charass_value,'')
-              || '"') );
+               || ' Deleted: "' ||
+               COALESCE(OLD.charass_value,'')
+               || '"') );
+      END IF;
     END IF;
     RETURN OLD;
   ELSIF (NEW.charass_target_type = 'INCDT') THEN
@@ -92,4 +94,26 @@ $$ LANGUAGE 'plpgsql';
 
 select dropIfExists('TRIGGER', 'charassHistoryTrigger');
 CREATE TRIGGER charassHistoryTrigger BEFORE INSERT OR UPDATE OR DELETE ON charass FOR EACH ROW EXECUTE PROCEDURE _charassHistoryTrigger();
+
+CREATE OR REPLACE FUNCTION _charassuniquetrigger()
+  RETURNS trigger AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+-- See www.xtuple.com/CPAL for the full text of the software license.
+BEGIN
+
+  IF (TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND OLD.charass_char_id <> NEW.charass_char_id)) THEN
+    IF EXISTS(SELECT true FROM charass
+                          WHERE ((charass_char_id=NEW.charass_char_id)
+                            AND (charass_target_id=NEW.charass_target_id)
+                            AND (charass_target_type=NEW.charass_target_type))) AND
+                            (SELECT char_unique FROM char where char_id=NEW.charass_char_id) THEN
+      RAISE EXCEPTION 'This characteristic has been defined as unique.  You cannot use this characteristic more than once in this context. [xtuple: charassUniqueTrigger, -1]';
+    END IF;
+  END IF;  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+select dropIfExists('TRIGGER', 'charassuniquetrigger');
+CREATE TRIGGER charassuniquetrigger BEFORE INSERT OR UPDATE ON charass FOR EACH ROW EXECUTE PROCEDURE _charassuniquetrigger();
 

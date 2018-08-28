@@ -1,9 +1,8 @@
-CREATE OR REPLACE FUNCTION selectDueItemsForPayment(INTEGER, INTEGER) RETURNS INTEGER AS $$
+CREATE OR REPLACE FUNCTION selectDueItemsForPayment(pVendid INTEGER,
+                                                    pBankaccntid INTEGER) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pVendid ALIAS FOR $1;
-  pBankaccntid ALIAS FOR $2;
   _currid INTEGER;
 
 BEGIN
@@ -24,4 +23,4 @@ BEGIN
   RETURN 1;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

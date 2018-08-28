@@ -1,9 +1,8 @@
 -- Group: backlog
 -- Name: detail
--- Notes:
--- Notes:
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
--- See www.xtuple.com/CPAL for the full text of the software license.
+-- Notes: 
+--        Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+--        See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT
        cohead_id, coitem_id, *, currconcat(cohead_curr_id) AS currAbbr,
@@ -31,16 +30,18 @@ SELECT
        0 AS coitem_qtyreturned_xttotalrole,
        0 AS qtybalance_xttotalrole,
        0 AS baseextprice_xttotalrole,
+       0 AS extpricebalance_xttotalrole,
        0 AS baseextpricebalance_xttotalrole
 FROM (
   SELECT
          0 AS xtindentrole,
          -- dummy coitem record
          -1            AS coitem_id,        NULL::INTEGER AS coitem_cohead_id,
-         -1            AS coitem_linenumber,NULL::INTEGER AS coitem_itemsite_id,
+         ''            AS coitem_linenumber,NULL::INTEGER AS coitem_itemsite_id,
          NULL::TEXT    AS coitem_status,    NULL::DATE    AS coitem_scheddate,
          getSoSchedDate(cohead_id) AS sort_scheddate,
          NULL::DATE    AS coitem_promdate,  NULL::NUMERIC AS coitem_qtyord,
+         NULL::NUMERIC AS qtyonhand,
          NULL::NUMERIC AS coitem_unitcost,  NULL::NUMERIC AS coitem_price,
          NULL::NUMERIC AS coitem_custprice, NULL::NUMERIC AS coitem_qtyshipped,
          NULL::INTEGER AS coitem_order_id,  NULL::TEXT    AS coitem_memo,
@@ -61,11 +62,20 @@ FROM (
          NULL::NUMERIC AS coitem_qtyreserved,
          NULL::INTEGER AS coitem_subnumber,
          cohead.*,
-         cust_number, cust_name,
+         cust_number, cust_name, saletype_descr,
          NULL::TEXT AS item_number, NULL::TEXT AS item_descrip1,
          NULL::TEXT AS itemdescription,
          NULL::TEXT AS uom_name,
          NULL::TEXT AS warehous_code,
+<? foreach("char_id_text_list") ?>
+       charass_alias<? literal("char_id_text_list") ?>.charass_value AS char<? literal("char_id_text_list") ?>,
+<? endforeach ?>
+<? foreach("char_id_list_list") ?>
+       charass_alias<? literal("char_id_list_list") ?>.charass_value AS char<? literal("char_id_list_list") ?>,
+<? endforeach ?>
+<? foreach("char_id_date_list") ?>
+       charass_alias<? literal("char_id_date_list") ?>.charass_value::date AS char<? literal("char_id_date_list") ?>,
+<? endforeach ?>
          NULL::NUMERIC AS qtybalance,
          NULL::NUMERIC AS baseunitprice,
          NULL::NUMERIC AS extprice,
@@ -75,6 +85,7 @@ FROM (
 
   FROM coitem JOIN cohead ON (cohead_id=coitem_cohead_id)
               JOIN custinfo ON (cust_id=cohead_cust_id)
+              LEFT OUTER JOIN saletype ON (saletype_id=cohead_saletype_id)
               JOIN itemsite ON (itemsite_id=coitem_itemsite_id)
               JOIN site() ON (warehous_id=itemsite_warehous_id)
               JOIN item ON (item_id=itemsite_item_id)
@@ -112,6 +123,9 @@ FROM (
   <? endif ?>
   <? if exists("endDate") ?>
     AND  (cohead_orderdate <= <? value("endDate") ?>)
+  <? endif ?>
+  <? if exists("saletype_id") ?>
+    AND  (cohead_saletype_id = <? value("saletype_id") ?>)
   <? endif ?>
   <? if exists("startDateSched") ?>
     AND  (coitem_scheddate >= <? value("startDateSched") ?>)
@@ -175,10 +189,12 @@ FROM (
   SELECT 
          1 AS xtindentrole,
          coitem_id,        coitem_cohead_id,
-         coitem_linenumber,coitem_itemsite_id,
+         formatsolinenumber(coitem_id) AS coitem_linenumber,
+         coitem_itemsite_id,
          coitem_status,    coitem_scheddate,
          getSoSchedDate(cohead_id) AS sort_scheddate,
          coitem_promdate,  coitem_qtyord,
+         itemsite_qtyonhand AS qtyonhand,
          coitem_unitcost,  coitem_price,
          coitem_custprice, coitem_qtyshipped,
          coitem_order_id,  coitem_memo,
@@ -199,10 +215,19 @@ FROM (
          coitem_qtyreserved,
          coitem_subnumber,
          cohead.*,
-         cust_number, cust_name,
+         cust_number, cust_name, '' AS saletype_descr,
          item_number, item_descrip1, (item_descrip1 || ' ' || item_descrip2) AS itemdescription,
          uom_name,
          warehous_code,
+<? foreach("char_id_text_list") ?>
+       charass_alias<? literal("char_id_text_list") ?>.charass_value AS char<? literal("char_id_text_list") ?>,
+<? endforeach ?>
+<? foreach("char_id_list_list") ?>
+       charass_alias<? literal("char_id_list_list") ?>.charass_value AS char<? literal("char_id_list_list") ?>,
+<? endforeach ?>
+<? foreach("char_id_date_list") ?>
+       charass_alias<? literal("char_id_date_list") ?>.charass_value::date AS char<? literal("char_id_date_list") ?>,
+<? endforeach ?>
          noNeg(coitem_qtyord - coitem_qtyshipped + coitem_qtyreturned) AS qtybalance,
          currtobase(cohead_curr_id, coitem_price, cohead_orderdate) AS baseunitprice,
          round((coitem_qtyord * coitem_qty_invuomratio) *
@@ -216,6 +241,7 @@ FROM (
 
   FROM coitem JOIN cohead ON (cohead_id=coitem_cohead_id)
               JOIN custinfo ON (cust_id=cohead_cust_id)
+              LEFT OUTER JOIN saletype ON (saletype_id=cohead_saletype_id)
               JOIN itemsite ON (itemsite_id=coitem_itemsite_id)
               JOIN site() ON (warehous_id=itemsite_warehous_id)
               JOIN item ON (item_id=itemsite_item_id)
@@ -253,6 +279,9 @@ FROM (
   <? endif ?>
   <? if exists("endDate") ?>
     AND  (cohead_orderdate <= <? value("endDate") ?>)
+  <? endif ?>
+  <? if exists("saletype_id") ?>
+    AND  (cohead_saletype_id = <? value("saletype_id") ?>)
   <? endif ?>
   <? if exists("startDateSched") ?>
     AND  (coitem_scheddate >= <? value("startDateSched") ?>)
@@ -312,4 +341,4 @@ FROM (
         )
 
 ) AS dummy
-ORDER BY cohead_number, xtindentrole, coitem_linenumber;
+ORDER BY sort_scheddate, cohead_number, xtindentrole, coitem_linenumber;

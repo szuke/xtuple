@@ -24,8 +24,7 @@ BEGIN
     ELSIF ( NOT _check.recv_posted) THEN
       RETURN -2;
     ELSIF ( (_check.recv_invoiced)
-         OR (_check.recv_vohead_id IS NOT NULL)
-         OR (_check.recv_voitem_id IS NOT NULL) ) THEN
+         OR (_check.recv_vohead_id IS NOT NULL) ) THEN
       RETURN -3;
     ELSIF (pqty >= _check.recv_qty) THEN
       RETURN -4;
@@ -45,7 +44,7 @@ BEGIN
          recv_vend_item_number, recv_vend_item_descrip, recv_vend_uom,
          recv_purchcost, recv_purchcost_curr_id, recv_duedate, pqty, 
          recv_recvcost, recv_recvcost_curr_id, COALESCE(pfreight,0), recv_freight_curr_id, recv_date, 
-         ROUND(recv_value/recv_qty * pqty, 2), TRUE, FALSE, NULL, NULL,
+         ROUND(recv_value/recv_qty * pqty, 2), TRUE, FALSE, NULL, recv_voitem_id,
          recv_trans_usr_name, recv_notes, recv_gldistdate, precvid
   FROM recv
   WHERE (recv_id=precvid);

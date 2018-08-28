@@ -1,8 +1,3 @@
-/*jshint trailing:true, white:true, indent:2, strict:true, curly:true,
-  immed:true, eqeqeq:true, forin:true, latedef:true,
-  newcap:true, noarg:true, undef:true */
-/*global XT:true, describe:true, it:true, require:true, __dirname:true, before:true, console:true */
-
 /* note: much of this test consists of SETUP for testing tax handling.
  * bank reconciliation when cash-based taxation is enabled
  * is supposed to create taxpay and corresponding gltrans records.
@@ -14,11 +9,12 @@
 
 // TODO: add use of sltrans as well as gltrans
 var _    = require("underscore"),
-  assert = require('chai').assert,
-  path   = require('path');
+  assert = require('chai').assert;
 
 (function () {
   "use strict";
+
+  var dblib = require('./dblib');
 
   // TODO: implement a real metasql parser; this one is stupid and minimal
   var mqlToSql = function (query, params) {
@@ -36,12 +32,10 @@ var _    = require("underscore"),
     return result;
   };
 
-  describe('test bank reconciliation functions', function () {
+  describe('bank reconciliation test', function () {
 
-    var loginData = require("../lib/login_data.js").data,
-      datasource = require('../../../xtuple/node-datasource/lib/ext/datasource').dataSource,
-      config = require(path.join(__dirname, "../../node-datasource/config.js")),
-      creds  = _.extend({}, config.databaseServer, {database: loginData.org}),
+    var datasource  = dblib.datasource,
+      creds  = dblib.adminCred,
       start  = new Date(),
       testTag = 'bankrec test ' + start.toLocaleTimeString(),
       closeEnough = 0.006,
@@ -54,7 +48,7 @@ var _    = require("underscore"),
       cashrcpt,
       cm,
       cobmisc = {},
-      cohead, coitem,
+      cohead = {}, coitem = {},
       invchead = {},
       pohead, poitem,
       recvid,
@@ -62,22 +56,23 @@ var _    = require("underscore"),
       vomisc = { amount: 67.89 },
       votax,
       voitemtax,
-      vomisctax,
       wasCashBasedTax,
       bankRecItemSql = 'SELECT * FROM bankrecitem '             +
                        ' WHERE bankrecitem_bankrec_id=<? value("brid") ?>'   +
                        '   AND bankrecitem_source=<? value("src") ?>'        +
                        '   AND bankrecitem_source_id <? literal("srcid") ?>;',
       toggleCheckSql = "SELECT toggleBankRecCleared(<? value('bankrecid') ?>,'GL'," +
-                       "  gltrans_id, checkhead_curr_rate, checkhead_amount)"  +
+                       "  gltrans_id, checkhead_curr_rate, gltrans_amount)"    +
                        "  AS result"                                           +
                        " FROM checkhead JOIN gltrans ON (gltrans_doctype='CK'" +
                        "                    AND gltrans_misc_id=checkhead_id)" +
                        " WHERE checkhead_id=<? value('checkid') ?>"            +
                        "   AND gltrans_amount > 0;",
       postCheckSql  = "SELECT postCheck(<? value('id') ?>, NULL) AS result;",
-      checkCheckSql = "SELECT *,"                                              +
-                     "       bankrecitem_amount/bankrecitem_curr_rate AS base" +
+      checkCheckSql = "SELECT gltrans_rec, gltrans_amount, bankrec_posted,"    +
+                     "       bankrecitem_amount*bankrecitem_curr_rate AS mul," +
+                     "       bankrecitem_amount/bankrecitem_curr_rate AS div," +
+                     "      fetchMetricValue('CurrencyExchangeSense') AS sense" +
                      " FROM gltrans"                                           +
                      " JOIN bankrecitem ON (gltrans_id=bankrecitem_source_id)" +
                      " JOIN bankrec    ON (bankrecitem_bankrec_id=bankrec_id)" +
@@ -121,10 +116,47 @@ var _    = require("underscore"),
                          "       ON taxhist_id=taxpay_taxhist_id"              +
                          " WHERE cohist_itemsite_id=<? value('itemsite') ?>"   +
                          "   AND cohist_ordernumber=<? value('cohead') ?>;",
-      lastGltransCount = 0
+      lastGltransCount = 0,
+      coheadId,
+      coitemId
     ;
 
     // set up /////////////////////////////////////////////////////////////////
+
+    it("needs fiscal year, open accounting periods, exchange rates, etc.", function (done) {
+      var sql = "DO $$"
+              + "DECLARE"
+              + "  _result INTEGER;"
+              + "  _rec RECORD;"
+              + "BEGIN"
+              + "  _result := createFiscalYear(NULL::DATE, 'M'::TEXT);"
+              + "  FOR _rec IN SELECT period_id FROM period"
+              + "               WHERE period_closed"
+              + "                 AND period_end > CURRENT_DATE"
+              + "               ORDER BY period_end DESC LOOP"
+              + "    _result := openAccountingPeriod(_rec.period_id);"
+              + "  END LOOP;"
+              + "  FOR _rec IN SELECT max(curr_expires) AS max, curr_id"
+              + "                FROM curr_rate"
+              + "               WHERE curr_expires < current_date"
+              + "                 AND curr_id NOT IN (SELECT curr_id"
+              + "                                       FROM curr_rate"
+              + "                                      WHERE current_date BETWEEN curr_effective AND curr_expires)"
+              + "               GROUP BY curr_id LOOP"
+              + "    INSERT INTO curr_rate (curr_id, curr_effective, curr_rate,"
+              + "                           curr_expires"
+              + "      ) SELECT _rec.curr_id, _rec.max + interval '1 day', avg(curr_rate),"
+              + "               date_trunc('year', current_date) + interval '1 year' - interval '1 day'"
+              + "          FROM curr_rate"
+              + "         WHERE curr_id = _rec.curr_id"
+              + "         GROUP BY curr_id;"
+              + "   END LOOP;"
+              + "END $$ LANGUAGE plpgsql;";
+      datasource.query(sql, creds, function (err, res) {
+        assert.isNull(err, 'no exception from creating periods');
+        done();
+      });
+    });
 
     it("patches tax accts to ensure tax handling /can/ work", function (done) {
       var sql = "UPDATE tax SET tax_dist_accnt_id ="            +
@@ -170,41 +202,6 @@ var _    = require("underscore"),
       });
     });
 
-    it('ensures there is an open accounting period', function (done) {
-      var sql = 'SELECT period_id, period_closed, period_freeze'        +
-                '  FROM period'                                         +
-                ' WHERE CURRENT_DATE BETWEEN period_start AND period_end;'
-                ;
-      datasource.query(sql, creds, function (err, res) {
-        var sql;
-        if (res.rowCount !== 1) {
-          sql = mqlToSql("INSERT INTO period ("                         +
-                "  period_closed, period_freeze, period_name,"          +
-                "  period_quarter, period_start,"                       +
-                "  period_end, period_number"                           +
-                ") VALUES (FALSE, FALSE, <? value('testTag') ?>,"       +
-                "  EXTRACT(QUARTER FROM DATE CURRENT_DATE),"            +
-                "  DATE_TRUNC(MONTH, CURRENT_DATE),"                    +
-                "  DATE_TRUNC(MONTH, CURRENT_DATE) + '1 month',"        +
-                "  EXTRACT(month FROM DATE CURRENT_DATE)"               +
-                ") RETURNING period_id;",
-                { testTag: testTag });
-        } else if (res.rows[0].period_closed === true) {
-          sql = mqlToSql('SELECT openAccountingPeriod(<? value("period") ?>)' +
-                         ' AS period_id;', { period: res.rows[0].period_id });
-        }
-        if (sql) {
-          datasource.query(sql, creds, function (err, res) {
-            assert.equal(res.rowCount, 1);
-            assert(res.period_id >= 0);
-            done();
-          });
-        } else {
-          done();
-        }
-      });
-    });
-
     it('turns on cash-based tax handling if necessary', function (done) {
       var sql = "SELECT fetchMetricBool('CashBasedTax') AS result;";
       datasource.query(sql, creds, function (err, res) {
@@ -223,31 +220,35 @@ var _    = require("underscore"),
     });
 
     it('creates a purchase order', function (done) {
-      var sql = mqlToSql("INSERT INTO pohead (pohead_number, pohead_status,"   +
-                         "  pohead_agent_username, pohead_vend_id,"            +
-                         "  pohead_taxzone_id, pohead_orderdate,"              +
-                         "  pohead_curr_id, pohead_saved, pohead_comments,"    +
-                         "  pohead_warehous_id,"                               +
-                         "  pohead_printed, pohead_terms_id,pohead_taxtype_id" +
-                         ") SELECT fetchPoNumber(), 'U',"                      +
-                         "    CURRENT_USER, vend_id,"                          +
-                         "    vend_taxzone_id, CURRENT_DATE,"                  +
-                         "    vend_curr_id, false, <? value('testTag') ?>,"    +
-                         "    (SELECT MIN(warehous_id) FROM whsinfo WHERE "    +
-                         "     warehous_active AND NOT warehous_transit),"     +
-                         "    false, vend_terms_id, taxass_taxtype_id"         +
-                         "   FROM vendinfo"                                    +
-                         "   JOIN taxass ON vend_taxzone_id=taxass_taxzone_id" +
-                         "   JOIN taxrate ON taxass_tax_id=taxrate_tax_id"     +
-                         "  WHERE vend_active"                                 +
-                         "    AND (taxrate_percent > 0 OR taxrate_amount > 0)" +
-                         " LIMIT 1 RETURNING *;",
-                         { testTag: testTag });
-      datasource.query(sql, creds, function (err, res) {
-        assert.equal(res.rowCount, 1);
-        pohead = res.rows[0];
-        done();
-      });
+      function runQuery (query) {
+        assert.isNotNull(query);
+        datasource.query(query, creds, function (err, res) {
+          assert.equal(res.rowCount, 1);
+          pohead = res.rows[0];
+          done();
+        });
+      };
+      var sql = dblib.parseMetasql("INSERT INTO pohead (pohead_number, pohead_status,"
+                                +  "  pohead_agent_username, pohead_vend_id,"
+                                +  "  pohead_taxzone_id, pohead_orderdate,"
+                                +  "  pohead_curr_id, pohead_saved, pohead_comments,"
+                                +  "  pohead_warehous_id,"
+                                +  "  pohead_printed, pohead_terms_id,pohead_taxtype_id"
+                                +  ") SELECT fetchPoNumber(), 'U',"
+                                +  "    CURRENT_USER, vend_id,"
+                                +  "    vend_taxzone_id, CURRENT_DATE,"
+                                +  "    vend_curr_id, false, <? value('testTag') ?>,"
+                                +  "    (SELECT MIN(warehous_id) FROM whsinfo WHERE "
+                                +  "     warehous_active AND NOT warehous_transit),"
+                                +  "    false, vend_terms_id, taxass_taxtype_id"
+                                +  "   FROM vendinfo"
+                                +  "   JOIN taxass ON vend_taxzone_id=taxass_taxzone_id"
+                                +  "   JOIN taxrate ON taxass_tax_id=taxrate_tax_id"
+                                +  "  WHERE vend_active"
+                                +  "    AND (taxrate_percent > 0 OR taxrate_amount > 0)"
+                                +  " LIMIT 1 RETURNING *;",
+                           { testTag: testTag },
+                           runQuery);
     });
 
     it('creates a purchase order item', function (done) {
@@ -535,109 +536,70 @@ var _    = require("underscore"),
       });
     });
 
-    it('creates a sales order', function (done) {
-      var sql = mqlToSql("INSERT INTO cohead (cohead_number, cohead_cust_id,"  +
-                 "    cohead_orderdate, cohead_packdate,"                      +
-                 "    cohead_shipto_id, cohead_shiptoname,"                    +
-                 "    cohead_shiptoaddress1, cohead_shiptoaddress2,"           +
-                 "    cohead_shiptoaddress3, cohead_shiptocity,"               +
-                 "    cohead_shiptostate, cohead_shiptozipcode,"               +
-                 "    cohead_shiptocountry, cohead_ordercomments,"             +
-                 "    cohead_salesrep_id, cohead_terms_id, cohead_holdtype,"   +
-                 "    cohead_freight, cohead_calcfreight,"                     +
-                 "    cohead_shipto_cntct_id, cohead_shipto_cntct_first_name," +
-                 "    cohead_shipto_cntct_last_name,"                          +
-                 "    cohead_curr_id, cohead_taxzone_id, cohead_taxtype_id,"   +
-                 "    cohead_saletype_id,"                                     +
-                 "    cohead_shipvia,"                                         +
-                 "    cohead_shipchrg_id,"                                     +
-                 "    cohead_shipzone_id, cohead_shipcomplete"                 +
-                 ") SELECT fetchSoNumber(), cust_id,"                          +
-                 "    CURRENT_DATE, CURRENT_DATE,"                             +
-                 "    shipto_id, shipto_name,"                                 +
-                 "    addr_line1, addr_line2,"                                 +
-                 "    addr_line3, addr_city,"                                  +
-                 "    addr_state, addr_postalcode,"                            +
-                 "    addr_country, <? value('testTag') ?>,"                   +
-                 "    cust_salesrep_id, cust_terms_id, 'N',"                   +
-                 "    0, TRUE,"                                                +
-                 "    cntct_id, cntct_first_name, cntct_last_name,"            +
-                 "    cust_curr_id, shipto_taxzone_id, taxass_taxtype_id,"     +
-                 "    (SELECT saletype_id FROM saletype"                       +
-                 "      WHERE saletype_code='REP'),"                           +
-                 "    (SELECT MIN(shipvia_code) FROM shipvia),"                +
-                 "    (SELECT shipchrg_id FROM shipchrg"                       +
-                 "      WHERE shipchrg_name='ADDCHARGE'),"                     +
-                 "    shipto_shipzone_id, FALSE"                               +
-                 "  FROM custinfo"                                             +
-                 "  JOIN shiptoinfo ON cust_id=shipto_cust_id"                 +
-                 "                 AND shipto_active"                          +
-                 "  JOIN taxass ON shipto_taxzone_id=taxass_taxzone_id"        +
-                 "  JOIN taxrate ON taxass_tax_id=taxrate_tax_id"              +
-                 "  LEFT OUTER JOIN addr ON shipto_addr_id=addr_id"            +
-                 "  LEFT OUTER JOIN cntct ON shipto_cntct_id=cntct_id"         +
-                 " WHERE cust_active"                                          +
-                 "   AND cust_preferred_warehous_id > 0"                       +
-                 "   AND (taxrate_percent > 0 OR taxrate_amount > 0)"          +
-                 " LIMIT 1 RETURNING *;",
-                 { testTag: testTag });
-      datasource.query(sql, creds, function (err, res) {
+    // Create a Sales Order
+    it("should create a sales order", function (done) {
+     var callback = function (result) {
+        assert.isNotNull(result);
+        assert.operator(result.cohead_id, '>', 0, 'cohead_id is greater than 0');
+        cohead.cohead_id = result.cohead_id;
+        done();
+      };
+
+      dblib.createSalesOrder(callback);
+    });
+
+    // Create a line item
+    it("should add a line item to the SO",function (done) {
+      var callback = function (result) {
+        coitem.coitem_id = result;
+        done();
+      };
+
+      var params = {
+        coheadId: cohead.cohead_id,
+        itemNumber: "BTRUCK1",
+        whCode: "WH1",
+        qty: 1
+      };
+
+      var sql = "SELECT itemsite_qtyonhand, itemsite_id, itemsite_item_id FROM itemsite WHERE itemsite_id = getitemsiteid($1, $2);",
+        options = _.extend({}, creds, { parameters: [ params.whCode, params.itemNumber ]});
+
+      datasource.query(sql, options, function (err, res) {
+        assert.isNull(err);
         assert.equal(res.rowCount, 1);
-        cohead = res.rows[0];
-        assert(cohead.cohead_id > 0);
+        assert.operator(res.rows[0].itemsite_id, ">", 0);
+
+        coitem.coitem_itemsite_id = res.rows[0].itemsite_id;
+        coitem.item_id = res.rows[0].itemsite_item_id;
+        params.itemsiteId = res.rows[0].itemsite_id;
+
+        dblib.createSalesOrderLineItem(params, callback);
+      });
+    });
+
+    it("should update and store cohead info",function (done) {
+      var sql = "UPDATE cohead SET cohead_taxzone_id = (SELECT taxzone_id FROM taxzone LIMIT 1) WHERE cohead_id=$1 RETURNING cohead_number, cohead_freight;",
+        options = _.extend({}, creds, { parameters: [ cohead.cohead_id ]});
+
+      datasource.query(sql, options, function (err, res) {
+        assert.isNull(err);
+        assert.equal(res.rowCount, 1);
+
+        cohead.cohead_number = res.rows[0].cohead_number;
+        cohead.cohead_freight = res.rows[0].cohead_freight;
+
         done();
       });
     });
 
-    it('creates a sales order item', function (done) {
-      var sql = mqlToSql("INSERT INTO coitem (coitem_cohead_id,"              +
-               "    coitem_linenumber, coitem_scheddate, coitem_itemsite_id," +
-               "    coitem_taxtype_id, coitem_status,"                        +
-               "    coitem_qtyord, coitem_qtyshipped,  coitem_qtyreturned,"   +
-               "    coitem_unitcost, coitem_price, coitem_custprice,"         +
-               "    coitem_qty_uom_id, coitem_price_uom_id,"                  +
-               "    coitem_qty_invuomratio, coitem_price_invuomratio"         +
-               ") SELECT cohead_id,"                                          +
-               "    1, CURRENT_DATE + itemsite_leadtime, itemsite_id,"        +
-               "    getItemTaxType(item_id, cohead_taxzone_id), 'O',"         +
-               "    123, 0, 0,"                                               +
-               "    itemcost(itemsite_id), item_listprice, item_listprice,"   +
-               "    item_price_uom_id, item_price_uom_id,"                    +
-               "    1, 1"                                                     +
-               "  FROM cohead"                                                +
-               "  JOIN custinfo ON cohead_cust_id=cust_id"                    +
-               "  JOIN itemsite"                                              +
-               "        ON cust_preferred_warehous_id=itemsite_warehous_id"   +
-               "  JOIN item ON (itemsite_item_id=item_id)"                    +
-               " WHERE cohead_id=<? value('coheadid') ?>"                     +
-               "   AND itemsite_active"                                       +
-               "   AND item_active"                                           +
-               "   AND item_sold"                                             +
-               "   AND NOT item_exclusive"                                    +
-               "   AND NOT item_exclusive"                                    +
-               "   AND ("                                                     +
-               "         SELECT itemprice_price"                              +
-               "         FROM itemipsprice("                                  +
-               "           item_id,"                                          +
-               "           cohead_cust_id,"                                   +
-               "           cohead_shipto_id,"                                 +
-               "           123,"                                              +
-               "           item_price_uom_id,"                                +
-               "           item_price_uom_id,"                                +
-               "           basecurrid(),"                                     +
-               "           CURRENT_DATE,"                                     +
-               "           CURRENT_DATE,"                                     +
-               "           itemsite_warehous_id"                              +
-               "         )"                                                   +
-               "       ) > 0 "                                                +
-               "   AND item_price_uom_id=item_inv_uom_id"                     +
-/* simplify!*/ "   AND item_type != 'K'"                                      +
-               " LIMIT 1 RETURNING *;",
-                 { coheadid: cohead.cohead_id, testTag: testTag });
-      datasource.query(sql, creds, function (err, res) {
+    it("should update coitem info",function (done) {
+      var sql = "UPDATE coitem SET coitem_taxtype_id = (SELECT getItemTaxType($1, (SELECT taxzone_id FROM taxzone LIMIT 1))) WHERE coitem_id=$2;",
+        options = _.extend({}, creds, { parameters: [ coitem.item_id, coitem.coitem_id ]});
+
+      datasource.query(sql, options, function (err, res) {
+        assert.isNull(err);
         assert.equal(res.rowCount, 1);
-        coitem = res.rows[0];
-        assert(coitem.coitem_id > 0);
         done();
       });
     });
@@ -1058,7 +1020,8 @@ var _    = require("underscore"),
       datasource.query(sql, creds, function (err, res) {
         var recorded = _.filter(res.rows,
                                 function (v) { return v.gltrans_rec; });
-        assert.equal(res.rows.length, recorded.length, 'AND(gltrans_rec) should be true');
+        assert.equal(res.rows.length, recorded.length,
+                     'AND(gltrans_rec) should be true');
         done();
       });
     });
@@ -1208,8 +1171,15 @@ var _    = require("underscore"),
         assert.equal(res.rowCount, 1);
         assert.isFalse(res.rows[0].gltrans_rec);
         assert.isFalse(res.rows[0].bankrec_posted);
-        assert.closeTo(Math.abs(res.rows[0].gltrans_amount), res.rows[0].base,
-                       closeEnough);
+
+        var sense = res.rows[0].sense;
+        if (sense === 1) {
+          assert.closeTo(Math.abs(res.rows[0].gltrans_amount), res.rows[0].div,
+                         closeEnough);
+        } else {
+          assert.closeTo(Math.abs(res.rows[0].gltrans_amount), res.rows[0].mul,
+                         closeEnough);
+        }
         done();
       });
     });
@@ -1237,7 +1207,7 @@ var _    = require("underscore"),
       });
     });
 
-    it('confirms the bank adjustment was /not/ posted but is cleared', function (done) {
+    it('confirms the bank adjustment is !posted, is cleared', function (done) {
       var sql = mqlToSql(bankAdjCheckSql, { bankadjid: bankadj.bankadj_id});
       datasource.query(sql, creds, function (err, res) {
         assert.equal(res.rowCount, 1);
@@ -1271,7 +1241,8 @@ var _    = require("underscore"),
       datasource.query(sql, creds, function (err, res) {
         var recorded = _.filter(res.rows,
                                 function (v) { return v.gltrans_rec; });
-        assert.equal(res.rows.length, recorded.length, 'AND(gltrans_rec) should be true');
+        assert.equal(res.rows.length, recorded.length,
+                     'AND(gltrans_rec) should be true');
         done();
       });
     });
@@ -1408,6 +1379,7 @@ var _    = require("underscore"),
       } else {
         datasource.query(sql, creds, function (err, res) {
           assert.isNull(err);
+          console.log(res);
           done();
         });
       }

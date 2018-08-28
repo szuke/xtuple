@@ -3,6 +3,12 @@
  <title>Unposted Returns For Purchase Order</title>
  <name>UnpostedReturnsForPO</name>
  <description></description>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
  <size>Letter</size>
  <portrait/>
  <topmargin>100</topmargin>
@@ -23,7 +29,8 @@
        formatQty(poitem_qty_received) AS f_poitem_qty_received,
        formatQty(poitem_qty_returned) AS f_poitem_qty_returned,
        formatQty(SUM(COALESCE(poreject_qty, 0))) AS f_poreject_qty,
-       rjctcode_code
+       rjctcode_code,
+       poreject_rma
 FROM poreject LEFT OUTER JOIN rjctcode ON (poreject_rjctcode_id=rjctcode_id),
      poitem LEFT OUTER JOIN
      ( itemsite JOIN item
@@ -41,15 +48,16 @@ GROUP BY
         poitem_qty_ordered,
         poitem_qty_received,
         poitem_qty_returned,
-        rjctcode_code
+        rjctcode_code,
+        poreject_rma
 ORDER BY poitem_linenumber;</sql>
  </querysource>
  <querysource>
   <name>pohead</name>
-  <sql>SELECT *
-FROM pohead, vendinfo
-WHERE ((pohead_vend_id=vend_id)
-  AND  (pohead_id=&lt;? value("pohead_id") ?>));</sql>
+  <sql>SELECT pohead_number vend_number
+    FROM pohead
+    JOIN vendinfo ON (pohead_vend_id=vend_id)
+    WHERE (pohead_id=&lt;? value("pohead_id") ?>);</sql>
  </querysource>
  <querysource>
   <name>logo</name>
@@ -59,6 +67,19 @@ WHERE ((image_name='logo'));</sql>
  </querysource>
  <rpthead>
   <height>127</height>
+  <image>
+   <rect>
+    <x>5</x>
+    <y>5</y>
+    <width>155</width>
+    <height>95</height>
+   </rect>
+   <mode>stretch</mode>
+   <data>
+    <query>logo</query>
+    <column>image_data</column>
+   </data>
+  </image>
   <label>
    <rect>
     <x>290</x>
@@ -75,19 +96,6 @@ WHERE ((image_name='logo'));</sql>
    <vcenter/>
    <string>Purchase Order Returns</string>
   </label>
-  <image>
-   <rect>
-    <x>5</x>
-    <y>5</y>
-    <width>155</width>
-    <height>95</height>
-   </rect>
-   <mode>stretch</mode>
-   <data>
-    <query>logo</query>
-    <column>image_data</column>
-   </data>
-  </image>
   <line>
    <xstart>0</xstart>
    <ystart>113</ystart>
@@ -150,7 +158,7 @@ WHERE ((image_name='logo'));</sql>
    <height>107</height>
    <label>
     <rect>
-     <x>1</x>
+     <x>0</x>
      <y>80</y>
      <width>35</width>
      <height>11</height>
@@ -199,7 +207,7 @@ WHERE ((image_name='logo'));</sql>
    <field>
     <rect>
      <x>100</x>
-     <y>41</y>
+     <y>40</y>
      <width>100</width>
      <height>11</height>
     </rect>
@@ -308,7 +316,7 @@ WHERE ((image_name='logo'));</sql>
    <label>
     <rect>
      <x>0</x>
-     <y>41</y>
+     <y>40</y>
      <width>100</width>
      <height>11</height>
     </rect>
@@ -423,8 +431,8 @@ WHERE ((image_name='logo'));</sql>
     <rect>
      <x>45</x>
      <y>15</y>
-     <width>645</width>
-     <height>11</height>
+     <width>445</width>
+     <height>15</height>
     </rect>
     <bottompad>1</bottompad>
     <font>
@@ -460,7 +468,7 @@ WHERE ((image_name='logo'));</sql>
    </field>
    <field>
     <rect>
-     <x>1</x>
+     <x>0</x>
      <y>0</y>
      <width>35</width>
      <height>11</height>
@@ -479,7 +487,7 @@ WHERE ((image_name='logo'));</sql>
    </field>
    <field>
     <rect>
-     <x>459</x>
+     <x>460</x>
      <y>0</y>
      <width>90</width>
      <height>11</height>
@@ -498,10 +506,10 @@ WHERE ((image_name='logo'));</sql>
    </field>
    <label>
     <rect>
-     <x>1</x>
+     <x>0</x>
      <y>15</y>
      <width>60</width>
-     <height>11</height>
+     <height>15</height>
     </rect>
     <font>
      <face>Arial</face>
@@ -550,6 +558,41 @@ WHERE ((image_name='logo'));</sql>
      <column>item_number</column>
     </data>
    </field>
+   <label>
+    <rect>
+     <x>490</x>
+     <y>15</y>
+     <width>85</width>
+     <height>15</height>
+    </rect>
+    <font>
+     <face>Arial</face>
+     <size>8</size>
+     <weight>normal</weight>
+    </font>
+    <left/>
+    <vcenter/>
+    <string>Vendor Authority:</string>
+   </label>
+   <field>
+    <rect>
+     <x>580</x>
+     <y>15</y>
+     <width>155</width>
+     <height>15</height>
+    </rect>
+    <font>
+     <face>Arial</face>
+     <size>8</size>
+     <weight>bold</weight>
+    </font>
+    <left/>
+    <vcenter/>
+    <data>
+     <query>detail</query>
+     <column>poreject_rma</column>
+    </data>
+   </field>
   </detail>
  </section>
  <pgfoot>
@@ -557,7 +600,7 @@ WHERE ((image_name='logo'));</sql>
   <label>
    <rect>
     <x>615</x>
-    <y>0</y>
+    <y>1</y>
     <width>85</width>
     <height>11</height>
    </rect>
@@ -589,7 +632,7 @@ WHERE ((image_name='logo'));</sql>
   <field>
    <rect>
     <x>90</x>
-    <y>0</y>
+    <y>1</y>
     <width>100</width>
     <height>11</height>
    </rect>
@@ -608,7 +651,7 @@ WHERE ((image_name='logo'));</sql>
   <field>
    <rect>
     <x>700</x>
-    <y>0</y>
+    <y>1</y>
     <width>40</width>
     <height>11</height>
    </rect>

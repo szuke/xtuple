@@ -6,12 +6,13 @@ AS
    SELECT 
      item_number::varchar AS item_number,
      itemalias_number AS alias_number,
+     COALESCE(crmacct_number,'') AS crmacct_number,
      itemalias_usedescrip AS use_description,
      itemalias_descrip1 AS description1,
      itemalias_descrip2 AS description2,
      itemalias_comments AS comments
-   FROM item, itemalias
-   WHERE (item_id=itemalias_item_id);
+   FROM item JOIN itemalias ON (item_id=itemalias_item_id)
+             LEFT OUTER JOIN crmacct ON (crmacct_id=itemalias_crmacct_id);
 
 GRANT ALL ON TABLE api.itemalias TO xtrole;
 COMMENT ON VIEW api.itemalias IS 'Item Alias';
@@ -27,14 +28,16 @@ CREATE OR REPLACE RULE "_INSERT" AS
     itemalias_usedescrip,
     itemalias_descrip1,
     itemalias_descrip2,
-    itemalias_comments)
+    itemalias_comments,
+    itemalias_crmacct_id)
   VALUES (
     getItemId(NEW.item_number),
     NEW.alias_number,
     COALESCE(NEW.use_description,FALSE),
     COALESCE(NEW.description1,''),
     COALESCE(NEW.description2,''),
-    NEW.comments);
+    NEW.comments,
+    getCrmacctId(NEW.crmacct_number));
 
 CREATE OR REPLACE RULE "_UPDATE" AS 
     ON UPDATE TO api.itemalias DO INSTEAD
@@ -44,7 +47,8 @@ CREATE OR REPLACE RULE "_UPDATE" AS
     itemalias_usedescrip=NEW.use_description,
     itemalias_descrip1=NEW.description1,
     itemalias_descrip2=NEW.description2,
-    itemalias_comments=NEW.comments
+    itemalias_comments=NEW.comments,
+    itemalias_crmacct_id=getCrmacctId(NEW.crmacct_number)
   WHERE  ((itemalias_item_id=getItemId(OLD.item_number))
   AND (itemalias_number=OLD.alias_number));
            

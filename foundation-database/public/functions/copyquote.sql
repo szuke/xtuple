@@ -66,7 +66,8 @@ BEGIN
          COALESCE(pSchedDate, quitem_scheddate),
          quitem_promdate,
          quitem_qtyord,
-         quitem_price, quitem_custprice, stdCost(itemsite_item_id),
+         quitem_price, quitem_custprice,
+         CASE WHEN fetchMetricBool('WholesalePriceCosting') THEN (select (item_listcost) from item where item_id=quitem_item_id) ELSE stdCost(itemsite_item_id) END,
          quitem_qty_uom_id, quitem_price_uom_id,
          quitem_qty_invuomratio, quitem_price_invuomratio,
          quitem_memo, quitem_custpn, FALSE, quitem_taxtype_id,
@@ -82,7 +83,7 @@ BEGIN
   SELECT charass_target_type, b.quitem_id,
          charass_char_id, charass_value
     FROM quitem a, charass, quitem b
-   WHERE ((charass_target_type='SI')
+   WHERE ((charass_target_type='QI')
      AND  (charass_target_id=a.quitem_id)
      AND  (a.quitem_quhead_id=pQuheadid)
      AND  (b.quitem_quhead_id=_quheadid)

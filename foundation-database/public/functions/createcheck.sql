@@ -22,9 +22,12 @@ BEGIN
 END;
 $$ LANGUAGE 'plpgsql';
 
+DROP FUNCTION IF EXISTS createcheck(integer, text, integer, date, numeric, integer, integer, integer, text, text, boolean, integer);
 
-
-CREATE OR REPLACE FUNCTION createCheck(INTEGER, TEXT, INTEGER, DATE, NUMERIC, INTEGER, INTEGER, INTEGER, TEXT, TEXT, BOOL, INTEGER) RETURNS INTEGER AS $$
+CREATE OR REPLACE FUNCTION createcheck(INTEGER, TEXT, INTEGER, DATE, NUMERIC, INTEGER, INTEGER, INTEGER, TEXT, TEXT, BOOLEAN, INTEGER, 
+                                       INTEGER DEFAULT NULL, INTEGER DEFAULT NULL)
+  RETURNS integer AS
+$BODY$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
@@ -40,12 +43,16 @@ DECLARE
   pNotes		ALIAS FOR $10;
   pMisc			ALIAS FOR $11;
   pAropenid             ALIAS FOR $12;
+  pTaxZoneid            ALIAS FOR $13;
+  pTaxTypeid            ALIAS FOR $14;
   _checkid		INTEGER;
+  _checknumber		INTEGER := -1;
   _check_curr_rate      NUMERIC;
   _bankaccnt_currid	INTEGER;
+  _bankaccnt_prnt_check BOOLEAN;
 
 BEGIN
-  SELECT bankaccnt_curr_id,currRate(bankaccnt_curr_id,pCheckDate) INTO _bankaccnt_currid, _check_curr_rate
+  SELECT bankaccnt_curr_id,currRate(bankaccnt_curr_id,pCheckDate), bankaccnt_prnt_check INTO _bankaccnt_currid, _check_curr_rate, _bankaccnt_prnt_check
   FROM bankaccnt
   WHERE bankaccnt_id = pBankaccntid;
   IF (NOT FOUND) THEN
@@ -79,6 +86,10 @@ BEGIN
 --    _journalNumber := fetchJournalNumber('AP-CK');
 --  END IF;
 
+  IF (NOT _bankaccnt_prnt_check) THEN
+    SELECT fetchNextCheckNumber(pBankaccntid) INTO _checknumber;
+  END IF;
+     
   _checkid := NEXTVAL('checkhead_checkhead_id_seq');
 
   INSERT INTO checkhead
@@ -87,14 +98,14 @@ BEGIN
     checkhead_amount,
     checkhead_checkdate,	checkhead_misc,		checkhead_expcat_id,
     checkhead_journalnumber,	checkhead_for,		checkhead_notes,
-    checkhead_curr_id )
+    checkhead_curr_id, checkhead_taxzone_id, checkhead_taxtype_id )
   VALUES
   ( _checkid,			pRecipType,		pRecipId,
-    pBankaccntid,		-1, --fetchNextCheckNumber(pBankaccntid),
+    pBankaccntid,		_checknumber,
     currToCurr(pCurrid, _bankaccnt_currid, pAmount, pCheckDate),
     pCheckDate,			COALESCE(pMisc, FALSE),	pExpcatid,
     _journalNumber,		pFor,			pNotes,
-    _bankaccnt_currid );
+    _bankaccnt_currid, pTaxZoneid, pTaxTypeid );
 
   IF (pAropenid IS NOT NULL AND fetchmetricbool('EnableReturnAuth')) THEN
     INSERT INTO checkitem (checkitem_checkhead_id,checkitem_amount,checkitem_discount,checkitem_ponumber,
@@ -102,7 +113,7 @@ BEGIN
                            checkitem_ranumber, checkitem_curr_rate)
     SELECT _checkid, currToCurr(checkhead_curr_id, aropen_curr_id, pAmount, checkhead_checkdate),
       0,cmhead_custponumber,pAropenid,aropen_docdate,aropen_curr_id,cmhead_number,rahead_number,
-      1 / (_check_curr_rate / aropen_curr_rate)
+      aropen_curr_rate
     FROM checkhead, aropen
       LEFT OUTER JOIN cmhead ON (aropen_docnumber=cmhead_number)
       LEFT OUTER JOIN rahead ON (cmhead_rahead_id=rahead_id)
@@ -114,7 +125,7 @@ BEGIN
                            checkitem_ranumber, checkitem_curr_rate)
     SELECT _checkid,currToCurr(checkhead_curr_id, aropen_curr_id, pAmount, checkhead_checkdate),
       0,cmhead_custponumber,pAropenid,aropen_docdate,aropen_curr_id,cmhead_number,NULL,
-      1 / (_check_curr_rate / aropen_curr_rate)
+      aropen_curr_rate
     FROM checkhead, aropen
       LEFT OUTER JOIN cmhead ON (aropen_docnumber=cmhead_number)
     WHERE ((aropen_id=pAropenid)
@@ -125,4 +136,5 @@ BEGIN
   RETURN _checkid;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$BODY$
+  LANGUAGE plpgsql;

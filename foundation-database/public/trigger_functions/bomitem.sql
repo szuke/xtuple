@@ -9,6 +9,7 @@ DECLARE
   _bomworkid INTEGER;
   _seqNumber INTEGER;
   _parentItem RECORD;
+  _bomheadid INTEGER;
 BEGIN
 
   -- Privilege Checks
@@ -40,6 +41,17 @@ BEGIN
     END IF;
 
     PERFORM deleteBOMWorkset(_bomworksetid);
+
+    -- Create bomhead record if one does not exist
+
+    SELECT bomhead_id INTO _bomheadid
+    FROM bomhead
+    WHERE (bomhead_item_id=NEW.bomitem_parent_item_id);
+
+    IF (NOT FOUND) THEN
+      INSERT INTO bomhead (bomhead_item_id, bomhead_batchsize, bomhead_rev_id)
+                   VALUES (NEW.bomitem_parent_item_id, 1, -1);
+    END IF;
 
     -- Set defaults
     NEW.bomitem_rev_id := COALESCE(NEW.bomitem_rev_id, -1);
@@ -136,9 +148,16 @@ BEGIN
 
   NEW.bomitem_moddate := COALESCE(NEW.bomitem_moddate, CURRENT_DATE);
 
+  -- Timestamps
+  IF (TG_OP = 'INSERT') THEN
+    NEW.bomitem_created := now();
+  ELSIF (TG_OP = 'UPDATE') THEN
+    NEW.bomitem_lastupdated := now();
+  END IF;
+
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER','bomitemBeforeTrigger');
 CREATE TRIGGER bomitemBeforeTrigger BEFORE INSERT OR UPDATE ON bomitem FOR EACH ROW EXECUTE PROCEDURE _bomitemBeforeTrigger();
@@ -153,55 +172,52 @@ BEGIN
 
   IF ( SELECT fetchMetricBool('ItemChangeLog') ) THEN
     IF (TG_OP = 'INSERT') THEN
-      PERFORM postComment('ChangeLog', 'BMI', NEW.bomitem_id, ('Created BOM Item Sequence ' || NEW.bomitem_seqnumber::TEXT));
+      PERFORM postComment('ChangeLog', 'BMI', NEW.bomitem_id,
+                         ('Created BOM Item Sequence ' || NEW.bomitem_seqnumber::TEXT));
 
     ELSIF (TG_OP = 'UPDATE') THEN
       IF (NEW.bomitem_effective <> OLD.bomitem_effective) THEN
-        PERFORM postComment( 'ChangeLog', 'BMI', NEW.bomitem_id,
-                             ( 'Effective Date Changed from ' || formatDate(OLD.bomitem_effective, 'Always') ||
-                               ' to ' || formatDate(NEW.bomitem_effective, 'Always' ) ) );
+        PERFORM postComment( 'ChangeLog', 'BMI', NEW.bomitem_id, 'Effective Date',
+                             formatDate(OLD.bomitem_effective, 'Always'),
+                             formatDate(NEW.bomitem_effective, 'Always') );
       END IF;
 
       IF (NEW.bomitem_expires <> OLD.bomitem_expires) THEN
-        PERFORM postComment( 'ChangeLog', 'BMI', NEW.bomitem_id,
-                             ( 'Expiration Date Changed from ' || formatDate(OLD.bomitem_expires, 'Never') ||
-                               ' to ' || formatDate(NEW.bomitem_expires, 'Never' ) ) );
+        PERFORM postComment( 'ChangeLog', 'BMI', NEW.bomitem_id, 'Expiration Date',
+                             formatDate(OLD.bomitem_expires, 'Never'),
+                             formatDate(NEW.bomitem_expires, 'Never') );
       END IF;
 
       IF (NEW.bomitem_qtyfxd <> OLD.bomitem_qtyfxd) THEN
-        PERFORM postComment( 'ChangeLog', 'BMI', NEW.bomitem_id,
-                             ( 'Fixed Qty. Changed from ' || formatQtyPer(OLD.bomitem_qtyfxd) ||
-                               ' to ' || formatQtyPer(NEW.bomitem_qtyfxd ) ) );
+        PERFORM postComment( 'ChangeLog', 'BMI', NEW.bomitem_id, 'Fixed Qty.',
+                             formatQtyPer(OLD.bomitem_qtyfxd), formatQtyPer(NEW.bomitem_qtyfxd) );
       END IF;
 
       IF (NEW.bomitem_qtyper <> OLD.bomitem_qtyper) THEN
-        PERFORM postComment( 'ChangeLog', 'BMI', NEW.bomitem_id,
-                             ( 'Qty. Per Changed from ' || formatQtyPer(OLD.bomitem_qtyper) ||
-                               ' to ' || formatQtyPer(NEW.bomitem_qtyper ) ) );
+        PERFORM postComment( 'ChangeLog', 'BMI', NEW.bomitem_id, 'Qty. Per',
+                             formatQtyPer(OLD.bomitem_qtyper), formatQtyPer(NEW.bomitem_qtyper) );
       END IF;
 
       IF (NEW.bomitem_scrap <> OLD.bomitem_scrap) THEN
-        PERFORM postComment( 'ChangeLog', 'BMI', NEW.bomitem_id,
-                             ( 'Scrap % Changed from ' || formatPrcnt(OLD.bomitem_scrap) ||
-                               ' to ' || formatPrcnt(NEW.bomitem_scrap ) ) );
+        PERFORM postComment( 'ChangeLog', 'BMI', NEW.bomitem_id, 'Scrap',
+                             formatPrcnt(OLD.bomitem_scrap), formatPrcnt(NEW.bomitem_scrap) );
       END IF;
 
       IF (NEW.bomitem_issuemethod <> OLD.bomitem_issuemethod) THEN
-        PERFORM postComment( 'ChangeLog', 'BMI', NEW.bomitem_id,
-                             ( 'Issue Method Changed from ' || (CASE WHEN(OLD.bomitem_issuemethod='S') THEN 'Push'
-                                                                     WHEN(OLD.bomitem_issuemethod='L') THEN 'Pull'
-                                                                     WHEN(OLD.bomitem_issuemethod='M') THEN 'Mixed'
-                                                                     ELSE OLD.bomitem_issuemethod END) ||
-                               ' to ' || (CASE WHEN(NEW.bomitem_issuemethod='S') THEN 'Push'
-                                               WHEN(NEW.bomitem_issuemethod='L') THEN 'Pull'
-                                               WHEN(NEW.bomitem_issuemethod='M') THEN 'Mixed'
-                                               ELSE NEW.bomitem_issuemethod END) ) );
+        PERFORM postComment( 'ChangeLog', 'BMI', NEW.bomitem_id, 'Issue Method',
+                             CASE OLD.bomitem_issuemethod WHEN 'S' THEN 'Push'
+                                                          WHEN 'L' THEN 'Pull'
+                                                          WHEN 'M' THEN 'Mixed'
+                                                          ELSE OLD.bomitem_issuemethod END,
+                             CASE NEW.bomitem_issuemethod WHEN 'S' THEN 'Push'
+                                                          WHEN 'L' THEN 'Pull'
+                                                          WHEN 'M' THEN 'Mixed'
+                                                          ELSE NEW.bomitem_issuemethod END );
       END IF;
 
       IF (NEW.bomitem_ecn <> OLD.bomitem_ecn) THEN
-        PERFORM postComment( 'ChangeLog', 'BMI', NEW.bomitem_id,
-                             ( 'ECN Changed from ' || OLD.bomitem_ecn ||
-                               ' to ' || NEW.bomitem_ecn ) );
+        PERFORM postComment( 'ChangeLog', 'BMI', NEW.bomitem_id, 'ECN',
+                             OLD.bomitem_ecn, NEW.bomitem_ecn );
       END IF;
 
       IF (OLD.bomitem_createwo <> NEW.bomitem_createwo) THEN
@@ -223,17 +239,9 @@ BEGIN
     END IF;
   END IF;
 
-  IF (TG_OP = 'DELETE') THEN
-    DELETE FROM comment
-     WHERE ( (comment_source='BMI')
-       AND   (comment_source_id=OLD.bomitem_id) );
-
-    RETURN OLD;
-  END IF;
-
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER','bomitemAfterTrigger');
 CREATE TRIGGER bomitemAfterTrigger AFTER INSERT OR UPDATE ON bomitem FOR EACH ROW EXECUTE PROCEDURE _bomitemAfterTrigger();
@@ -251,7 +259,7 @@ BEGIN
 
   RETURN OLD;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER','bomitemBeforeDeleteTrigger');
 CREATE TRIGGER bomitemBeforeDeleteTrigger BEFORE DELETE ON bomitem FOR EACH ROW EXECUTE PROCEDURE _bomitemBeforeDeleteTrigger();

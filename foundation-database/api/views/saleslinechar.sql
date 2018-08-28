@@ -3,22 +3,6 @@ SELECT dropIfExists('VIEW', 'saleslinechar', 'api');
 CREATE VIEW api.saleslinechar
 AS 
 SELECT 
-  order_number::VARCHAR,
-  line_number,
-  characteristic,
-  COALESCE(si.charass_value,i3.charass_value) AS value,
-  COALESCE(si.charass_price,itemcharprice(data.item_id,char_id,COALESCE(si.charass_value,i3.charass_value),cohead_cust_id,cohead_shipto_id,coitem_qtyord,cohead_curr_id,cohead_orderdate),0)::numeric(16,4) AS price
-FROM
-  (SELECT DISTINCT 
-    cohead_cust_id,
-    cohead_shipto_id,
-    cohead_curr_id,
-    cohead_orderdate,
-    coitem_id,
-    coitem_itemsite_id,
-    coitem_qtyord,
-    char_id,
-    item_id,
     cohead_number AS order_number, 
     CASE 
       WHEN (coitem_subnumber=0) THEN
@@ -26,23 +10,14 @@ FROM
       ELSE 
         coitem_linenumber::VARCHAR || '.'::VARCHAR || coitem_subnumber::VARCHAR
     END AS line_number,
-    char_name AS characteristic
-   FROM cohead, coitem, itemsite, item, charass, char
+    char_name AS characteristic,
+    charass_value AS value,
+    charass_price
+   FROM cohead, coitem, charass, char
    WHERE ( (cohead_id=coitem_cohead_id)
-   AND (coitem_itemsite_id=itemsite_id)
-   AND (itemsite_item_id=item_id)
    AND (charass_char_id=char_id)
-   AND (charass_target_type='I')
-   AND (charass_target_id=item_id) ) ) AS data
-  LEFT OUTER JOIN charass  si ON ((coitem_id=si.charass_target_id)
-                              AND ('SI'=si.charass_target_type)
-                              AND (si.charass_char_id=char_id))
-  LEFT OUTER JOIN itemsite i1 ON (coitem_itemsite_id=i1.itemsite_id)
-  LEFT OUTER JOIN item     i2 ON (i1.itemsite_item_id=i2.item_id)
-  LEFT OUTER JOIN charass  i3 ON ((i2.item_id=i3.charass_target_id)
-                              AND ('I'=i3.charass_target_type)
-                              AND (i3.charass_char_id=char_id)
-                              AND (i3.charass_default))
+   AND (charass_target_id=coitem_id)
+   AND (charass_target_type='SI'))
 ORDER BY order_number,line_number, characteristic;
 
 GRANT ALL ON TABLE api.saleslinechar TO xtrole;

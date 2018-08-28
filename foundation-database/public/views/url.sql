@@ -6,7 +6,8 @@ select
   docass_source_type as url_source,
   file_title as url_title,
   file_descrip as url_url,
-  file_stream as url_stream
+  file_stream as url_stream,
+  file_mime_type as url_mime_type
 from file
   join docass on ( docass_target_id = file_id ) and ( docass_target_type = 'FILE' )
 union all
@@ -16,7 +17,8 @@ select
   docass_source_type as url_source,
   url_title,
   url_url,
-  null as url_stream
+  null as url_stream,
+  null as url_mime_type
 from urlinfo
   join docass on ( docass_target_id = url_id ) and ( docass_target_type = 'URL' );
 
@@ -59,7 +61,7 @@ create or replace rule "_INSERT_FILE" as on insert to url
     coalesce(new.url_id,nextval('docass_docass_id_seq')),
     new.url_source_id,
     new.url_source,
-    createFile(new.url_title, new.url_url, new.url_stream),
+    createFile(new.url_title, new.url_url, new.url_stream, new.url_mime_type),
     'FILE',
     'S' );
 
@@ -84,7 +86,8 @@ create or replace rule "_UPDATE_FILE" as on update to url
 
 update file set
   file_title = new.url_title,
-  file_stream = new.url_stream
+  file_stream = new.url_stream,
+  file_mime_type = COALESCE(new.url_mime_type, 'application/octet-stream')
 from docass
 where ( docass_id = old.url_id )
  and ( docass_target_id = file_id )

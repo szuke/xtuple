@@ -1,6 +1,6 @@
 CREATE OR REPLACE FUNCTION getCharId(pChar text,
                                      pType text) RETURNS INTEGER STABLE AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _returnVal INTEGER;
@@ -10,20 +10,18 @@ BEGIN
   END IF;
 
   SELECT char_id INTO _returnVal
-  FROM char
-  WHERE ((char_name=pChar)
-  AND ((pType IN ('C','CT') AND char_customers)
-    OR (pType IN ('I','SI','QI','W','PI','TI') AND char_items)
-    OR (pType='CRMACCT' AND char_crmaccounts)
-    OR (pType='ADDR' AND char_addresses)
-    OR (pType='CNTCT' AND char_contacts)
-    OR (pType='LS' AND char_lotserial)
-    OR (pType='EMP' AND char_employees)
-    OR (pType='INCDT' AND char_incidents)
-    )) LIMIT 1;
+    FROM char
+    JOIN charuse ON char_id = charuse_char_id
+   WHERE char_name = pChar
+     AND (charuse_target_type = pType
+          OR (pType IN ('C', 'CT')               AND charuse_target_type = 'C')
+          OR (pType IN ('SI','QI','W','PI','TI') AND charuse_target_type = 'I')
+         )
+   LIMIT 1;
 
   IF (_returnVal IS NULL) THEN
-	RAISE EXCEPTION 'Characteristic % not found.', pChar;
+    RAISE EXCEPTION 'Characteristic % not found [xtuple: getCharId, -1, %]',
+                    pChar, pChar;
   END IF;
 
   RETURN _returnVal;

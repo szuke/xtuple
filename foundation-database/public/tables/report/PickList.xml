@@ -22,7 +22,7 @@
           AND (itemsite_item_id=item_id)
           AND (item_inv_uom_id=uom_id)
           AND (itemsite_warehous_id=warehous_id)
-          AND (wo_id=%1))
+          AND (wo_id=&lt;? value("wo_id") ?>))
     </sql>
  </querysource>
  <querysource>
@@ -45,7 +45,7 @@
    AND (womatl_itemsite_id=itemsite_id)
    AND (itemsite_item_id=item_id)
    AND (womatl_uom_id=uom_id)
-   AND (womatl_wo_id=%1) );
+   AND (womatl_wo_id=&lt;? value("wo_id") ?>) );
     </sql>
  </querysource>
  <rpthead>

@@ -1,10 +1,11 @@
 drop function if exists xt.js_init();
+drop function if exists xt.js_init(boolean);
 
-create or replace function xt.js_init(debug boolean DEFAULT false) returns void as $$
+create or replace function xt.js_init(debug boolean DEFAULT false, initialize boolean DEFAULT false) returns void as $wrapper$
 
 return (function () {
 
-  if (plv8.__initialized && debug !== true) {
+  if (plv8.XT && !initialize && !debug) {
     return;
   }
 
@@ -288,8 +289,7 @@ return (function () {
 
     // TODO, this could be changed to "LOG" and you would need to set: client_min_messages = log
     // Then you would not get any of the "RAISE DEBUG;" messages from the PL/pgSQL code.
-    /* Do a hard trim to 900 so something prints. */
-    plv8.elog(DEBUG1, (msg + message).substring(0, 900));
+    plv8.execute('SELECT xt.raise_debug($1)', [msg + message]);
   }
 
   /**
@@ -307,6 +307,37 @@ return (function () {
     else if(typeof obj === "string") return obj.decamelize();
     return ret;
   }
+
+  /*
+    Mappings of document association sourceTypes to business objects.
+    Extensible by extensions.
+    https://github.com/xtuple/xtuple/pull/1964
+
+    The following keys are already used by the core application:
+
+    "C" = Customer
+    "CRMA" = CRM Account
+    "FILE" = File
+    "I" = Item
+    "INCDT" = Incident
+    "INV" = Invoice
+    "J" = Project
+    "Qquhead_id" = Quote. Yes really.
+    "S" = Sales Order
+    "T" = Contact
+    "URL" = Url
+
+    If you're adding your own, choose a generous namespace and object name.
+    The string is stored in postgres as a text field, so you've got plenty of characters.
+
+  */
+
+  XT.documentAssociations = {
+    FILE: "FileRelation",
+    I: "ItemRelation",
+    URL: "Url"
+  };
+
 
   /**
     Returns today's date at midnight.
@@ -334,7 +365,7 @@ return (function () {
       /* This error was handled and a message sent to the client. Those massages are*/
       /* generic HTTP codes. Send the stack trace with detailed info on what happened. */
       XT.debug(message);
-      XT.message(error.code, error.message)
+      XT.message(error.code, error.message.substring(0, 900));
       throw "handledError";
     } else {
       /* Some times the stack trace can eat up the full 1000 char message. */
@@ -493,7 +524,7 @@ return (function () {
     culture = XT.getUserCulture();
     if(!XT.dbStrings[culture]) {
       /* need to load in the strings for this culture into the database */
-      dictSql = "select dict_strings from xt.dict where dict_is_database = true and dict_language_name = $1;";
+      dictSql = "select dict_strings from xt.dictobsolete where dict_is_database = true and dict_language_name = $1;";
       dictResult = plv8.execute(dictSql, [culture]);
       XT.dbStrings[culture] = JSON.parse(dictResult[0].dict_strings.toLowerCase());
     }
@@ -821,7 +852,7 @@ return (function () {
   };
 
   XT.message = function (code, message) {
-    var msg = {code: code, message: message};
+    var msg = {code: code, message: message.substring(0, 900)};
 
     plv8.elog(INFO, JSON.stringify(msg));
     return 'Handled by XT.message';
@@ -889,14 +920,6 @@ return (function () {
         if(DEBUG) XT.debug('loading javascript for type->', res[i].js_type);
 
         eval(res[i].javascript);
-
-        var ns = eval(res[i].js_namespace);
-        if (ns && ns[js_type]) {
-          if (Object.isFrozen(ns[js_type])) {
-            plv8.elog(WARNING, 'object already frozen: '+ ns + '.' + js_type);
-          }
-          Object.freeze(ns[js_type]);
-        }
       }
     }
     plv8.__initialized = true;
@@ -904,4 +927,4 @@ return (function () {
 
 }());
 
-$$ language plv8;
+$wrapper$ language plv8;

@@ -10,24 +10,22 @@ BEGIN
   RETURN orderedByWo(pItemsiteid, startOfTime(), (CURRENT_DATE + pLookAheadDays));
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION orderedByWo(INTEGER, DATE, DATE) RETURNS NUMERIC AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION orderedByWo(pItemsiteid INTEGER,
+                                       pStartDate  DATE,
+                                       pEndDate    DATE) RETURNS NUMERIC AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pItemsiteid ALIAS FOR $1;
-  pStartDate ALIAS FOR $2;
-  pEndDate ALIAS FOR $3;
   _itemType CHARACTER(1);
   _qty NUMERIC := 0;
 
 BEGIN
   SELECT item_type INTO _itemType
-  FROM itemsite, item
-  WHERE ( (itemsite_item_id=item_id)
-   AND (itemsite_id=pItemsiteid) );
+  FROM itemsite JOIN item ON itemsite_item_id = item_id
+  WHERE itemsite_id = pItemsiteid;
   
   IF (_itemType NOT IN ('C','T')) THEN
     SELECT COALESCE(SUM(noNeg(wo_qtyord - wo_qtyrcv)), 0.0) INTO _qty
@@ -35,14 +33,14 @@ BEGIN
     WHERE ( (wo_status <> 'C')
      AND (wo_itemsite_id=pItemsiteid)
      AND (wo_duedate BETWEEN pStartDate AND pEndDate) );
-  ELSIF (_itemType = 'C') THEN
+  ELSIF _itemType = 'C' AND packageIsEnabled('xtmfg') THEN
     SELECT COALESCE(SUM((noNeg(wo_qtyord - wo_qtyrcv) * brddist_stdqtyper)), 0.0) INTO _qty
     FROM wo, xtmfg.brddist
     WHERE ( (wo_status <> 'C')
      AND (brddist_wo_id=wo_id)
      AND (brddist_itemsite_id=pItemsiteid)
      AND (wo_duedate BETWEEN pStartDate AND pEndDate) );
-  ELSIF (_itemType = 'T' AND fetchMetricBool('Routings')) THEN -- Tooling:  Determine quantity already returned
+  ELSIF _itemType = 'T' AND fetchMetricBool('Routings') AND packageIsEnabled('xtmfg') THEN -- Tooling:  Determine quantity already returned
     SELECT
       -- Qty Required
       COALESCE(SUM(noNeg(womatl_qtyreq)),0)  - 
@@ -93,4 +91,4 @@ BEGIN
   RETURN COALESCE(_qty,0);
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

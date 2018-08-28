@@ -1,9 +1,4 @@
-SELECT dropIfExists('VIEW',     'purchaseorder', 'api');
-SELECT dropIfExists('FUNCTION', 'calculatetaxdetailsummary(text,integer,text)');
-SELECT dropIfExists('FUNCTION', 'calculatetaxdetailline(text,integer)');
-SELECT dropIfExists('FUNCTION', 'calculatetaxdetail(integer,integer,date,integer,numeric)');
-SELECT dropIfExists('FUNCTION', 'calculatesubtax(integer,date,integer,numeric,integer)');
-SELECT dropIfExists('TYPE', 'taxdetail');
+DROP TYPE IF EXISTS taxdetail CASCADE;
 
 CREATE TYPE taxdetail AS
 (

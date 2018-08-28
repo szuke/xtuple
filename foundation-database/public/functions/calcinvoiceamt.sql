@@ -1,5 +1,7 @@
+DROP FUNCTION IF EXISTS public.calcinvoiceamt(integer, text);
+
 CREATE OR REPLACE FUNCTION calcInvoiceAmt(pInvcheadid INTEGER) RETURNS NUMERIC STABLE AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
 
@@ -9,8 +11,9 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION calcInvoiceAmt(pInvcheadid INTEGER,
-                                          pType TEXT) RETURNS NUMERIC STABLE AS $$
--- Copyright (c) 1999-2012 by OpenMFG LLC, d/b/a xTuple. 
+                                          pType TEXT,
+                                          pInvcitemid INTEGER DEFAULT NULL) RETURNS NUMERIC STABLE AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _subtotal NUMERIC := 0.0;
@@ -30,14 +33,20 @@ BEGIN
   SELECT COALESCE(SUM(ROUND((invcitem_billed * invcitem_qty_invuomratio) *
                             (invcitem_price / COALESCE(invcitem_price_invuomratio, 1.0)), 2)), 0.0),
          COALESCE(SUM(ROUND((invcitem_billed * invcitem_qty_invuomratio) *
-                            COALESCE(coitem_unitcost, itemCost(itemsite_id), 0.0), 2)), 0.0)
+                            (currtolocal(invchead_curr_id, COALESCE(coitem_unitcost, itemCost(itemsite_id), 0.0), invchead_invcdate)
+                             / COALESCE(coitem_price_invuomratio, 1.0)), 2)), 0.0)
          INTO _subtotal, _cost
-  FROM invcitem LEFT OUTER JOIN coitem ON (coitem_id=invcitem_coitem_id)
-                LEFT OUTER JOIN itemsite ON (itemsite_item_id=invcitem_item_id AND itemsite_warehous_id=invcitem_warehous_id)
-  WHERE (invcitem_invchead_id=pInvcheadid);
+  FROM invcitem 
+    JOIN invchead ON (invchead_id = invcitem_invchead_id)
+    LEFT OUTER JOIN coitem ON (coitem_id=invcitem_coitem_id)
+    LEFT OUTER JOIN itemsite ON (itemsite_item_id=invcitem_item_id AND
+                                 itemsite_warehous_id=invcitem_warehous_id)
+  WHERE (invcitem_invchead_id=pInvcheadid)
+   AND CASE WHEN pinvcitemid IS NOT NULL THEN
+        (invcitem_id=pInvcitemid) ELSE true END;
 
   IF (pType IN ('T', 'X')) THEN
-    SELECT SUM(tax) INTO _tax
+    SELECT COALESCE(SUM(tax), 0.0) INTO _tax
     FROM (SELECT COALESCE(ROUND(SUM(taxdetail_tax), 2), 0.0) AS tax
           FROM tax
                JOIN calculateTaxDetailSummary('I', pInvcheadid, 'T')ON (taxdetail_tax_id=tax_id)

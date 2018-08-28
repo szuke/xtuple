@@ -1,9 +1,8 @@
-CREATE OR REPLACE FUNCTION postCountTagLocation(INTEGER, BOOLEAN) RETURNS INTEGER AS $$
+CREATE OR REPLACE FUNCTION postCountTagLocation(pInvcntid INTEGER,
+                                                pThaw BOOLEAN) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pInvcntid ALIAS FOR $1;
-  pThaw ALIAS FOR $2;
   _avgCostingMethod TEXT;
   _invhistid INTEGER;
   _postDate TIMESTAMP;
@@ -15,7 +14,6 @@ DECLARE
   _itemloc RECORD;
   _cntslip RECORD;
   _origLocQty NUMERIC;
-  _netable BOOLEAN;
   _lsid INTEGER;
 BEGIN
 
@@ -29,7 +27,7 @@ BEGIN
          itemsite_loccntrl, COALESCE(invcnt_location_id, -1) AS itemsite_location_id,
          CASE WHEN (itemsite_costmethod = 'N') THEN 0
               WHEN ( (itemsite_costmethod = 'A') AND
-                     ((itemsite_qtyonhand + itemsite_nnqoh) = 0) AND
+                     (itemsite_qtyonhand = 0.0) AND
                      (_avgCostingMethod = 'ACT') ) THEN actcost(itemsite_item_id)
               WHEN ( (itemsite_costmethod = 'A') AND
                      (_avgCostingMethod IN ('ACT', 'AVG')) ) THEN avgcost(itemsite_id)
@@ -46,15 +44,12 @@ BEGIN
     RETURN -9;
   END IF;
 
-  SELECT COALESCE(SUM(itemloc_qty),0.0), location_netable INTO _origLocQty,_netable
-    FROM itemloc,location
+  SELECT COALESCE(SUM(itemloc_qty),0.0) INTO _origLocQty
+    FROM itemloc
    WHERE ((itemloc_itemsite_id=_p.itemsite_id)
-     AND  (location_id=itemloc_location_id)
-     AND  (itemloc_location_id=_p.invcnt_location_id))
-   GROUP BY location_netable;
+     AND  (itemloc_location_id=_p.invcnt_location_id));
   IF (NOT FOUND) THEN
     _origLocQty := 0.0;
-    _netable := TRUE;
   END IF;
 
   SELECT NEXTVAL('invhist_invhist_id_seq') INTO _invhistid;
@@ -146,14 +141,14 @@ BEGIN
     IF (_runningQty > _p.invcnt_qoh_after) THEN
 --  The total Count Slip Qty is greater than the Count Tag Qty,
 --  Don't post the Count.
-      _errorCode = -1;
+      RAISE EXCEPTION 'Cannot post this Count Tag because The total Count Slip quantity is greater than the Count Tag quantity. [xtuple: postCountTagLocation, -1]';
 
     ELSIF ( (_runningQty < _p.invcnt_qoh_after) AND
             (_p.itemsite_controlmethod IN ('L', 'S')) ) THEN
 --  The total Count Slip Qty is less than the Count Tag Qty,
 --  and the Item Site is Lot/Serial controlled.
 --  Don't post the Count.
-      _errorCode = -2;
+      RAISE EXCEPTION 'Cannot post this Count Tag because the total Count Slip quantity is less than the Count Tag quantity for a Lot/Serial-controlled Item Site. [xtuple: postCountTagLocation, -2]';
 
     ELSIF (_runningQty < _p.invcnt_qoh_after) THEN
       IF ( (NOT _p.itemsite_loccntrl) OR
@@ -161,7 +156,7 @@ BEGIN
 --  The total Count Slip Qty is less than the Count Tag Qty,
 --  and there isn't a default location to post into.
 --  Don't post the Count.
-        _errorCode = -3;
+        RAISE EXCEPTION 'Cannot post this Count Tag because the total Count Slip quantity is less than the Count Tag quantity and there is no default location. [xtuple: postCountTag, -3]';
 
       ELSIF ( SELECT (metric_value='f')
               FROM metric
@@ -169,7 +164,7 @@ BEGIN
 --  The total Count Slip Qty is less than the Count Tag Qty,
 --  and we don't post Count Tags to default Locations
 --  Don't post the Count.
-        _errorCode = -4;
+        RAISE EXCEPTION 'Cannot post this Count Tag because the total Count Slip quantity is less than the Count Tag quantity and we don''t post to default locations. [xtuple: postCountTag, -4]';
 
       ELSE
 --  Distribute the remaining qty into the default location.
@@ -186,20 +181,7 @@ BEGIN
         _hasDetail = TRUE;
         _errorCode = 0;
       END IF;
-    ELSE
---  The Count Slip Qty. must equal the Count Tag Qty.
-      _errorCode = 0;
     END IF;
-
---  If we shouldn't post the count then delete the itemlocdist records,
---  and return with the error.
-    IF (_errorCode <> 0) THEN
-      DELETE FROM itemlocdist
-      WHERE (itemlocdist_series=_itemlocSeries);
-  
-      RETURN _errorCode;
-    END IF;
-
   END IF;
 
 --  Mod. the Count Tag.
@@ -235,24 +217,18 @@ BEGIN
    AND (itemsite_controlmethod <> 'N')
    AND (invcnt_id=pInvcntid) );
 
+   IF (fetchMetricBool('EnableAsOfQOH')) THEN
+     PERFORM postIntoInvBalance(_invhistid);
+   END IF;
+
 --  Update the QOH
-  IF (_netable) THEN
-    UPDATE itemsite
-    SET itemsite_qtyonhand= itemsite_qtyonhand + (_p.invcnt_qoh_after - _origLocQty),
-        itemsite_datelastcount=_postDate
-    WHERE (itemsite_id=_p.itemsite_id);
-    UPDATE itemsite
-    SET itemsite_value =  (itemsite_qtyonhand + itemsite_nnqoh) * _p.cost
-    WHERE (itemsite_id=_p.itemsite_id);
-  ELSE
-    UPDATE itemsite
-    SET itemsite_nnqoh =  itemsite_nnqoh + (_p.invcnt_qoh_after - _origLocQty),
-        itemsite_datelastcount=_postDate
-    WHERE (itemsite_id=_p.itemsite_id);
-    UPDATE itemsite
-    SET itemsite_value =  (itemsite_qtyonhand + itemsite_nnqoh) * _p.cost
-    WHERE (itemsite_id=_p.itemsite_id);
-  END IF;
+  UPDATE itemsite
+  SET itemsite_qtyonhand= itemsite_qtyonhand + (_p.invcnt_qoh_after - _origLocQty),
+      itemsite_datelastcount=_postDate
+  WHERE (itemsite_id=_p.itemsite_id);
+  UPDATE itemsite
+  SET itemsite_value =  itemsite_qtyonhand * _p.cost
+  WHERE (itemsite_id=_p.itemsite_id);
  
 --  Post the detail, if any
   IF (_hasDetail) THEN
@@ -267,7 +243,8 @@ BEGIN
   END IF;
 
 --  Distribute to G/L
-  PERFORM insertGLTransaction( 'I/M', 'CT', _p.invcnt_tagnumber, ('Post Count Tag #' || _p.invcnt_tagnumber || ' for Item ' || _p.item_number),
+  PERFORM insertGLTransaction( 'I/M', 'CT', _p.invcnt_tagnumber,
+                               ('Post Count Tag #' || _p.invcnt_tagnumber || ' for Item ' || _p.item_number),
                                costcat_adjustment_accnt_id, costcat_asset_accnt_id, _invhistid,
                                ( (_p.invcnt_qoh_after - _origLocQty) * _p.cost), CURRENT_DATE )
   FROM invcnt, itemsite, costcat
@@ -277,4 +254,4 @@ BEGIN
 
   RETURN 0;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

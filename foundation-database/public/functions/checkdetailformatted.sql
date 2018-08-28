@@ -20,7 +20,7 @@ BEGIN
 
 -- Check header information
   SELECT checkhead_number AS checknumber,
-         INITCAP(spellAmount(checkhead_amount, curr_id)) AS checkwords,
+         spellAmount(checkhead_amount, curr_id) AS checkwords,
          formatDate(checkhead_checkdate) AS checkdate,
          formatMoney(checkhead_amount) AS checkamount,
          curr_symbol AS checkcurrsymbol,
@@ -97,7 +97,7 @@ BEGIN
   FROM checkitem, vohead, apopen
   WHERE ((checkitem_checkhead_id=pCheckheadid)
     AND  (checkitem_vouchernumber = vohead_number)
-    AND  (apopen_docnumber = checkitem_vouchernumber)
+    AND  (checkitem_apopen_id = apopen_id)
     AND  (apopen_doctype = 'V'))
   
   UNION
@@ -177,9 +177,9 @@ BEGIN
     formatMoney((apapply_amount)) AS disc_cred
   FROM checkitem, apopen, apapply
   WHERE ((checkitem_checkhead_id=pCheckheadid)
-    AND  (checkitem_vouchernumber = apopen_docnumber)
+    AND  (checkitem_apopen_id = apopen_id)
     AND  (apopen_doctype = 'D')
-    AND  (apapply_target_docnumber = checkitem_vouchernumber)
+    AND  (apapply_target_apopen_id = apopen_id)
     AND  (apapply_target_doctype = 'D')
     AND  (apapply_source_doctype = 'C'))
   

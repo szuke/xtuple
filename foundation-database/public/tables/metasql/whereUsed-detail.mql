@@ -75,7 +75,7 @@ WHERE ((item_inv_uom_id=uom_id)
           AND (bomitem_parent_item_id=item_id)
           AND (bomitem_item_id=<? value("item_id") ?>)
           AND (bomitem_rev_id=getActiveRevId('BOM',bomitem_parent_item_id))
-          <? if not exists("notEffective") ?>
+          <? if exists("notEffective") ?>
             AND (CURRENT_DATE BETWEEN bomitem_effective AND (bomitem_expires-1)) 
           <? else ?>
            AND (<? value("effective") ?> BETWEEN bomitem_effective AND (bomitem_expires-1))

@@ -31,7 +31,7 @@
         formatDate(planord_startdate) AS f_startdate,
         formatQty(planord_qty) AS f_qty,
         formatboolYN(planord_firm) AS f_firm,
-        whsinfo.warehous_code AS warehous_code,
+        warehous.warehous_code AS warehous_code,
         supplywhsinfo.warehous_code AS supply_warehous_code,
         item_number,
         (item_descrip1 || ' ' || item_descrip2) AS item_descrip,
@@ -81,7 +81,7 @@
          formatMoney(0)
  <? endif ?> AS f_plorevenue
  FROM planord JOIN itemsite ON (planord_itemsite_id=itemsite.itemsite_id)
-              JOIN whsinfo ON (itemsite.itemsite_warehous_id=whsinfo.warehous_id)
+              JOIN site() warehous ON (itemsite.itemsite_warehous_id=warehous_id)
               JOIN item ON (itemsite.itemsite_item_id=item_id)
               JOIN uom ON (item_inv_uom_id=uom_id)
               LEFT OUTER JOIN classcode ON (classcode_id=item_classcode_id)
@@ -92,6 +92,9 @@
               JOIN itemgrp ON (itemgrp_id=itemgrpitem_itemgrp_id AND itemgrp_id=<? value("itemgrp_id") ?>)
  <? endif ?>
  WHERE (TRUE
+ <? if exists("search_pattern") ?> 
+    AND ((item_number ~* <? value("search_pattern") ?>) OR (item_descrip1 || item_descrip2 ~* <? value("search_pattern") ?>))
+ <? endif ?>
  <? if exists("item_id") ?>
     AND (itemsite.itemsite_item_id=<? value("item_id") ?>)
  <? endif ?>

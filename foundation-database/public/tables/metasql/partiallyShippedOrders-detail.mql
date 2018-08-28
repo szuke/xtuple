@@ -1,19 +1,20 @@
 -- Group: partiallyShippedOrders
 -- Name: detail
 -- Notes: used by dspPartiallyShippedOrders
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
-SELECT CASE WHEN (cohead_holdtype IN ('P', 'C', 'R')) THEN -1
-         ELSE cohead_id
+SELECT CASE WHEN (soHoldType(cohead_id) IN ('P', 'C', 'R', 'T')) THEN -1
+            ELSE cohead_id
        END AS _coheadid, cohead_id,
-       cohead_holdtype, cohead_number, cust_name,
-       CASE WHEN (cohead_holdtype='N') THEN <? value("none") ?>
-            WHEN (cohead_holdtype='C') THEN <? value("credit") ?>
-            WHEN (cohead_holdtype='S') THEN <? value("ship") ?>
-            WHEN (cohead_holdtype='P') THEN <? value("pack") ?>
-            WHEN (cohead_holdtype='R') THEN <? value("return") ?>
-         ELSE <? value("other") ?>
+       soHoldType(cohead_id) AS holdtype, cohead_number, cust_name, saletype_descr,
+       CASE soHoldType(cohead_id) WHEN 'N' THEN <? value("none") ?>
+                                  WHEN 'C' THEN <? value("credit") ?>
+                                  WHEN 'S' THEN <? value("ship") ?>
+                                  WHEN 'P' THEN <? value("pack") ?>
+                                  WHEN 'R' THEN <? value("return") ?>
+                                  WHEN 'T' THEN <? value("tax") ?>
+                                  ELSE <? value("other") ?>
        END AS f_holdtype,
        cohead_orderdate,
        (MIN(coitem_scheddate)) AS minscheddate,
@@ -32,12 +33,13 @@ SELECT CASE WHEN (cohead_holdtype IN ('P', 'C', 'R')) THEN -1
        <? else ?>
          0 AS extprice_base_xttotalrole 
        <? endif ?>
-FROM cohead, itemsite, item, custinfo, coitem
-WHERE ( (coitem_cohead_id=cohead_id)
-    AND (cohead_cust_id=cust_id)
-    AND (coitem_itemsite_id=itemsite_id)
-    AND (itemsite_item_id=item_id)
-    AND (coitem_status='O')
+FROM cohead
+  LEFT OUTER JOIN saletype ON (saletype_id=cohead_saletype_id)
+  JOIN custinfo ON (cust_id=cohead_cust_id)
+  JOIN coitem ON (coitem_cohead_id=cohead_id)
+  JOIN itemsite ON (itemsite_id=coitem_itemsite_id)
+  JOIN item ON (item_id=itemsite_item_id)
+WHERE ( (coitem_status='O')
     AND (cohead_id IN ( SELECT DISTINCT coitem_cohead_id
                         FROM coitem
                         WHERE (coitem_qtyshipped > 0) ))
@@ -48,7 +50,7 @@ WHERE ( (coitem_cohead_id=cohead_id)
       AND (itemsite_warehous_id=<? value("warehous_id") ?>)
     <? endif ?>
       ) 
-GROUP BY cohead_id, cohead_number, cust_name,
-         cohead_holdtype, cohead_orderdate, cohead_packdate,
+GROUP BY cohead_id, saletype_descr, cohead_number, cust_name, 
+         cohead_orderdate, cohead_packdate,
          cohead_curr_id 
 ORDER BY minscheddate, cohead_number;

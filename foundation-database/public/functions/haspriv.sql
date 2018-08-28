@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION hasPriv(TEXT) RETURNS BOOLEAN AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pPrivName	ALIAS FOR $1;
@@ -7,7 +7,7 @@ DECLARE
   _returnVal	BOOLEAN;
 
 BEGIN
-  RAISE NOTICE 'hasPriv(TEXT) is deprecated. Use checkPrivilege(TEXT) instead.';
+  RAISE WARNING 'hasPriv(TEXT) is deprecated. Use checkPrivilege(TEXT) instead.';
   SELECT priv_id INTO _result
     FROM priv, grppriv, usrgrp
    WHERE((usrgrp_grp_id=grppriv_grp_id)

@@ -40,8 +40,9 @@ BEGIN
 
   _qry := 'SELECT womatl_id, wo_number, wo_subnumber, 
       wo_startdate, womatl_duedate, womatl_itemsite_id,
-      itemsite_qtyonhand, womatl_qtyreq, womatl_qtyiss,
-      womatl_qtyper, womatl_qtyreq, womatl_scrap,
+      (qtyAvailable(itemsite_id) * itemuomtouomratio(item_id, item_inv_uom_id, womatl_uom_id)) AS availableqoh,
+      womatl_qtyreq, womatl_qtyiss,
+      womatl_qtyper, womatl_qtyreq, womatl_qtywipscrap,
       womatl_ref, womatl_notes, womatl_price, item_listprice,
       item_number, item_descrip1, item_descrip2,
       uom_name
@@ -78,17 +79,17 @@ BEGIN
     _subrow.wodata_itemsite_id := _subx.womatl_itemsite_id;    
     _subrow.wodata_custprice := _subx.womatl_price;
     _subrow.wodata_listprice := _subx.item_listprice;
-    _subrow.wodata_qoh := _subx.itemsite_qtyonhand;
-    IF((_subx.itemsite_qtyonhand > (_subx.womatl_qtyreq - _subx.womatl_qtyiss))) THEN
+    _subrow.wodata_qoh := _subx.availableqoh;
+    IF((_subx.availableqoh > (_subx.womatl_qtyreq - _subx.womatl_qtyiss))) THEN
       _subrow.wodata_short := 0;
     ELSE
-      _subrow.wodata_short := (_subx.womatl_qtyreq - _subx.womatl_qtyiss) -  _subx.itemsite_qtyonhand;
+      _subrow.wodata_short := (_subx.womatl_qtyreq - _subx.womatl_qtyiss) -  _subx.availableqoh;
     END IF;
     _subrow.wodata_qtyper := _subx.womatl_qtyper;
     _subrow.wodata_qtyiss := _subx.womatl_qtyiss;         
     _subrow.wodata_qtyordreq := _subx.womatl_qtyreq;     
     _subrow.wodata_qtyuom := _subx.uom_name;   
-    _subrow.wodata_scrap := _subx.womatl_scrap;        
+    _subrow.wodata_scrap := _subx.womatl_qtywipscrap;        
     _subrow.wodata_notes := _subx.womatl_notes;
     _subrow.wodata_ref := _subx.womatl_ref;       
     _subrow.wodata_level := _level;                                   

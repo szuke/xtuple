@@ -1,10 +1,11 @@
-CREATE OR REPLACE FUNCTION formatACHChecks(INTEGER, INTEGER, TEXT) RETURNS SETOF achline AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION public.formatachchecks(pbankaccntid INTEGER, -- all unprinted checks for this bankaccnt
+                                                  pcheckheadid INTEGER, -- but if 2nd arg not null then just 1 check
+                                                  penckey TEXT)
+  RETURNS SETOF achline AS
+$$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pbankaccntid     ALIAS FOR $1;   -- all unprinted checks for this bankaccnt
-  pcheckheadid     ALIAS FOR $2;   -- but if 2nd arg not null then just 1 check
-  penckey          ALIAS FOR $3;
   _bank            RECORD;
   _batchcount      INTEGER := 0;
   _batchcr         NUMERIC := 0;
@@ -26,6 +27,8 @@ DECLARE
   _totalentrycnt   INTEGER := 0;
   _totalhash       INTEGER := 0;
   _transactionprefix TEXT;
+  _blockcount      INTEGER := 0;
+  BLOCKSIZE        DOUBLE PRECISION := 10.0;
 
 BEGIN
   -- General notes:
@@ -53,7 +56,7 @@ BEGIN
   ELSIF (NOT _bank.bankaccnt_ach_enabled) THEN
     RAISE EXCEPTION 'Cannot format the ACH file because the Bank Account % is not configured for ACH transactions.',
       _bank.bankaccnt_name;
-  ELSIF (LENGTH(COALESCE(_bank.bankaccnt_routing, '')) <= 0) THEN 
+  ELSIF (LENGTH(COALESCE(_bank.bankaccnt_routing, '')) <= 0) THEN
     RAISE EXCEPTION 'Cannot format the ACH file because the Bank Account % has no routing number.',
       _bank.bankaccnt_name;
   END IF;
@@ -82,7 +85,7 @@ BEGIN
                                        WHEN _bank.bankaccnt_ach_desttype = 'F' THEN ' ' || _bank.bankaccnt_ach_fed_dest
                                        ELSE _bank.bankaccnt_ach_dest END, 10)
                           || RPAD(CASE WHEN _bank.bankaccnt_ach_origintype = 'B' THEN ' ' || _bank.bankaccnt_routing
-                                       WHEN _bank.bankaccnt_ach_origintype = 'I' THEN formatAchCompanyId()
+                                       WHEN _bank.bankaccnt_ach_origintype = 'I' THEN formatAchCompanyId(pbankaccntid)
                                        ELSE _bank.bankaccnt_ach_origin END, 10)
                           || TO_CHAR(CURRENT_DATE,      'YYMMDD')
                           || TO_CHAR(CURRENT_TIMESTAMP, 'HH24MM')
@@ -100,7 +103,12 @@ BEGIN
                           94);
   RETURN NEXT _row;
 
-  FOR _check IN SELECT *
+  FOR _check IN SELECT checkhead_id, checkhead_number, checkhead_bankaccnt_id,
+                       checkhead_recip_id, checkhead_checkdate, checkhead_amount,
+                       crmacct_id, crmacct_type,
+                       vend_number, vend_ach_use_vendinfo, vend_ach_indiv_number,
+                       vend_name, vend_ach_indiv_name, vend_ach_routingnumber,
+                       vend_ach_accntnumber, vend_ach_accnttype
                 FROM checkhead
                 JOIN vendinfo ON (checkhead_recip_type='V'
                               AND checkhead_recip_id=vend_id
@@ -131,10 +139,10 @@ BEGIN
     ELSE
       _sec := 'CCD';
       IF (_check.crmacct_id IS NULL) THEN
-        RAISE NOTICE 'Vendor % does not have a corresponding crmacct record.',
+        RAISE WARNING 'Vendor % does not have a corresponding crmacct record.',
                      _check.checkhead_recip_id;
       ELSIF (_check.crmacct_type IS NULL) THEN
-        RAISE NOTICE 'crmacct for vendor % does not have a valid crmacct_type.',
+        RAISE WARNING 'crmacct for vendor % does not have a valid crmacct_type.',
                      _check.checkhead_recip_id;
       END IF;
     END IF;
@@ -177,7 +185,7 @@ BEGIN
                                                 '0000000000SG'), 10)
                                 || RPAD(TO_CHAR(_batchdb, '0000000000V99SG'), 12)
                                 || RPAD(TO_CHAR(_batchcr, '0000000000V99SG'), 12)
-                                || RPAD(formatAchCompanyId(), 10)
+                                || RPAD(formatAchCompanyId(pbankaccntid), 10)
                                 || RPAD(' ', 19)
                                 || RPAD(' ',  6)
                                 || RPAD(_bank.bankaccnt_routing, 8)
@@ -204,7 +212,7 @@ BEGIN
                               || _serviceclass
                               || RPAD(fetchMetricText('ACHCompanyName'), 16)
                               || RPAD('', 20)   -- TODO: find a use
-                              || RPAD(formatAchCompanyId(), 10)
+                              || RPAD(formatAchCompanyId(pbankaccntid), 10)
                               || _sec
                               || RPAD('xTuple ERP', 10)
                               || TO_CHAR(_check.checkhead_checkdate, 'YYMMDD')
@@ -305,7 +313,7 @@ BEGIN
                                             '0000000000SG'), 10)
                             || RPAD(TO_CHAR(_batchdb, '0000000000V99SG'), 12)
                             || RPAD(TO_CHAR(_batchcr, '0000000000V99SG'), 12)
-                            || RPAD(formatAchCompanyId(), 10)
+                            || RPAD(formatAchCompanyId(pbankaccntid), 10)
                             || RPAD(' ', 19)
                             || RPAD(' ',  6)
                             || RPAD(_bank.bankaccnt_routing, 8)
@@ -316,12 +324,13 @@ BEGIN
 
   -- and end with a file control record
   _rowcount := _rowcount + 1;
+  _blockcount := ceil(_rowcount::DOUBLE PRECISION/BLOCKSIZE); -- Issue #27434 need to provide block count instead of row count
   _row.achline_checkhead_id := NULL;
   _row.achline_batch := _filenum;
   _row.achline_type := 'FILECONTROL';
   _row.achline_value := RPAD('9'
                           || RPAD(TO_CHAR(_batchcount,    '000000SG'),   6)
-                          || RPAD(TO_CHAR(_rowcount,      '000000SG'),   6)
+                          || RPAD(TO_CHAR(_blockcount,    '000000SG'),   6)
                           || RPAD(TO_CHAR(_totalentrycnt, '00000000SG'), 8)
                           || RPAD(TO_CHAR(_totalhash % 10000000000,
                                           '0000000000SG'), 10)
@@ -355,4 +364,5 @@ BEGIN
 
 END;
 $$
-LANGUAGE 'plpgsql';
+LANGUAGE plpgsql;
+ALTER FUNCTION public.formatachchecks(INTEGER, INTEGER, TEXT) OWNER TO admin;

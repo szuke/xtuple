@@ -20,7 +20,7 @@ BEGIN
   END IF;
   RETURN -9999;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION itemPrice(pItemid INTEGER,
                                      pCustid INTEGER,
@@ -37,7 +37,7 @@ DECLARE
 BEGIN
   RETURN itemPrice(pItemid, pCustid, pShiptoid, pQty, pQtyUOM, pPriceUOM, pCurrid, pEffective, CURRENT_DATE);
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION itemPrice(pItemid INTEGER,
                                      pCustid INTEGER,
@@ -55,7 +55,7 @@ DECLARE
 BEGIN
   RETURN itemPrice(pItemid, pCustid, pShiptoid, pQty, pQtyUOM, pPriceUOM, pCurrid, pEffective, pAsOf, NULL);
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION itemPrice(pItemid INTEGER,
                                      pCustid INTEGER,
@@ -70,11 +70,32 @@ CREATE OR REPLACE FUNCTION itemPrice(pItemid INTEGER,
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
+
+BEGIN
+  RETURN itemPrice(pItemid, pCustid, pShiptoid, pQty, pQtyUOM, pPriceUOM, pCurrid, pEffective, pAsOf, pSiteid, -1, -1);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION itemPrice(pItemid INTEGER,
+                                     pCustid INTEGER,
+                                     pShiptoid INTEGER,
+                                     pQty NUMERIC,
+                                     pQtyUOM INTEGER,
+                                     pPriceUOM INTEGER,
+                                     pCurrid INTEGER,
+                                     pEffective DATE,
+                                     pAsOf DATE,
+                                     pSiteid INTEGER,
+                                     pShipzoneid INTEGER,
+                                     pSaletypeid INTEGER) RETURNS NUMERIC AS $$
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- See www.xtuple.com/CPAL for the full text of the software license.
+DECLARE
   _r RECORD;
 
 BEGIN
   SELECT * FROM itemIpsPrice(pItemid, pCustid, pShiptoid, pQty, pQtyUOM, pPriceUOM,
-                             pCurrid, pEffective, pAsOf, pSiteid) INTO _r;
+                             pCurrid, pEffective, pAsOf, pSiteid, pShipzoneid, pSaletypeid) INTO _r;
   RETURN _r.itemprice_price;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

@@ -100,7 +100,7 @@ ORDER BY prodcat_code, item_number;
   </label>
   <label>
    <rect>
-    <x>70</x>
+    <x>165</x>
     <y>215</y>
     <width>228</width>
     <height>15</height>
@@ -118,7 +118,7 @@ ORDER BY prodcat_code, item_number;
    <rect>
     <x>5</x>
     <y>200</y>
-    <width>55</width>
+    <width>140</width>
     <height>15</height>
    </rect>
    <font>
@@ -180,7 +180,7 @@ ORDER BY prodcat_code, item_number;
   </label>
   <label>
    <rect>
-    <x>70</x>
+    <x>165</x>
     <y>200</y>
     <width>228</width>
     <height>15</height>
@@ -302,7 +302,7 @@ ORDER BY prodcat_code, item_number;
    <rect>
     <x>5</x>
     <y>0</y>
-    <width>55</width>
+    <width>140</width>
     <height>15</height>
    </rect>
    <font>
@@ -348,7 +348,7 @@ ORDER BY prodcat_code, item_number;
   </label>
   <label>
    <rect>
-    <x>70</x>
+    <x>165</x>
     <y>0</y>
     <width>228</width>
     <height>15</height>
@@ -380,7 +380,7 @@ ORDER BY prodcat_code, item_number;
   </label>
   <label>
    <rect>
-    <x>70</x>
+    <x>165</x>
     <y>15</y>
     <width>228</width>
     <height>15</height>
@@ -473,7 +473,7 @@ ORDER BY prodcat_code, item_number;
     <rect>
      <x>5</x>
      <y>0</y>
-     <width>55</width>
+     <width>140</width>
      <height>15</height>
     </rect>
     <font>
@@ -490,7 +490,7 @@ ORDER BY prodcat_code, item_number;
    </field>
    <field>
     <rect>
-     <x>70</x>
+     <x>165</x>
      <y>15</y>
      <width>228</width>
      <height>15</height>
@@ -528,7 +528,7 @@ ORDER BY prodcat_code, item_number;
    </field>
    <field>
     <rect>
-     <x>70</x>
+     <x>165</x>
      <y>0</y>
      <width>228</width>
      <height>15</height>
@@ -630,7 +630,7 @@ ORDER BY prodcat_code, item_number;
    </field>
    <field>
     <rect>
-     <x>70</x>
+     <x>165</x>
      <y>30</y>
      <width>228</width>
      <height>15</height>

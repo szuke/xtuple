@@ -12,9 +12,11 @@ FROM updateReorderLevel((
     SELECT itemsite_id
     FROM itemsite
     JOIN item ON (itemsite_item_id=item_id)
+    JOIN whsinfo ON (itemsite_warehous_id=warehous_id)
     LEFT OUTER JOIN plancode ON (itemsite_plancode_id=plancode_id)
     LEFT OUTER JOIN classcode ON (item_classcode_id=classcode_id)
     WHERE ( (itemsite_active)
+     AND (NOT warehous_transit)
 <? if exists("warehous_id") ?>
      AND (itemsite_warehous_id=<? value("warehous_id") ?>)
 <? endif ?>

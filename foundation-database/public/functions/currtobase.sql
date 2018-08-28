@@ -1,38 +1,33 @@
--- for currToLocal, currToBase, and currToCurr:
--- the curr_rate column has one more digit of precision than the user typed
--- in so if the metric CurrencyExchangeSense says to show rates as
--- foreign * rate = base, we can show what the user typed without rounding
--- loss. now we have to use the same rate the user sees, so round the
--- curr_rate.  see mantis #3901.
+--DROP FUNCTION IF EXISTS currToBase(INTEGER, NUMERIC, DATE) CASCADE;
+--HACK: The above line causes issue #29619, removing important views from xtdash
+--Normally functions need to be dropped in case of function signature change
+--We can skip that step in this case because the function signature has been the same up until now
+--and it is only a problem after parameters are given a name
+--This prevents dependent views from being deleted
 
-CREATE OR REPLACE FUNCTION currToBase (integer, numeric, date) RETURNS NUMERIC STABLE AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION currToBase(pId    INTEGER,
+                                      pValue NUMERIC,
+                                      pDate  DATE) RETURNS NUMERIC STABLE AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
+-- watch for bug #3901 - rounding because of the CurrencyExchangeSense metric
 DECLARE
-  pId     ALIAS FOR $1;
-  pValue  ALIAS FOR $2;
-  _date  DATE;
-  _output NUMERIC;
+  _date   DATE    := COALESCE(pDate,  CURRENT_DATE);
+  _output NUMERIC := COALESCE(pValue, 0.0);
 BEGIN
-  _date := $3;
-  IF _date IS NULL THEN
-    _date := 'now';
-  END IF;
 
-  IF pValue = 0 OR pValue IS NULL THEN
-    _output := 0;
-  ELSIF (baseCurrId() = pId) THEN
-    _output := pValue;
-  ELSE
-    SELECT pValue / curr_rate
-        INTO  _output
-      FROM  curr_rate
+  IF _output != 0.0 THEN
+    SELECT pValue / curr_rate INTO  _output
+      FROM public.curr_rate     -- schema-qualified for bug 29358; generally bad
      WHERE curr_id = pId
        AND _date BETWEEN curr_effective AND curr_expires;
-    IF (_output IS NULL OR NOT FOUND) THEN
-      RAISE EXCEPTION 'No exchange rate for % on %', pId, _date;
-    END IF;
   END IF;
+
+  IF _output IS NULL THEN
+    RAISE EXCEPTION 'No exchange rate for % on % [xtuple: currToBase, -1, %, %, %]',
+                    pId, _date, pId, pValue, pDate;
+  END IF;
+
   RETURN _output;
 END;
 $$ LANGUAGE plpgsql;

@@ -8,16 +8,7 @@ SELECT arapply.*,
        cust_number, cust_name,
        CASE WHEN (arapply_source_doctype='C') THEN <? value("creditMemo") ?>
             WHEN (arapply_source_doctype='R') THEN <? value("cashdeposit") ?>
-            WHEN (arapply_fundstype='C') THEN <? value("check") ?>
-            WHEN (arapply_fundstype='T') THEN <? value("certifiedCheck") ?>
-            WHEN (arapply_fundstype='M') THEN <? value("masterCard") ?>
-            WHEN (arapply_fundstype='V') THEN <? value("visa") ?>
-            WHEN (arapply_fundstype='A') THEN <? value("americanExpress") ?>
-            WHEN (arapply_fundstype='D') THEN <? value("discoverCard") ?>
-            WHEN (arapply_fundstype='R') THEN <? value("otherCreditCard") ?>
-            WHEN (arapply_fundstype='K') THEN <? value("cash") ?>
-            WHEN (arapply_fundstype='W') THEN <? value("wireTransfer") ?>
-            WHEN (arapply_fundstype='O') THEN <? value("other") ?>
+            ELSE getFundsTypeName(arapply_fundstype)
        END AS doctype,
        CASE WHEN (arapply_source_doctype='C') THEN <? value("creditMemo") ?>
             WHEN (arapply_source_doctype='R') THEN <? value("cashdeposit") ?>

@@ -1,7 +1,7 @@
 -- Group: usageStatistics
 -- Name: detail
 -- Notes: 
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT *,
@@ -22,6 +22,7 @@ SELECT *,
 FROM (
 SELECT itemsite_id, item_id, warehous_code,
        item_number, (item_descrip1 || ' ' || item_descrip2) AS itemdescrip,
+       itemsite_abcclass,
   <? if exists("MultiWhs") ?>
        summTransT(itemsite_id, <? value("startDate") ?>, <? value("endDate") ?>) AS transfer,
   <? endif ?>
@@ -33,7 +34,7 @@ SELECT itemsite_id, item_id, warehous_code,
 FROM item JOIN itemsite ON (itemsite_item_id=item_id)
           JOIN whsinfo ON (warehous_id=itemsite_warehous_id)
 WHERE (1=1)
-
+  AND itemsitestockable(itemsite_id)
 <? if exists("item_id") ?>
   AND  (item_id=<? value("item_id") ?>)
 <? endif ?>
@@ -66,6 +67,18 @@ WHERE (1=1)
 <? elseif exists("itemgrp")?>
   AND (item_id IN (SELECT DISTINCT itemgrpitem_item_id FROM itemgrpitem))
 <? endif ?>
+  <? if exists("abc_class") ?>
+    <? foreach("abc_class") ?>
+      <? if isfirst("abc_class") ?>
+        AND (itemsite_abcclass=<? value("abc_class") ?>
+      <? else ?>
+        OR itemsite_abcclass=<? value("abc_class") ?>
+      <? endif ?>
+      <? if islast("abc_class") ?>
+        )
+      <? endif ?>
+    <? endforeach ?>
+  <? endif ?>
 ) AS data
 
 ORDER BY warehous_code, item_number;

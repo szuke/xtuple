@@ -10,6 +10,7 @@ CREATE OR REPLACE VIEW api.location AS
     location_name::VARCHAR AS location,
     whsezone_name AS zone,
     location_netable AS netable,
+    location_usable AS usable,
     location_restrict AS restricted,
     location_descrip AS description
     FROM location
@@ -30,6 +31,7 @@ CREATE OR REPLACE RULE "_INSERT" AS
     location_descrip,
     location_restrict,
     location_netable,
+    location_usable,
     location_whsezone_id,
     location_aisle,
     location_rack,
@@ -41,6 +43,7 @@ CREATE OR REPLACE RULE "_INSERT" AS
     COALESCE(NEW.description, ''),
     COALESCE(NEW.restricted, false),
     COALESCE(NEW.netable, true),
+    COALESCE(NEW.usable, true),
     getWhseZoneId(NEW.site, NEW.zone),
     COALESCE(NEW.aisle, ''),
     COALESCE(NEW.rack, ''),
@@ -55,6 +58,7 @@ CREATE OR REPLACE RULE "_UPDATE" AS
     location_descrip=NEW.description,
     location_restrict=NEW.restricted,
     location_netable=NEW.netable,
+    location_usable=NEW.usable,
     location_whsezone_id=getWhseZoneId(NEW.site, NEW.zone),
     location_aisle=NEW.aisle,
     location_rack=NEW.rack,

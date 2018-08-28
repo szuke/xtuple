@@ -15,18 +15,30 @@ BEGIN
   WHERE ( (costcat_asset_accnt_id=pAccntid)
      OR   (costcat_liability_accnt_id=pAccntid)
      OR   (costcat_adjustment_accnt_id=pAccntid)
+     OR   (costcat_matusage_accnt_id=pAccntid)
      OR   (costcat_purchprice_accnt_id=pAccntid)
-     OR   (costcat_laboroverhead_accnt_id=pAccntid)
      OR   (costcat_scrap_accnt_id=pAccntid)
      OR   (costcat_invcost_accnt_id=pAccntid)
      OR   (costcat_wip_accnt_id=pAccntid)
      OR   (costcat_shipasset_accnt_id=pAccntid)
      OR   (costcat_mfgscrap_accnt_id=pAccntid)
      OR   (costcat_transform_accnt_id=pAccntid)
-     OR   (costcat_freight_accnt_id=pAccntid) )
+     OR   (costcat_freight_accnt_id=pAccntid)
+     OR   (costcat_exp_accnt_id=pAccntid) )
   LIMIT 1;
   IF (FOUND) THEN
     RETURN -1;
+  END IF;
+
+  IF (fetchMetricText('Application') = 'Standard') THEN
+    SELECT costcat_id INTO _check
+    FROM costcat
+    WHERE ( (costcat_toliability_accnt_id=pAccntid)
+       OR   (costcat_laboroverhead_accnt_id=pAccntid) )
+    LIMIT 1;
+    IF (FOUND) THEN
+      RETURN -1;
+    END IF;
   END IF;
 
 --  Check to see if the passed accnt is used in a Sales Account Assignment
@@ -40,12 +52,37 @@ BEGIN
     RETURN -2;
   END IF;
 
+  IF (fetchMetricText('Application') = 'Standard') THEN
+    SELECT salesaccnt_id INTO _check
+    FROM salesaccnt
+    WHERE ( (salesaccnt_returns_accnt_id=pAccntid)
+       OR   (salesaccnt_cor_accnt_id=pAccntid)
+       OR   (salesaccnt_cow_accnt_id=pAccntid) )
+    LIMIT 1;
+    IF (FOUND) THEN
+      RETURN -2;
+    END IF;
+  END IF;
+
+--  Check to see if the passed accnt is used in a Sales Category
+  SELECT salescat_id INTO _check
+  FROM salescat
+  WHERE ( (salescat_sales_accnt_id=pAccntid)
+     OR   (salescat_prepaid_accnt_id=pAccntid)
+     OR   (salescat_ar_accnt_id=pAccntid) )
+  LIMIT 1;
+  IF (FOUND) THEN
+    RETURN -2;
+  END IF;
+
 --  Check to see if the passed accnt is used in a A/R Account Assignment
   SELECT araccnt_id INTO _check
   FROM araccnt
   WHERE ( (araccnt_freight_accnt_id=pAccntid)
      OR   (araccnt_ar_accnt_id=pAccntid)
-     OR   (araccnt_prepaid_accnt_id=pAccntid) )
+     OR   (araccnt_prepaid_accnt_id=pAccntid)
+     OR   (araccnt_deferred_accnt_id=pAccntid)
+     OR   (araccnt_discount_accnt_id=pAccntid) )
   LIMIT 1;
   IF (FOUND) THEN
     RETURN -3;
@@ -67,6 +104,14 @@ BEGIN
     RETURN -5;
   END IF;
 
+  SELECT bankadjtype_id INTO _check
+  FROM bankadjtype
+  WHERE (bankadjtype_accnt_id=pAccntid)
+  LIMIT 1;
+  IF (FOUND) THEN
+    RETURN -5;
+  END IF;
+
 --  Check to see if the passed accnt is used in an Expense Category
   SELECT expcat_id INTO _check
   FROM expcat
@@ -82,7 +127,8 @@ BEGIN
 --  Check to see if the passed accnt is used in a Tax Code
   SELECT tax_id INTO _check
   FROM tax
-  WHERE (tax_sales_accnt_id=pAccntid)
+  WHERE ( (tax_sales_accnt_id=pAccntid)
+     OR   (tax_dist_accnt_id=pAccntid) )
   LIMIT 1;
   IF (FOUND) THEN
     RETURN -7;

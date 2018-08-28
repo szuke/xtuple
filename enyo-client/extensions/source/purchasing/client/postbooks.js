@@ -20,8 +20,8 @@ trailing:true, white:true, strict:false*/
       {name: "unitList", kind: "XV.UnitList"},
       {name: "stateList", kind: "XV.StateList"},
       {name: "countryList", kind: "XV.CountryList"},
-      {name: "purchaseEmailProfileList", kind: "XV.PurchaseEmailProfileList"},
-      {name: "purchaseTypeList", kind: "XV.PurchaseTypeList"}
+      {name: "purchaseTypeList", kind: "XV.PurchaseTypeList"},
+      {name: "purchaseEmailProfileList", kind: "XV.PurchaseEmailProfileList"}
     ];
 
     XT.app.$.postbooks.appendPanels("setup", panels);
@@ -35,6 +35,14 @@ trailing:true, white:true, strict:false*/
         {name: "purchasing_activityList", kind: "XV.ActivityList"}
       ]
     };
+
+    if (XT.session.settings.get("DashboardLite")) {
+      var charts = [
+        {name: "unclosedPurchaseOrders", label: "_unclosedPurchaseOrders".loc(), item: "XV.PurchaseOrderBarChart"}
+      ];
+      XT.app.$.postbooks.insertDashboardCharts(charts);
+    }
+
     XT.app.$.postbooks.insertModule(module, 0);
 
     relevantPrivileges = [

@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION fixACL() RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _r        RECORD;
@@ -24,7 +24,8 @@ BEGIN
             WHERE ((n.oid=c.relnamespace)
               AND  (nspname in ('public', 'api') OR
                     nspname in (SELECT pkghead_name FROM pkghead))
-              AND  (relkind in ('S', 'r', 'v')))
+              AND  (relkind in ('S', 'r', 'v'))
+              AND  (nspname||'.'||relname <> 'public.pkghead'))
             ORDER BY seq
   LOOP
     _schema := quote_ident(_r.nspname);
@@ -55,6 +56,9 @@ BEGIN
     END IF;
 
   END LOOP;
+
+-- #26477 Have to run this update outside of loop
+  EXECUTE 'ALTER TABLE public.pkghead OWNER TO admin;';
 
   RETURN _count;
 END;

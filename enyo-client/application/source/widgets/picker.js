@@ -245,6 +245,35 @@ regexp:true, undef:true, trailing:true, white:true, strict:false */
   });
 
   // ..........................................................
+  // FORM
+  //
+
+  enyo.kind({
+    name: "XV.FormPicker",
+    kind: "XV.PickerWidget",
+    collection: "XM.forms",
+    published: {
+      key: null
+    },
+    create: function () {
+      this.inherited(arguments);
+      this.keyChanged();
+    },
+    keyChanged: function () {
+      var key = this.getKey();
+      if (key) {
+        this.filter = function (models) {
+          var ret = _.filter(models, function (m) {
+            return m.getValue("key") === key;
+          });
+          return ret;
+        };
+        this.buildList();
+      }
+    }
+  });
+
+  // ..........................................................
   // FILTER
   //
 
@@ -466,6 +495,17 @@ regexp:true, undef:true, trailing:true, white:true, strict:false */
     orderBy: [
       {attribute: 'code'}
     ]
+  });
+
+  // ..........................................................
+  // PRINTER
+  //
+
+  enyo.kind({
+    name: "XV.PrinterPicker",
+    kind: "XV.PickerWidget",
+    collection: "XM.printers",
+    nameAttribute: "name"
   });
 
   // ..........................................................
@@ -897,6 +937,7 @@ regexp:true, undef:true, trailing:true, white:true, strict:false */
     collection: "XM.saleTypes",
     nameAttribute: "code",
     orderBy: [
+      {attribute: 'default', descending: true},
       {attribute: 'code'}
     ]
   });
@@ -923,28 +964,6 @@ regexp:true, undef:true, trailing:true, white:true, strict:false */
     collection: "XM.wagePeriods",
     showNone: false,
     valueAttribute: "id"
-  });
-
-  // ..........................................................
-  // WORKFLOW STATUS
-  //
-
-  enyo.kind({
-    name: "XV.WorkflowStatusPicker",
-    kind: "XV.PickerWidget",
-    showNone: false,
-    collection: "XM.workflowStatuses"
-  });
-
-  // ..........................................................
-  // WORKFLOW TYPE
-  //
-
-  enyo.kind({
-    name: "XV.SalesOrderWorkflowTypePicker",
-    kind: "XV.PickerWidget",
-    showNone: false,
-    collection: "XM.salesOrderWorkflowTypes"
   });
 
   // ..........................................................

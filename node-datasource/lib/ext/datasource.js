@@ -13,9 +13,12 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
   var RJSON = require("rjson"),
     path = require('path'),
     _ = require("underscore"),
+    EventEmitter = require('events').EventEmitter,
     DataSource = {
       requestNum: 0,
-      callbacks: { },
+      callbacks: {},
+
+      creds : {},
 
       getAdminCredentials: function (organization) {
         return {
@@ -52,7 +55,6 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
       init: function () {
         var that = this;
 
-        X.addCleanupTask(_.bind(this.cleanup, this), this);
         X.pg.defaults.poolSize = this.poolSize;
 
         if (X.options && X.options.datasource && X.options.datasource.pgWorker) {
@@ -89,7 +91,7 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
         @param {Function} callback
       */
       query: function (query, options, callback) {
-        var creds = {
+        this.creds = {
           "user": options.user,
           "port": options.port,
           "host": options.host || options.hostname,
@@ -103,7 +105,7 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
           this.callbacks[this.requestNum] = callback;
           // Single worker version.
           options.debugDatabase = X.options.datasource.debugDatabase;
-          this.worker.send({id: this.requestNum, query: query, options: options, creds: creds, poolSize: this.poolSize});
+          this.worker.send({id: this.requestNum, query: query, options: options, creds: this.creds, poolSize: this.poolSize});
 
           // NOTE: Round robin benchmarks are slower then the above single pgworker code.
           // Round robin workers version. This might be useful in the future.
@@ -113,14 +115,14 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
           //   this.nextWorker = 0;
           // }
           // options.debugDatabase = X.options.datasource.debugDatabase;
-          // worker.send({id: this.requestNum, query: query, options: options, creds: creds});
+          // worker.send({id: this.requestNum, query: query, options: options, creds: this.creds});
         } else {
-          if (X.options && X.options.datasource.debugging &&
-              query.indexOf('select xt.delete($${"nameSpace":"SYS","type":"SessionStore"') < 0 &&
+          if (X.options && query.indexOf('select xt.delete($${"nameSpace":"SYS","type":"SessionStore"') < 0 &&
               query.indexOf('select xt.get($${"nameSpace":"SYS","type":"SessionStore"') < 0) {
-            X.log(query);
+            X.capture(query);
+            X.debug(query);
           }
-          X.pg.connect(creds, _.bind(this.connected, this, query, options, callback));
+          X.pg.connect(this.creds, _.bind(this.connected, this, query, options, callback));
         }
       },
 
@@ -133,25 +135,31 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
       * You can also just run, "kill -USR1 12345", to start the debugger on a running process
       * instead of starting node with the debugger running: "sudo node --debug-brk main.js".
       */
-      connected: function (query, options, callback, err, client, done, ranInit) {
+      connected: function (query, options, callback, err, client, done) {
         // WARNING!!! If you make any changes here, please update pg_worker.js as well.
-        var that = this,
-          queryCallback;
-
         if (err) {
-          issue(X.warning("Failed to connect to database: " +
+          X.exception.handle(X.warning("Failed to connect to database: " +
             "{host}:{port}/{database} => %@".f(options, err.message)));
           done();
           return callback(err);
         }
 
+        // If we got a client that was flagged to be destroyed, try again.
+        if (client.destroying) {
+          this.query(query, options, callback);
+          return;
+        }
+
+        var that = this,
+          queryCallback,
+          errorHandlerCount = EventEmitter.listenerCount(client.connection, 'error'),
+          noticeHandlerCount = EventEmitter.listenerCount(client.connection, 'notice');
+
         client.status = [];
         client.debug = [];
 
-        if (ranInit === true) {
-          client.hasRunInit = true;
-
-          // Register error handler to log errors.
+        // Register error handler to log errors.
+        if (errorHandlerCount < 2) {
           client.connection.on('error', function (msg) {
             var lastQuery;
 
@@ -168,7 +176,9 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
               X.err("Database Error! DB name = ", options.database);
             }
           });
+        }
 
+        if (noticeHandlerCount < 2) {
           client.connection.on('notice', function (msg) {
             if (msg && msg.message) {
               if (msg.severity === 'NOTICE') {
@@ -188,72 +198,104 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
           });
         }
 
-        if (!client.hasRunInit) {
-          //client.query("set plv8.start_proc = \"xt.js_init\";", _.bind(
-          client.query("select xt.js_init(" + (X.options && X.options.datasource.debugDatabase || false) + ");", _.bind(
-            this.connected, this, query, options, callback, err, client, done, true));
-        } else {
-          queryCallback = function (err, result) {
-            if (err) {
-              // Set activeQuery for error event handler above.
-              that.activeQuery = client.activeQuery ? client.activeQuery.text : 'unknown. See PostgreSQL log.';
+        queryCallback = function (err, result) {
+          if (err) {
+            // Set activeQuery for error event handler above.
+            that.activeQuery = client.activeQuery ? client.activeQuery.text : 'unknown. See PostgreSQL log.';
+          }
+
+          if (client.status && client.status.length) {
+            if (result) {
+              try {
+                result.status = JSON.parse(client.status[0]);
+              } catch (error) {
+                // Move on, no status message to set. We only want JSON messages here.
+              }
+            } else if (err) {
+              try {
+                err.status = JSON.parse(client.status[0]);
+              } catch (error) {
+                // Move on, no status message to set. We only want JSON messages here.
+              }
+            } else {
+              console.log("### FIX ME ### No result or err returned for query. This shouldn't happen.");
+              console.trace("### At this location ###");
             }
 
-            if (client.status && client.status.length) {
-              if (result) {
-                try {
-                  result.status = JSON.parse(client.status[0]);
-                } catch (error) {
-                  // Move on, no status message to set. We only want JSON messages here.
-                }
-              } else if (err) {
-                try {
-                  err.status = JSON.parse(client.status[0]);
-                } catch (error) {
-                  // Move on, no status message to set. We only want JSON messages here.
-                }
-              } else {
-                console.log("### FIX ME ### No result or err returned for query. This shouldn't happen.");
+            if (client.status.length > 1) {
+              try {
+                JSON.parse(client.status);
+                console.log("### FIX ME ### Database is returning more than 1 message status. This shouldn't happen.");
+                console.log("### FIX ME ### Status is: ", JSON.stringify(client.status));
+                console.log("### FIX ME ### Query was: ", client.activeQuery ? client.activeQuery.text : 'unknown. See PostgreSQL log.');
                 console.trace("### At this location ###");
-              }
-
-              if (client.status.length > 1) {
-                try {
-                  JSON.parse(client.status);
-                  console.log("### FIX ME ### Database is returning more than 1 message status. This shouldn't happen.");
-                  console.log("### FIX ME ### Status is: ", JSON.stringify(client.status));
-                  console.log("### FIX ME ### Query was: ", client.activeQuery ? client.activeQuery.text : 'unknown. See PostgreSQL log.');
-                  console.trace("### At this location ###");
-                } catch (error) {
-                  // Move on, no status message to set. We only want JSON messages here.
-                }
+              } catch (error) {
+                // Move on, no status message to set. We only want JSON messages here.
               }
             }
-            if (client.debug && client.debug.length) {
-              if (result) {
-                result.debug = client.debug;
-              } else if (err) {
-                err.debug = client.debug;
-              } else {
-                console.log("### FIX ME ### No result or err returned for query. This shouldn't happen.");
-                console.trace("### At this location ###");
-              }
+          }
+          if (client.debug && client.debug.length) {
+            if (result) {
+              result.debug = client.debug;
+            } else if (err) {
+              err.debug = client.debug;
+            } else {
+              console.log("### FIX ME ### No result or err returned for query. This shouldn't happen.");
+              console.trace("### At this location ###");
             }
+          }
 
-            // Release the client from the pool.
+          // Release the client from the pool.
+          if (err) {
+            /**
+             * The package, `node-postgres`, we use maintains a connection pool
+             * to the database server, defaulting to 10 connections.
+             *
+             * We make use of plv8's `SET plv8.start_proc = 'xt.js_init'
+             * feature for those connections. This is only called the FIRST time
+             * a plv8 function is called for a connection. Because of this, if a
+             * connection, when added to the pool happens to cause an error in
+             * the database during its first transaction that uses plv8, all of
+             * the steps we do for a persistent client connection in
+             * `xt.js_init();` are rolled back. The main thing we setup is the
+             * `search_path`. If an error happens on the first query for this
+             * connection, the `search_path` will not be set the next time the
+             * pool's connection is used for a query.
+             *
+             * Because of this, on any emitted errors below in `connected()`, we
+             * destroy that client from the pool.
+             */
+
+            // Set flag so we don't use this client above before it's removed.
+            client.destroying = true;
+
+            done(err);
+
+            // Now that the client has been destroyed, for the pool to function
+            // correctly, we need to add one back to take its place.
+            // @see: https://github.com/brianc/node-postgres/issues/1460
+            X.pg.pools.all[JSON.stringify(that.creds)].acquire(function (newErr, newClient) {
+              // But we don't actually need it, so release it back to the pool.
+              X.pg.pools.all[JSON.stringify(that.creds)].release(newClient);
+
+              // Once the client has been added to the pool, call the callback.
+              callback(err, result);
+            });
+          } else {
             done();
 
-            // Call the call back.
+            // Call the callback.
             callback(err, result);
-          };
-
-          // node-postgres supports parameters as a second argument. These will be options.parameters
-          // if they're there.
-          if (options.parameters) {
-            client.query(query, options.parameters, queryCallback);
-          } else {
-            client.query(query, queryCallback);
           }
+
+        };
+
+        // node-postgres supports parameters as a second argument. These will be options.parameters
+        // if they're there.
+        if (options.parameters) {
+          client.query(query, options.parameters, queryCallback);
+        } else {
+          client.query(query, queryCallback);
         }
       },
 
@@ -324,10 +366,6 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
         query = "select xt.{method}($${payload}$$) as request"
                 .replace("{method}", method)
                 .replace("{payload}", payload);
-
-        //if (X.options.datasource.debugging) {
-        //  X.log("Query from model: ", query);
-        //}
 
         if (options.database) {
           conn.database = options.database;

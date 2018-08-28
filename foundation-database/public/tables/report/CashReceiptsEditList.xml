@@ -20,17 +20,7 @@
   <sql>SELECT cashrcpt_id, 1 AS orderBy,
        cust_number, cust_name,
        formatDate(cashrcpt_distdate) AS f_distdate,
-       CASE WHEN (cashrcpt_fundstype = 'C') THEN &lt;? value("check") ?>
-            WHEN (cashrcpt_fundstype = 'T') THEN &lt;? value("certifiedCheck") ?>
-            WHEN (cashrcpt_fundstype = 'M') THEN &lt;? value("masterCard") ?>
-            WHEN (cashrcpt_fundstype = 'V') THEN &lt;? value("visa") ?>
-            WHEN (cashrcpt_fundstype = 'A') THEN &lt;? value("americanExpress") ?>
-            WHEN (cashrcpt_fundstype = 'D') THEN &lt;? value("discoverCard") ?>
-            WHEN (cashrcpt_fundstype = 'R') THEN &lt;? value("otherCreditCard") ?>
-            WHEN (cashrcpt_fundstype = 'K') THEN &lt;? value("cash") ?>
-            WHEN (cashrcpt_fundstype = 'W') THEN &lt;? value("wireTransfer") ?>
-            ELSE &lt;? value("other") ?>
-       END AS f_fundstype,
+       getFundsTypeName(cashrcpt_fundstype) AS f_fundstype,
        'C/R' AS doctype,
        cashrcpt_docnumber AS docnumber,
        cashrcpt_amount AS amount,

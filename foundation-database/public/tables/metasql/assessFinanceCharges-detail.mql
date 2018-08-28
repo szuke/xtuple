@@ -21,7 +21,7 @@ SELECT aropen_id, aropen_docnumber, aropen_duedate, aropen_docdate,
                                                                             ELSE docdateoverdue END)
        END AS fincharge
 FROM fincharg,
-     (SELECT *,
+     (SELECT aropen.*, cust_number, cust_name, cust_gracedays,
              (aropen_amount - aropen_paid) AS balance,
              COALESCE(aropen_fincharg_amount, 0.0) AS prevfincharge,
              (<? value("assessmentDate") ?> - COALESCE(aropen_fincharg_date, aropen_duedate)) AS duedateoverdue,

@@ -1,12 +1,15 @@
 -- Group: crmaccounts
 -- Name:  detail
 -- Notes: 
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT DISTINCT ON (crmacct_number)
   crmacct_id AS id, crmacct_number, crmacct_name, crmacct_owner_username,
-  cntct.*, addr.*,
+  crmacct_active, crmacct_created,
+  cntct_first_name, cntct_last_name, cntct_phone, cntct_email,
+  addr_id, addr_line1, addr_line2, addr_line3, addr_city, addr_state,
+  addr_postalcode, addr_country, addr_notes, addr_number, addr_active,
   (crmacct_cust_id       IS NOT NULL) AS cust,
   (crmacct_prospect_id   IS NOT NULL) AS prospect,
   (crmacct_vend_id       IS NOT NULL) AS vend,
@@ -100,6 +103,14 @@ WHERE true
 <? if exists("id") ?>
   AND (crmacct_id=<? value("id") ?>)
 <? endif ?>
+<? if exists("startCreateDate") ?>
+   AND ((crmacct_created::DATE >= <? value("startCreateDate") ?>)
+    OR (<? value("startCreateDate") ?> <= startOfTime()) AND (crmacct_created::DATE IS NULL))
+<? endif ?>
+<? if exists("endCreateDate") ?>
+   AND ((crmacct_created::DATE <= <? value("endCreateDate") ?>)
+    OR (<? value("endCreateDate") ?> >= endOfTime()) AND (crmacct_created::DATE IS NULL))
+<? endif ?>
 <? literal("charClause") ?>
 
 <? if exists("excludeMergeWIP") ?>
@@ -113,5 +124,17 @@ WHERE true
                           UNION
                           SELECT crmacctsel_dest_crmacct_id
                             FROM crmacctsel))
+<? endif ?>
+<? if exists("crmacct_acct_type") ?>
+  AND CASE WHEN <? value("crmacct_acct_type") ?> = 1 THEN crmacct_cust_id IS NOT NULL
+           WHEN <? value("crmacct_acct_type") ?> = 2 THEN crmacct_prospect_id IS NOT NULL
+           WHEN <? value("crmacct_acct_type") ?> = 3 THEN crmacct_vend_id IS NOT NULL
+           WHEN <? value("crmacct_acct_type") ?> = 4 THEN crmacct_competitor_id IS NOT NULL
+           WHEN <? value("crmacct_acct_type") ?> = 5 THEN crmacct_partner_id IS NOT NULL
+           WHEN <? value("crmacct_acct_type") ?> = 6 THEN crmacct_taxauth_id IS NOT NULL
+           WHEN <? value("crmacct_acct_type") ?> = 7 THEN crmacct_usr_username IS NOT NULL
+           WHEN <? value("crmacct_acct_type") ?> = 8 THEN crmacct_emp_id IS NOT NULL
+           WHEN <? value("crmacct_acct_type") ?> = 9 THEN crmacct_salesrep_id IS NOT NULL
+      END
 <? endif ?>
 ORDER BY crmacct_number; 

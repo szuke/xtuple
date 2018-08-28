@@ -11,7 +11,7 @@
  <leftmargin>50</leftmargin>
  <querysource>
   <name>detail</name>
-  <sql>SELECT *, glseries_sequence,
+  <sql>SELECT glseries.*,
        (formatGLAccount(glseries_accnt_id) || ' - ' ||
                         accnt_descrip) AS account,
        CASE WHEN (glseries_amount &lt; 0) THEN
@@ -20,8 +20,8 @@
        CASE WHEN (glseries_amount >= 0) THEN
            formatMoney(glseries_amount)
        ELSE '' END AS credit
-FROM glseries, accnt
-WHERE (glseries_accnt_id=accnt_id)
+       FROM glseries
+       JOIN accnt ON (glseries_accnt_id=accnt_id)
 ORDER BY glseries_distdate, glseries_sequence, glseries_amount;</sql>
  </querysource>
  <rpthead>

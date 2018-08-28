@@ -1,13 +1,13 @@
 -- Group: packingListBatch
 -- Name: detail
 -- Notes: used by packingListBatch
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT DISTINCT
        cohead_id, pack_shiphead_id, 
        cohead_number AS order_number, pack_head_type,
-       cohead_shipvia AS shipvia,
+       cohead_shipvia AS shipvia, cohead_packdate AS packdate,
        formatShipmentNumber(pack_shiphead_id) AS shipment_number, 
        cust_number AS number, cohead_billtoname AS name,
        CASE WHEN (cohead_holdtype='N') THEN <? value("none") ?>
@@ -15,6 +15,7 @@ SELECT DISTINCT
             WHEN (cohead_holdtype='S') THEN <? value("ship") ?>
             WHEN (cohead_holdtype='P') THEN <? value("pack") ?>
             WHEN (cohead_holdtype='R') THEN <? value("return") ?>
+            WHEN (cohead_holdtype='T') THEN <? value("tax") ?>
             ELSE <? value("other") ?>
        END AS f_holdtype,
        pack_printed
@@ -24,22 +25,36 @@ FROM pack JOIN cohead ON (cohead_id=pack_head_id)
           JOIN itemsite ON (itemsite_id=coitem_itemsite_id)
 WHERE ( (pack_head_type='SO')
   AND   (checkSOSitePrivs(cohead_id))
+  AND (cohead_status = 'O')
+  AND (NOT orderhasshipped(cohead_id))
 <? if exists("warehous_id") ?>
   AND   (itemsite_warehous_id = <? value("warehous_id") ?>)
 <? endif ?>
+  AND (cohead_holdtype IN ('N', 'R', 'T'
+<? if exists("showCredit") ?>
+   , 'C'
+<? endif ?>
+<? if exists("showShip") ?>
+   , 'S'
+<? endif ?>
+<? if exists("showPack") ?>
+   , 'P'
+<? endif ?>
+   ))
       )
 
 <? if exists("MultiWhs") ?>
 UNION ALL 
 SELECT tohead_id, pack_shiphead_id, 
        tohead_number AS order_number, pack_head_type,
-       tohead_shipvia AS shipvia,
+       tohead_shipvia AS shipvia, tohead_packdate AS packdate,
        formatShipmentNumber(pack_shiphead_id) AS shipment_number, 
        tohead_destname AS number, tohead_destcntct_name AS name,
        '' AS f_holdtype,
        pack_printed
 FROM pack JOIN tohead ON (tohead_id=pack_head_id) 
 WHERE ( (pack_head_type='TO') 
+  AND (tohead_status = 'O')
 <? if exists("warehous_id") ?>
   AND   (tohead_src_warehous_id = <? value("warehous_id") ?>)
 <? endif ?>

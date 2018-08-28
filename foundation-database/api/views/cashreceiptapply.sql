@@ -2,17 +2,7 @@ SELECT dropIfExists('VIEW', 'cashreceiptapply', 'api');
 CREATE OR REPLACE VIEW api.cashreceiptapply AS
   SELECT
     cust_number::VARCHAR AS customer_number,
-    CASE WHEN cashrcpt_fundstype='C' THEN 'Check'::VARCHAR
-         WHEN cashrcpt_fundstype='T' THEN 'Certified Check'::VARCHAR
-         WHEN cashrcpt_fundstype='M' THEN 'Master Card'::VARCHAR
-         WHEN cashrcpt_fundstype='V' THEN 'Visa'::VARCHAR
-         WHEN cashrcpt_fundstype='A' THEN 'American Express'::VARCHAR
-         WHEN cashrcpt_fundstype='D' THEN 'Discover Card'::VARCHAR
-         WHEN cashrcpt_fundstype='R' THEN 'Other Credit Card'::VARCHAR
-         WHEN cashrcpt_fundstype='K' THEN 'Cash'::VARCHAR
-         WHEN cashrcpt_fundstype='W' THEN 'Wire Transfer'::VARCHAR
-         WHEN cashrcpt_fundstype='O' THEN 'Other'::VARCHAR
-    END AS funds_type,
+    getFundsTypeName(cashrcpt_fundstype)::VARCHAR AS funds_type,
     cashrcpt_docnumber::VARCHAR AS check_document_number,
     aropen_doctype::VARCHAR AS doc_type,
     aropen_docnumber::VARCHAR AS doc_number,
@@ -31,11 +21,11 @@ CREATE OR REPLACE VIEW api.cashreceiptapply AS
     LEFT OUTER JOIN addr m ON (mc.cntct_addr_id = m.addr_id)
     LEFT OUTER JOIN curr_symbol ON (curr_id=cashrcpt_curr_id)
     LEFT OUTER JOIN aropen ON (aropen_id=cashrcptitem_aropen_id);
-	
+
 GRANT ALL ON TABLE api.cashreceiptapply TO xtrole;
 COMMENT ON VIEW api.cashreceiptapply IS '
-This view can be used as an interface to import Cash Receipt Application data directly  
-into the system.  Required fields will be checked and default values will be 
+This view can be used as an interface to import Cash Receipt Application data directly
+into the system.  Required fields will be checked and default values will be
 populated';
 
 --Rules
@@ -71,7 +61,7 @@ CREATE OR REPLACE RULE "_INSERT" AS
     COALESCE(NEW.cashrcptitem_discount, 0)
     );
 
-CREATE OR REPLACE RULE "_UPDATE" AS 
+CREATE OR REPLACE RULE "_UPDATE" AS
   ON UPDATE TO api.cashreceiptapply DO INSTEAD
 
   UPDATE cashrcptitem SET
@@ -97,9 +87,9 @@ CREATE OR REPLACE RULE "_UPDATE" AS
                        OLD.doc_type,
                        OLD.doc_number)) );
 
-CREATE OR REPLACE RULE "_DELETE" AS 
+CREATE OR REPLACE RULE "_DELETE" AS
   ON DELETE TO api.cashreceiptapply DO INSTEAD
-	
+
     DELETE FROM cashrcptitem
     WHERE ( (cashrcptitem_cashrcpt_id=getCashrcptId(
                        OLD.customer_number,

@@ -1,10 +1,10 @@
 -- Group: itemCost
 -- Name: detail
 -- Notes: used by dspItemCostSummary, dspItemCostsByClassCode, dspItemCostHistory
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
--- See www.xtuple.com/CPAL for the full text of the software license.
+--        Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+--        See www.xtuple.com/CPAL for the full text of the software license.
 
-SELECT 
+SELECT
       <? if exists("byHistory") ?>
         costhist_id, costelem_type,
         formatBoolYN(costhist_lowlevel) AS lowlevel,
@@ -16,30 +16,38 @@ SELECT
         costhist_date,
         costhist_username AS username,
         costhist_oldcost,
-        currConcat(costhist_oldcurr_id) AS oldcurr, 
+        currConcat(costhist_oldcurr_id) AS oldcurr,
 	costhist_newcost,
         currConcat(costhist_newcurr_id) AS newcurr,
         'cost' AS costhist_oldcost_xtnumericrole,
         'cost' AS costhist_newcost_xtnumericrole
       <? elseif exists("byClassCode") ?>
-        item_id, item_number, description, item_active, 
-        uom_name, scost, acost, 
-        CASE WHEN (scost = 0) THEN NULL  
-          ELSE ((acost - scost) / scost)      
+        item_id, item_number, description, item_active,
+        uom_name, scost, acost,
+CASE item_type WHEN 'P' THEN 'Purchased'
+	WHEN 'M' THEN 'Manufactured'
+	WHEN 'O' THEN 'Outsider Service'
+	WHEN 'R' THEN 'Reference'
+	WHEN 'K' THEN 'Kit'
+	WHEN 'L' THEN 'Planning'
+	WHEN 'S' THEN 'Costing'
+ELSE item_type END AS itemtype,
+        CASE WHEN (scost = 0) THEN NULL
+          ELSE ((acost - scost) / scost)
         END AS percent_variance,
-        'percent' AS percent_variance_xtnumericrole, 
-        CASE WHEN (scost = 0) THEN NULL 
-             WHEN (((acost - scost) / scost) < 0) THEN 'error' 
-          ELSE NULL 
-        END AS percent_variance_qtforegroundrole, 
+        'percent' AS percent_variance_xtnumericrole,
+        CASE WHEN (scost = 0) THEN NULL
+             WHEN (((acost - scost) / scost) < 0) THEN 'error'
+          ELSE NULL
+        END AS percent_variance_qtforegroundrole,
         <? if exists("onlyShowDiffCosts") ?>
           CASE WHEN (scost != acost
                      AND ABS(scost - acost) < 10 ^ (-1 * <? value("costscale") ?>))
-               THEN 'altemphasis' 
+               THEN 'altemphasis'
           END AS qtforegroundrole,
-        <? endif ?> 
+        <? endif ?>
         'cost' AS scost_xtnumericrole,
-        'cost' AS acost_xtnumericrole 
+        'cost' AS acost_xtnumericrole
       <? elseif exists("bySummrey") ?>
         itemcost_id,
         CASE WHEN (costelem_sys) THEN 1
@@ -53,7 +61,7 @@ SELECT
         'cost' AS itemcost_actcost_xtnumericrole,
         0 AS itemcost_stdcost_xttotalrole,
         0 AS itemcost_actcost_xttotalrole,
-        CASE WHEN COALESCE(itemcost_posted, endOfTime()) >= endOfTime() 
+        CASE WHEN COALESCE(itemcost_posted, endOfTime()) >= endOfTime()
              THEN <? value("never") ?>
         END AS itemcost_posted_qtdisplayrole,
         CASE WHEN COALESCE(itemcost_updated, endOfTime()) >= endOfTime()
@@ -63,7 +71,7 @@ SELECT
 FROM <? if exists("byClassCode") ?>
        (SELECT item_id, item_number, item_active,
                (item_descrip1 || ' ' || item_descrip2) AS description,
-               uom_name, stdcost(item_id) AS scost, actcost(item_id) AS acost
+               uom_name, stdcost(item_id) AS scost, actcost(item_id) AS acost, item_type
         FROM item, classcode, uom
         WHERE ((item_classcode_id=classcode_id)
           AND  (item_inv_uom_id=uom_id)
@@ -71,36 +79,49 @@ FROM <? if exists("byClassCode") ?>
             AND (classcode_id=<? value("classcode_id") ?>)
           <? elseif exists("classcode_pattern") ?>
             AND (classcode_code ~ <? value("classcode_pattern") ?>)
-          <? endif ?> 
-              ) ) AS data 
+          <? endif ?>
+              ) ) AS data
      <? elseif exists("byHistory") ?>
        costhist,costelem
      <? elseif exists("bySummrey") ?>
        itemcost, costelem
-     <? endif ?>   
+     <? endif ?>
 WHERE ( <? if exists("byHistory") ?>
          (costhist_costelem_id=costelem_id)
      AND (costhist_item_id=<? value("item_id") ?>)
-        <? elseif exists("byClassCode") ?> 
-          true 
-          <? if exists("onlyShowZeroCosts") ?>
-            AND ((scost=0) OR (acost=0)) 
-          <? endif ?> 
+        <? elseif exists("byClassCode") ?>
+ --         true
+-- adds type filter
+item_type IN ('x'
+<? if exists("showPurchased") ?> ,'P'  <? endif ?>
+<? if exists("showMfg") ?> ,'M'  <? endif ?>
+<? if exists("showOS") ?> ,'O'  <? endif ?>
+<? if exists("showCosting") ?> ,'S'  <? endif ?>
+<? if exists("showPlanning") ?> ,'L'  <? endif ?>
+<? if exists("showOther") ?>  ,'R', 'K'  <? endif ?>
+ )
+          <? if exists("onlyShowZeroStdCosts") ?>
+            AND (scost=0)
+          <? endif ?>
+<? if exists("onlyShowZeroLastCosts") ?>
+            AND (acost=0)
+          <? endif ?>
           <? if exists("onlyShowDiffCosts") ?>
-            AND (scost != acost) 
+            AND (scost != acost)
             AND (ABS(scost - acost) > 10 ^ (-1 * <? value("costscale") ?>))
           <? endif ?>
           <? if exists("onlyShowActive") ?>
-            AND (item_active) 
-          <? endif ?> 
+            AND (item_active)
+          <? endif ?>
+
         <? elseif exists("bySummrey") ?>
           (itemcost_costelem_id=costelem_id)
       AND (itemcost_item_id=<? value("item_id") ?>)
         <? endif ?>
-      ) 
+      )
 ORDER BY <? if exists("byHistory") ?>
            costhist_date, costelem_type;
-         <? elseif exists("byClassCode") ?> 
+         <? elseif exists("byClassCode") ?>
            item_number;
          <? elseif exists("bySummrey") ?>
            itemcost_lowlevel, costelem_type;

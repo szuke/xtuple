@@ -41,7 +41,7 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
 
           // Special handling for description and status.
           // If unhandledError but the debug has an error message, send it back to client.
-          if (err.message === "unhandledError" && err.debug[0] &&
+          if (err.message === "unhandledError" && err.debug && err.debug[0] &&
             err.debug[0].indexOf("Error") === 0) {
             // Error message is everything before new line in debug.
             // Can be refined with subsequent use cases.
@@ -113,8 +113,10 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
 
     // We need to convert js binary into pg hex (see the file route for
     // the opposite conversion). See issue #18661
+    if (payload.nameSpace === "XM" && payload.type === "File") {
+      binaryField = "data";
+    }
     if (functionName === 'post' && binaryField) {
-
       // this took quite a bit of research
       // https://github.com/joyent/node/issues/5727
       // http://stackoverflow.com/questions/17670395/sending-binary-images-as-buffer-from-forked-child-process-to-main-process-in-nod

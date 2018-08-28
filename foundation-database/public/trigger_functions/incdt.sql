@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION _incdtBeforeTrigger() RETURNS "trigger" AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _rec          RECORD;
@@ -28,7 +28,7 @@ BEGIN
   IF (LENGTH(COALESCE(NEW.incdt_summary,''))=0) THEN
     RAISE EXCEPTION 'You must supply a valid Incident Description.';
   END IF;
-  
+
   -- CRM Account is required
   IF (NEW.incdt_crmacct_id IS NULL) THEN
     RAISE EXCEPTION 'You must supply a valid CRM Account.';
@@ -41,9 +41,16 @@ BEGIN
 
   NEW.incdt_updated := now();
 
+  -- Timestamps
+  IF (TG_OP = 'INSERT') THEN
+    NEW.incdt_created := now();
+  ELSIF (TG_OP = 'UPDATE') THEN
+    NEW.incdt_lastupdated := now();
+  END IF;
+
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'incdtbeforetrigger');
 CREATE TRIGGER incdtbeforetrigger
@@ -53,7 +60,7 @@ CREATE TRIGGER incdtbeforetrigger
   EXECUTE PROCEDURE _incdtBeforeTrigger();
 
 CREATE OR REPLACE FUNCTION _incdtBeforeDeleteTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _recurid     INTEGER;
@@ -68,7 +75,7 @@ BEGIN
      IF (_recurid IS NOT NULL) THEN
        SELECT MIN(incdt_id) INTO _newparentid
          FROM incdt
-        WHERE ((incdt_recurring_incdt_id=OLD.inctd_id)
+        WHERE ((incdt_recurring_incdt_id=OLD.incdt_id)
            AND (incdt_id!=OLD.incdt_id));
 
       -- client is responsible for warning about deleting a recurring incdt
@@ -77,6 +84,10 @@ BEGIN
       ELSE
         UPDATE recur SET recur_parent_id=_newparentid
          WHERE recur_id=_recurid;
+        UPDATE incdt
+           SET incdt_recurring_incdt_id=_newparentid
+         WHERE incdt_recurring_incdt_id=OLD.incdt_id
+           AND NOT incdt_id=OLD.incdt_id;
       END IF;
     END IF;
 
@@ -85,7 +96,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'incdtbeforedeletetrigger');
 CREATE TRIGGER incdtbeforedeletetrigger
@@ -95,7 +106,7 @@ CREATE TRIGGER incdtbeforedeletetrigger
   EXECUTE PROCEDURE _incdtBeforeDeleteTrigger();
 
 CREATE OR REPLACE FUNCTION _incdttrigger() RETURNS "trigger" AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _r		RECORD;
@@ -169,28 +180,10 @@ BEGIN
 	     incdthist_descrip)
       VALUES(NEW.incdt_id,
 	     ('Notes Updated: "' ||
-	       substr(COALESCE(OLD.incdt_descrip, ''), 1, 20) ||
-	      '..." -> "' ||
-	       substr(COALESCE(NEW.incdt_descrip, ''), 1, 20) ||
-	      '..."') );
-
-      IF (_cmnttypeid <> -1) THEN
-        -- find an existing comment
-        SELECT comment_id
-          INTO _cmntid
-          FROM comment
-         WHERE comment_source = 'INCDT'
-           AND comment_source_id = NEW.incdt_id
-           -- back out change for 21068
-           -- AND comment_user = getEffectiveXtUser()
-           AND comment_cmnttype_id = _cmnttypeid;
-        IF FOUND THEN
-          UPDATE comment SET comment_text = NEW.incdt_descrip
-          WHERE comment_id = _cmntid;
-        ELSE
-          PERFORM postComment(_cmnttypeid, 'INCDT', NEW.incdt_id, NEW.incdt_descrip);
-        END IF;
-      END IF;
+	       COALESCE(OLD.incdt_descrip, '') ||
+	      '" -> "' ||
+	       COALESCE(NEW.incdt_descrip, '') ||
+	      '"') );
     END IF;
 
     IF (NEW.incdt_status <> OLD.incdt_status) THEN
@@ -319,7 +312,7 @@ BEGIN
 
   RETURN NEW;
   END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 SELECT dropIfExists('TRIGGER', 'incdttrigger');
 CREATE TRIGGER incdttrigger
@@ -327,3 +320,31 @@ CREATE TRIGGER incdttrigger
   ON incdt
   FOR EACH ROW
   EXECUTE PROCEDURE _incdttrigger();
+
+CREATE OR REPLACE FUNCTION _incdtAfterDeleteTrigger() RETURNS TRIGGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+-- See www.xtuple.com/CPAL for the full text of the software license.
+DECLARE
+
+BEGIN
+
+  DELETE
+  FROM charass
+  WHERE charass_target_type = 'INCDT'
+    AND charass_target_id = OLD.incdt_id;
+
+  DELETE
+  FROM docass
+  WHERE docass_source_type = 'INCDT'
+    AND docass_source_id = OLD.incdt_id;
+
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT dropIfExists('TRIGGER', 'incdtAfterDeleteTrigger');
+CREATE TRIGGER incdtAfterDeleteTrigger
+  AFTER DELETE
+  ON incdt
+  FOR EACH ROW
+  EXECUTE PROCEDURE _incdtAfterDeleteTrigger();

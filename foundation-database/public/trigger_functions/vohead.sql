@@ -2,7 +2,7 @@ SELECT dropIfExists('TRIGGER', 'voheadBeforeTrigger');
 SELECT dropIfExists('TRIGGER', 'voheadAfterTrigger');
 
 CREATE OR REPLACE FUNCTION _voheadBeforeTrigger() RETURNS "trigger" AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _recurid     INTEGER;
@@ -69,7 +69,7 @@ CREATE TRIGGER voheadBeforeTrigger
   EXECUTE PROCEDURE _voheadBeforeTrigger();
 
 CREATE OR REPLACE FUNCTION _voheadAfterTrigger() RETURNS "trigger" AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   IF (TG_OP = 'DELETE') THEN
@@ -79,6 +79,7 @@ BEGIN
 
   IF (TG_OP = 'INSERT') THEN
     PERFORM clearNumberIssue('VcNumber', NEW.vohead_number);
+    PERFORM postComment('ChangeLog', 'VCH', NEW.vohead_id, 'Created');
     RETURN NEW;
   END IF;
 
@@ -104,6 +105,21 @@ BEGIN
       WHERE ( (vodist_vohead_id=OLD.vohead_id)
         AND   (vodist_tax_id <> -1) );
     END IF;
+
+    -- Calculate Freight Tax
+    IF (NEW.vohead_freight <> 0 AND NOT NEW.vohead_posted) THEN
+      PERFORM calculateTaxHist( 'voheadtax',
+                                NEW.vohead_id,
+                                NEW.vohead_taxzone_id,
+                                getFreightTaxtypeId(),
+                                NEW.vohead_docdate,
+                                baseCurrId(),
+                                NEW.vohead_freight * -1 );
+    ELSIF (NEW.vohead_freight = 0) THEN
+      DELETE FROM voheadtax
+      WHERE ((taxhist_parent_id=NEW.vohead_id)
+        AND  (taxhist_taxtype_id = getFreightTaxtypeId()));
+    END IF;    
   END IF;
 
   RETURN NEW;
@@ -115,3 +131,26 @@ CREATE TRIGGER voheadAfterTrigger
   ON vohead
   FOR EACH ROW
   EXECUTE PROCEDURE _voheadAfterTrigger();
+
+CREATE OR REPLACE FUNCTION _voheadAfterDeleteTrigger() RETURNS TRIGGER AS $$
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- See www.xtuple.com/CPAL for the full text of the software license.
+DECLARE
+
+BEGIN
+
+  DELETE
+  FROM charass
+  WHERE charass_target_type = 'VCH'
+    AND charass_target_id = OLD.vohead_id;
+
+  RETURN OLD;
+END;
+$$ LANGUAGE 'plpgsql';
+
+SELECT dropIfExists('TRIGGER', 'voheadAfterDeleteTrigger');
+CREATE TRIGGER voheadAfterDeleteTrigger
+  AFTER DELETE
+  ON vohead
+  FOR EACH ROW
+  EXECUTE PROCEDURE _voheadAfterDeleteTrigger();

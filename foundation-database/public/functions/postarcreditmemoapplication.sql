@@ -1,23 +1,15 @@
+DROP FUNCTION IF EXISTS postARCreditMemoApplication(INTEGER);
 
-CREATE OR REPLACE FUNCTION postARCreditMemoApplication(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION postARCreditMemoApplication(pAropenid INTEGER,
+                                                       pApplyDate DATE DEFAULT NULL)
+  RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pAropenid ALIAS FOR $1;
-BEGIN
-  RETURN postARCreditMemoApplication(pAropenid, CURRENT_DATE);
-END;
-$$ LANGUAGE 'plpgsql';
-
-CREATE OR REPLACE FUNCTION postARCreditMemoApplication(INTEGER, DATE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
--- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  pAropenid ALIAS FOR $1;
-  _applyDate DATE := COALESCE($2, CURRENT_DATE);
+  _applyDate DATE;
   _p RECORD;
   _r RECORD;
-  _totalAmount NUMERIC := 0;
+  _totalSource NUMERIC := 0;
   _totalTarget NUMERIC := 0;
   _exchGain NUMERIC := 0;
   _result NUMERIC;
@@ -25,15 +17,21 @@ DECLARE
 
 BEGIN
 
-  SELECT aropen_docnumber,
-         ROUND(aropen_amount - aropen_paid, 2) AS balance,
-         aropen_open, aropen_curr_rate,
+  SELECT COALESCE(pApplyDate, GREATEST(s.aropen_distdate, MAX(t.aropen_distdate)), CURRENT_DATE)
+    INTO _applyDate
+    FROM aropen s
+    LEFT OUTER JOIN arcreditapply ON s.aropen_id = arcreditapply_source_aropen_id
+    LEFT OUTER JOIN aropen t ON arcreditapply_target_aropen_id = t.aropen_id
+   WHERE s.aropen_id = pAropenid
+   GROUP BY s.aropen_distdate;
+
+  -- find source CM and calc total amount to apply in CM currency
+  SELECT ROUND(aropen_amount - aropen_paid, 2) AS balance,
          ROUND(SUM(currToCurr(arcreditapply_curr_id, aropen_curr_id,
-              COALESCE(arcreditapply_amount, 0), _applyDate)), 2) AS toApply INTO _p
-  FROM aropen, arcreditapply
-  WHERE ( (arcreditapply_source_aropen_id=aropen_id)
-   AND (aropen_id=pAropenid) )
-  GROUP BY aropen_docnumber, aropen_amount, aropen_paid, aropen_open, aropen_curr_rate;
+               COALESCE(arcreditapply_amount, 0), _applyDate)), 2) AS toApply INTO _p
+  FROM aropen JOIN arcreditapply ON (arcreditapply_source_aropen_id=aropen_id)
+  WHERE (aropen_id=pAropenid)
+  GROUP BY aropen_amount, aropen_paid;
   IF (NOT FOUND) THEN
     RETURN -1;
   ELSIF (_p.toApply = 0) THEN
@@ -42,32 +40,35 @@ BEGIN
     RETURN -3;
   END IF;
 
+-- cache source CM
   SELECT aropen_cust_id, aropen_docnumber, aropen_doctype, aropen_amount,
          aropen_curr_id, aropen_docdate, aropen_accnt_id, aropen_cust_id,
-         aropen_curr_rate INTO _p
+         aropen_curr_id, aropen_curr_rate INTO _p
   FROM aropen
   WHERE (aropen_id=pAropenid);
   IF (NOT FOUND) THEN
     RETURN -5;
   END IF;
 
+-- loop thru each arcreditapply
   FOR _r IN SELECT arcreditapply_id, arcreditapply_target_aropen_id,
-                   arcreditapply_amount AS arcreditapply_amountSource,
-                   arcreditapply_reftype, arcreditapply_ref_id,
+                   arcreditapply_reftype, arcreditapply_ref_id, arcreditapply_curr_id,
+                   currToCurr(arcreditapply_curr_id, _p.aropen_curr_id,
+                              arcreditapply_amount, _applyDate) AS arcreditapply_amountSource,
                    currToCurr(arcreditapply_curr_id, aropen_curr_id,
                               arcreditapply_amount, _applyDate) AS arcreditapply_amountTarget,
-                   aropen_id, aropen_doctype, aropen_docnumber, aropen_docdate, aropen_curr_rate
-            FROM arcreditapply, aropen
-            WHERE ( (arcreditapply_source_aropen_id=pAropenid)
-             AND (arcreditapply_target_aropen_id=aropen_id) ) LOOP
+                   aropen_doctype, aropen_docnumber, aropen_docdate, aropen_curr_rate
+            FROM arcreditapply JOIN aropen ON (aropen_id=arcreditapply_target_aropen_id)
+            WHERE (arcreditapply_source_aropen_id=pAropenid)
+  LOOP
 
     IF (_r.arcreditapply_amountTarget IS NULL) THEN
       RETURN -4;
     END IF;
 
-    IF (_r.arcreditapply_amountTarget > 0) THEN
+    IF (_r.arcreditapply_amountTarget <> 0) THEN
 
---  Update the aropen item to post the paid amount
+--  Update the target invoice aropen item to post the paid amount
       UPDATE aropen
       SET aropen_paid = round(aropen_paid + _r.arcreditapply_amountTarget, 2)
       WHERE (aropen_id=_r.arcreditapply_target_aropen_id);
@@ -77,7 +78,7 @@ BEGIN
       WHERE (aropen_id=_r.arcreditapply_target_aropen_id);
 
 --  Cache the running amount posted
-      _totalAmount := (_totalAmount + _r.arcreditapply_amountSource);
+      _totalSource := (_totalSource + _r.arcreditapply_amountSource);
       _totalTarget := (_totalTarget + _r.arcreditapply_amountTarget);
 
 --  Record the application
@@ -92,7 +93,7 @@ BEGIN
       VALUES
       ( _p.aropen_cust_id,
         pAropenid, _p.aropen_doctype, _p.aropen_docnumber,
-        _r.aropen_id, _r.aropen_doctype, _r.aropen_docnumber,
+        _r.arcreditapply_target_aropen_id, _r.aropen_doctype, _r.aropen_docnumber,
         '', '',
         round(_r.arcreditapply_amountSource, 2), TRUE, _applyDate, _applyDate,
         0, getEffectiveXtUser(), _p.aropen_curr_id, 
@@ -105,9 +106,9 @@ BEGIN
     WHERE (arcreditapply_id=_r.arcreditapply_id);
 
     IF (_r.aropen_docdate > _p.aropen_docdate) THEN
-      _exchGain := (_totalTarget / _r.aropen_curr_rate - _totalAmount / _p.aropen_curr_rate) * -1;
+      _exchGain := (_totalTarget / _r.aropen_curr_rate - _totalSource / _p.aropen_curr_rate) * -1;
     ELSE
-      _exchGain := _totalAmount / _p.aropen_curr_rate - _totalTarget / _r.aropen_curr_rate;
+      _exchGain := _totalSource / _p.aropen_curr_rate - _totalTarget / _r.aropen_curr_rate;
     END IF;
 
     IF (_p.aropen_accnt_id > -1) THEN
@@ -131,7 +132,7 @@ BEGIN
     SELECT insertGLTransaction(fetchJournalNumber('AR-MISC'), 'A/R',
                                'CD', _p.aropen_docnumber, 'CM Application',
                                cr.accnt_id, db.accnt_id,
-                               -1, currToBase(_p.aropen_curr_id, _totalAmount, _p.aropen_docdate),
+                               -1, (_totalSource / _p.aropen_curr_rate),
                                _applyDate)
       INTO _result
       FROM accnt AS cr, accnt AS db
@@ -142,9 +143,9 @@ BEGIN
     END IF;
   END IF;
 
---  Record the amount posted and mark the source aropen as closed if it is completely posted
+--  Record the amount posted and mark the source CM aropen as closed if it is completely posted
   UPDATE aropen
-  SET aropen_paid = round(aropen_paid + _totalAmount, 2)
+  SET aropen_paid = round(aropen_paid + _totalSource, 2)
   WHERE (aropen_id=pAropenid);
 
   UPDATE aropen
@@ -154,5 +155,5 @@ BEGIN
   RETURN pAropenid;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 

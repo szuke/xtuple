@@ -3,6 +3,12 @@
  <title>Chart of Accounts Master List</title>
  <name>AccountNumberMasterList</name>
  <description></description>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
  <size>Letter</size>
  <portrait/>
  <topmargin>50</topmargin>
@@ -11,7 +17,7 @@
  <leftmargin>50</leftmargin>
  <querysource>
   <name>detail</name>
-  <sql>select accnt_company,
+  <sql>SELECT accnt_company,
        accnt_profit,
        accnt_number,
        accnt_sub,
@@ -24,7 +30,16 @@
             WHEN(accnt_type='Q') THEN text('Equity')
             ELSE text(accnt_type)
        END AS f_type
-  from accnt
+FROM accnt
+LEFT OUTER JOIN subaccnttype ON (accnt_type=subaccnttype_accnt_type AND accnt_subaccnttype_code=subaccnttype_code)
+WHERE ((true)
+&lt;? if exists("accnt_type") ?>
+  AND (accnt_type = &lt;? value("accnt_type") ?>)
+&lt;? endif ?>
+&lt;? if exists("subaccnt_type") ?>
+  AND (subaccnttype_id = &lt;? value("subaccnt_type") ?>)
+&lt;? endif ?>
+)
 ORDER BY accnt_number, accnt_sub, accnt_profit;</sql>
  </querysource>
  <rpthead>

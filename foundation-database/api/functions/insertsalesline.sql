@@ -15,15 +15,21 @@ BEGIN
     RAISE EXCEPTION 'Function insertSalesLine failed because Item Number % not found', pNEW.item_number;
   END IF;
 
-  SELECT * INTO _r
+  SELECT cohead_id, cohead_cust_id, cohead_shipto_id, cohead_curr_id,
+         cohead_orderdate, cohead_taxzone_id,
+         itemsite_id, itemsite_createwo, itemsite_stocked, itemsite_createsopr,
+         itemsite_createsopo,
+         item_id, item_inv_uom_id, item_price_uom_id, item_type,
+         warehous_id
+    INTO _r
   FROM cohead, itemsite, item, whsinfo
   WHERE ((cohead_number=pNEW.order_number)
-  AND (itemsite_warehous_id=warehous_id
+  AND (itemsite_warehous_id=warehous_id)
   AND (itemsite_item_id=item_id)
   AND (itemsite_active)
   AND (item_number=pNEW.item_number)
   AND (warehous_active)
-  AND (warehous_id=COALESCE(getWarehousId(pNEW.sold_from_site,'ALL'),cohead_warehous_id,fetchprefwarehousid()))));
+  AND (warehous_id=COALESCE(getWarehousId(pNEW.sold_from_site,'ALL'),cohead_warehous_id,fetchprefwarehousid())));
 
   IF (NOT FOUND) THEN
     RAISE EXCEPTION 'Function insertSalesLine failed with unknown failure to retrieve Sales Order';
@@ -45,6 +51,7 @@ BEGIN
     coitem_price_uom_id,
     coitem_price_invuomratio,
     coitem_custprice,
+    coitem_listprice,
     coitem_order_id,
     coitem_memo,
     coitem_imported,
@@ -79,7 +86,8 @@ BEGIN
               CASE WHEN (fetchMetricText('soPriceEffective') = 'ScheduleDate') THEN pNEW.scheduled_date
                    WHEN (fetchMetricText('soPriceEffective') = 'OrderDate') THEN _r.cohead_orderdate
                    ELSE CURRENT_DATE END,
-              NULL)
+              NULL),
+    listPrice(_r.item_id, _r.cohead_cust_id, _r.cohead_shipto_id, _r.warehous_id),
     -1,
     pNEW.notes,
     true,
@@ -98,7 +106,7 @@ BEGIN
     END,
     getitemid(pNEW.substitute_for),
     pNEW.overwrite_po_price,
-    COALESCE(getTaxTypeId(pNEW.tax_type), getItemTaxType(_r.itemsite_item_id, _r.cohead_taxzone_id)),
+    COALESCE(getTaxTypeId(pNEW.tax_type), getItemTaxType(_r.item_id, _r.cohead_taxzone_id)),
     pNEW.warranty,
     getGlAccntId(pNEW.alternate_cos_account),
     getGlAccntId(pNEW.alternate_rev_account)

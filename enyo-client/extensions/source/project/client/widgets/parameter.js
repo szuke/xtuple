@@ -15,7 +15,7 @@ trailing:true, white:true, strict:false*/
     XV.ActivityListParameters.prototype.activityTypes.project = [
       {type: "Project"},
       {type: "ProjectTask", label: "_tasks".loc()},
-      {type: "ProjectWorkflow", label: "_workflow".loc()}
+      {type: "ProjectWorkflow", label: "_projectWorkflow".loc()}
     ];
  
     // ..........................................................

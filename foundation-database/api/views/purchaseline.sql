@@ -19,6 +19,7 @@
     poitem_manuf_name AS manufacturer_name,
     poitem_manuf_item_number AS manufacturer_item_number,
     poitem_manuf_item_descrip AS manufacturer_description,
+    taxtype_name AS tax_type,
     poitem_comments AS notes,
     formatRevNumber('BOM',poitem_bom_rev_id) AS bill_of_materials_revision,
     formatRevNumber('BOO',poitem_boo_rev_id) AS bill_of_operations_revision,
@@ -33,8 +34,9 @@
     LEFT OUTER JOIN whsinfo ON (itemsite_warehous_id=warehous_id)
     LEFT OUTER JOIN coitem ON (coitem_id=poitem_order_id AND poitem_order_type='S')
     LEFT OUTER JOIN womatl ON (womatl_id=poitem_order_id AND poitem_order_type='W')
+    LEFT OUTER JOIN taxtype ON (taxtype_id = poitem_taxtype_id)
   ORDER BY pohead_number,poitem_linenumber;
---TODO add label to expense category
+
 GRANT ALL ON TABLE api.purchaseline TO xtrole;
 COMMENT ON VIEW api.purchaseline IS 'Purchase Order Line';
 
@@ -55,6 +57,7 @@ COMMENT ON VIEW api.purchaseline IS 'Purchase Order Line';
     poitem_manuf_name,
     poitem_manuf_item_number,
     poitem_manuf_item_descrip,
+    poitem_taxtype_id,
     poitem_comments,
     poitem_expcat_id,
     poitem_freight,
@@ -80,6 +83,7 @@ COMMENT ON VIEW api.purchaseline IS 'Purchase Order Line';
     NEW.manufacturer_name,
     NEW.manufacturer_item_number,
     NEW.manufacturer_description,
+    getTaxTypeId(NEW.tax_type),
     NEW.notes,
     getExpcatId(NEW.expense_category),
     NEW.freight,
@@ -92,7 +96,7 @@ CREATE OR REPLACE RULE "_INSERT_CHAR" AS
     
 INSERT INTO charass (charass_target_type, charass_target_id, charass_char_id, charass_value)
 SELECT 'PI', poitem_id, char_id, charass_value
-FROM pohead, poitem, charass, char, itemsite, item
+FROM pohead, poitem, charass, char, charuse, itemsite, item
   WHERE ((pohead_number=NEW.order_number)
     AND (poitem_pohead_id=pohead_id)
     AND (poitem_linenumber=NEW.line_number)
@@ -101,7 +105,8 @@ FROM pohead, poitem, charass, char, itemsite, item
     AND (charass_target_type='I') 
     AND (charass_target_id=item_id)
     AND (charass_default)
-    AND (char_id=charass_char_id));
+    AND (char_id=charass_char_id)
+    AND (charuse_char_id=char_id AND charuse_target_type = 'PI'));
  
   CREATE OR REPLACE RULE "_UPDATE" AS
   ON UPDATE TO api.purchaseline DO INSTEAD
@@ -115,6 +120,7 @@ FROM pohead, poitem, charass, char, itemsite, item
     poitem_manuf_name=NEW.manufacturer_name,
     poitem_manuf_item_number=NEW.manufacturer_item_number,
     poitem_manuf_item_descrip=NEW.manufacturer_description,
+    poitem_taxtype_id=getTaxTypeId(NEW.tax_type),
     poitem_comments=NEW.notes,
     poitem_freight=NEW.freight,
     poitem_prj_id=getPrjId(NEW.project_number),

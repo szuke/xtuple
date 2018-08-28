@@ -1,80 +1,55 @@
-CREATE OR REPLACE FUNCTION updateCost(INTEGER, NUMERIC) RETURNS INTEGER AS '
+CREATE OR REPLACE FUNCTION updateCost(pItemcostid INTEGER,
+                                      pCost NUMERIC) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  pItemcostid ALIAS FOR $1;
-  pCost ALIAS FOR $2;
-
 BEGIN
   RETURN updateCost(pItemcostid, pCost, baseCurrId());
 END;
-' LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION updateCost(INTEGER, NUMERIC, INTEGER) RETURNS INTEGER AS '
+CREATE OR REPLACE FUNCTION updateCost(pItemcostid INTEGER,
+                                      pCost NUMERIC,
+                                      pCurrId INTEGER) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-    pItemcostid ALIAS FOR $1;
-    pCost ALIAS FOR $2;
-    pCurrId ALIAS FOR $3;
-
 BEGIN
-  IF ( ( SELECT (itemcost_stdcost > 0)
-           FROM itemcost
-          WHERE (itemcost_id=pItemcostid) )  OR
-        (pCost > 0) ) THEN
-    UPDATE itemcost
-       SET itemcost_actcost=pCost, itemcost_updated=CURRENT_DATE,
-           itemcost_curr_id=pCurrId
-     WHERE (itemcost_id=pItemcostid);
+  UPDATE itemcost
+     SET itemcost_actcost=pCost,
+         itemcost_updated=CURRENT_DATE,
+         itemcost_curr_id=pCurrId
+   WHERE (itemcost_id=pItemcostid);
 
-    RETURN pItemcostid;
-
-  ELSE
-    DELETE FROM itemcost
-     WHERE (itemcost_id=pItemcostid);
-
-    RETURN -1;
-  END IF;
+  RETURN pItemcostid;
 
 END;
-' LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION updateCost(INTEGER, TEXT, BOOLEAN, NUMERIC) RETURNS INTEGER AS '
+CREATE OR REPLACE FUNCTION updateCost(INTEGER, TEXT, BOOLEAN, NUMERIC) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  returnVal INTEGER;
-
 BEGIN
-  SELECT updateCost($1, $2, $3, $4, baseCurrId()) INTO returnVal;
-  RETURN returnVal;
+  RETURN updateCost($1, $2, $3, $4, baseCurrId());
 END;
-' LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION updateCost(INTEGER, INTEGER, BOOLEAN, NUMERIC) RETURNS INTEGER AS '
+CREATE OR REPLACE FUNCTION updateCost(INTEGER, INTEGER, BOOLEAN, NUMERIC) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  returnVal INTEGER;
-
 BEGIN
-  SELECT updateCost($1, $2, $3, $4, baseCurrId()) INTO returnVal;
-  RETURN returnVal;
+  RETURN updateCost($1, $2, $3, $4, baseCurrId());
 END;
-' LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION updateCost(INTEGER, TEXT, BOOLEAN, NUMERIC, INTEGER) RETURNS integer AS '
+CREATE OR REPLACE FUNCTION updateCost(pItemid INTEGER,
+                                      pCosttype TEXT,
+                                      pLevel BOOLEAN,
+                                      pCost NUMERIC,
+                                      pCurrid INTEGER) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pItemid ALIAS FOR $1;
-  pCosttype ALIAS FOR $2;
-  pLevel ALIAS FOR $3;
-  pCost ALIAS FOR $4;
-  pCurrid ALIAS FOR $5;
   _cost NUMERIC;
   _currId INTEGER;
   _p RECORD;
@@ -103,7 +78,7 @@ BEGIN
 
   IF (NOT FOUND) THEN
     IF (_cost > 0) THEN
-      SELECT NEXTVAL(''itemcost_itemcost_id_seq'') INTO _itemcostid;
+      SELECT NEXTVAL('itemcost_itemcost_id_seq') INTO _itemcostid;
       INSERT INTO itemcost
       ( itemcost_id, itemcost_item_id, itemcost_costelem_id, itemcost_lowlevel,
         itemcost_stdcost, itemcost_posted, itemcost_actcost, itemcost_updated,
@@ -120,7 +95,7 @@ BEGIN
       RETURN -1;
     END IF;
 
-  ELSIF ( (_p.itemcost_stdcost > 0) OR (_cost > 0) ) THEN
+  ELSE
     UPDATE itemcost
     SET itemcost_actcost=_cost,
         itemcost_curr_id = _currId,
@@ -128,27 +103,20 @@ BEGIN
     WHERE (itemcost_id=_p.itemcost_id);
 
     RETURN _p.itemcost_id;
-
-  ELSE
-    DELETE FROM itemcost
-    WHERE (itemcost_id=_p.itemcost_id);
- 
-    RETURN -1;
   END IF;
 
 END;
-' LANGUAGE 'plpgsql'; 
+$$ LANGUAGE plpgsql; 
 
 
-CREATE OR REPLACE FUNCTION updateCost(INTEGER, INTEGER, BOOLEAN, NUMERIC, INTEGER) RETURNS INTEGER AS '
+CREATE OR REPLACE FUNCTION updateCost(pItemid INTEGER,
+                                      pCostelemid INTEGER,
+                                      pLevel BOOLEAN,
+                                      pCost NUMERIC,
+                                      pCurrid INTEGER) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pItemid ALIAS FOR $1;
-  pCostelemid ALIAS FOR $2;
-  pLevel ALIAS FOR $3;
-  pCost ALIAS FOR $4;
-  pCurrid ALIAS FOR $5;
   _cost NUMERIC;
   _currId INTEGER;
   _p RECORD;
@@ -176,7 +144,7 @@ BEGIN
 
   IF (NOT FOUND) THEN
     IF (_cost > 0) THEN
-      SELECT NEXTVAL(''itemcost_itemcost_id_seq'') INTO _itemcostid;
+      SELECT NEXTVAL('itemcost_itemcost_id_seq') INTO _itemcostid;
       INSERT INTO itemcost
       ( itemcost_id, itemcost_item_id, itemcost_costelem_id, itemcost_lowlevel,
         itemcost_stdcost, itemcost_posted, itemcost_actcost, itemcost_updated,
@@ -193,7 +161,7 @@ BEGIN
       RETURN -1;
     END IF;
 
-  ELSIF ( (_p.itemcost_stdcost > 0) OR (_cost > 0) ) THEN
+  ELSE
     UPDATE itemcost
     SET itemcost_actcost=_cost,
         itemcost_curr_id = _currId,
@@ -201,13 +169,7 @@ BEGIN
     WHERE (itemcost_id=_p.itemcost_id);
 
     RETURN _p.itemcost_id;
-
-  ELSE
-    DELETE FROM itemcost
-    WHERE (itemcost_id=_p.itemcost_id);
- 
-    RETURN -1;
   END IF;
 
 END;
-' LANGUAGE 'plpgsql'; 
+$$ LANGUAGE plpgsql; 

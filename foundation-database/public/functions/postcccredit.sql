@@ -142,4 +142,4 @@ BEGIN
 
 END;
 $$
-LANGUAGE 'plpgsql';
+LANGUAGE plpgsql;

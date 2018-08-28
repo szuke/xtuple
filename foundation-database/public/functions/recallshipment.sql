@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION recallShipment(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   RETURN recallShipment($1, CURRENT_TIMESTAMP);
@@ -7,7 +7,7 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION recallShipment(INTEGER, TIMESTAMP WITH TIME ZONE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pshipheadid		ALIAS FOR $1;
@@ -20,8 +20,10 @@ DECLARE
   _h			RECORD;
   _result               INTEGER;
   _invhistid		INTEGER;
-  _itemlocSeries	INTEGER;
+  _itemlocSeries INTEGER := NEXTVAL('itemloc_series_seq');
   _qty			NUMERIC;
+  _qtyFromDest		NUMERIC;
+  _qtyFromTransit	NUMERIC;
   _qtyToBill		NUMERIC;
   _shiphead		RECORD;
   _to			RECORD;
@@ -165,8 +167,7 @@ BEGIN
                      AND (sub.coitem_subnumber > 0)
                    GROUP BY cobill_id, cobill_qty
     LOOP
-      UPDATE cobill SET cobill_qty = 0.0
-      WHERE (cobill_id=_cobill.cobill_id);
+      DELETE FROM cobill WHERE cobill_id = _cobill.cobill_id;
     END LOOP;
 
   ELSEIF (_shiphead.shiphead_order_type = 'TO') THEN
@@ -180,9 +181,10 @@ BEGIN
       RETURN -6;
     END IF;
 
-    FOR _ti IN SELECT toitem_id,
+    FOR _ti IN SELECT toitem_tohead_id, toitem_id, toitem_qty_received,
                       sis.itemsite_id AS src_itemsite_id,
                       tis.itemsite_id AS trns_itemsite_id,
+                      dis.itemsite_id AS dest_itemsite_id,
                       scc.costcat_shipasset_accnt_id AS src_shipasset_accnt_id,
                       tcc.costcat_asset_accnt_id AS trns_asset_accnt_id,
                       itemcost(tis.itemsite_id) AS trns_cost,
@@ -190,14 +192,13 @@ BEGIN
                FROM shipitem JOIN toitem ON (toitem_id=shipitem_orderitem_id)
                              JOIN itemsite sis ON (sis.itemsite_item_id=toitem_item_id AND sis.itemsite_warehous_id=_to.tohead_src_warehous_id)
                              JOIN itemsite tis ON (tis.itemsite_item_id=toitem_item_id AND tis.itemsite_warehous_id=_to.tohead_trns_warehous_id)
+                             JOIN itemsite dis ON (dis.itemsite_item_id=toitem_item_id AND dis.itemsite_warehous_id=_to.tohead_dest_warehous_id)
                              JOIN costcat scc ON (scc.costcat_id=sis.itemsite_costcat_id)
                              JOIN costcat tcc ON (tcc.costcat_id=tis.itemsite_costcat_id)
                WHERE (shipitem_shiphead_id=pshipheadid)
-               GROUP BY toitem_id, sis.itemsite_id, tis.itemsite_id,
+               GROUP BY toitem_tohead_id, toitem_id, toitem_qty_received, sis.itemsite_id, tis.itemsite_id, dis.itemsite_id,
                         scc.costcat_shipasset_accnt_id, tcc.costcat_asset_accnt_id
     LOOP
-
-      _itemlocSeries := NEXTVAL('itemloc_series_seq');
       
       SELECT postInvTrans(_ti.src_itemsite_id, 'TS', (_ti.recall_qty * -1.0), 'I/M',
 			  _shiphead.shiphead_order_type, formatToNumber(_ti.toitem_id),
@@ -206,7 +207,8 @@ BEGIN
 			  _ti.trns_asset_accnt_id,
 			  _ti.src_shipasset_accnt_id,
 			  _itemlocSeries, _timestamp,
-                          (_ti.trns_cost * _ti.recall_qty * -1.0)) INTO _invhistid;
+                          (_ti.trns_cost * _ti.recall_qty * -1.0),
+        NULL, NULL, FALSE, _ti.toitem_tohead_id, _ti.toitem_id) INTO _invhistid;
 
       IF (_invhistid < 0) THEN
 	RETURN _invhistid;
@@ -215,26 +217,58 @@ BEGIN
       -- post the inventory history if lot/serial or location control
       PERFORM postItemlocseries(_itemlocSeries);
 
+      -- determine the qty to be recalled from destination warehouse and
+      -- qty to be recalled from transit warehouse
+      IF (_ti.toitem_qty_received >= _ti.recall_qty) THEN
+        _qtyFromDest := _ti.recall_qty;
+        _qtyFromTransit := 0.0;
+      ELSE
+        _qtyFromDest := _ti.toitem_qty_received;
+        _qtyFromTransit := _ti.recall_qty - _qtyFromDest;
+     END IF;
+
+      -- record inventory history and qoh changes at destination warehouse but
+      -- there is only one g/l account to touch
+      IF (_qtyFromDest > 0.0) THEN
+        SELECT postInvTrans(_ti.dest_itemsite_id, 'TR', (_qtyFromDest * -1.0), 'I/M',
+  			  _shiphead.shiphead_order_type, formatToNumber(_ti.toitem_id),
+  			  _to.tohead_number,
+  			  'Recall TO Shipment From Destination Warehouse',
+  			  _ti.trns_asset_accnt_id,
+  			  _ti.trns_asset_accnt_id,
+  			  _itemlocSeries, _timestamp,
+                            (_ti.trns_cost * _qtyFromDest * -1.0),
+          NULL, NULL, FALSE, _ti.toitem_tohead_id, _ti.toitem_id) INTO _invhistid;
+
+        IF (_invhistid < 0) THEN
+	  RETURN _invhistid;
+        END IF;
+      END IF;
+
       -- record inventory history and qoh changes at transit warehouse but
       -- there is only one g/l account to touch
-      SELECT postInvTrans(_ti.trns_itemsite_id, 'TR', (_ti.recall_qty * -1.0), 'I/M',
-			  _shiphead.shiphead_order_type, formatToNumber(_ti.toitem_id),
-			  _to.tohead_number,
-			  'Recall TO Shipment From Transit Warehouse',
-			  _ti.trns_asset_accnt_id,
-			  _ti.trns_asset_accnt_id,
-			  _itemlocSeries, _timestamp,
-                          (_ti.trns_cost * _ti.recall_qty * -1.0)) INTO _invhistid;
+      IF (_qtyFromTransit > 0.0) THEN
+        SELECT postInvTrans(_ti.trns_itemsite_id, 'TR', (_qtyFromTransit * -1.0), 'I/M',
+  			  _shiphead.shiphead_order_type, formatToNumber(_ti.toitem_id),
+  			  _to.tohead_number,
+  			  'Recall TO Shipment From Transit Warehouse',
+  			  _ti.trns_asset_accnt_id,
+  			  _ti.trns_asset_accnt_id,
+  			  _itemlocSeries, _timestamp,
+                            (_ti.trns_cost * _qtyFromTransit * -1.0),
+          NULL, NULL, FALSE, _ti.toitem_tohead_id, _ti.toitem_id) INTO _invhistid;
 
-      IF (_invhistid < 0) THEN
-	RETURN _invhistid;
+        IF (_invhistid < 0) THEN
+	  RETURN _invhistid;
+        END IF;
       END IF;
 
       -- post the inventory history if lot/serial or location control
       PERFORM postItemlocseries(_itemlocSeries);
 
       UPDATE toitem
-      SET toitem_qty_shipped = (toitem_qty_shipped - _ti.recall_qty)
+      SET toitem_qty_shipped = (toitem_qty_shipped - _ti.recall_qty),
+          toitem_qty_received = (toitem_qty_received - _qtyFromDest)
       WHERE (toitem_id=_ti.toitem_id);
 
       UPDATE shipitem SET shipitem_shipdate=NULL,

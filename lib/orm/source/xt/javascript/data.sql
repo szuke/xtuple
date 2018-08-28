@@ -23,583 +23,6 @@ select xt.install_js('XT','Data','xtuple', $$
     DELETED_STATE: 'delete',
 
     /**
-     * Build a SQL `where` clause based on privileges for name space and type,
-     * and conditions and parameters passed.
-     *
-     * @seealso fetch
-     *
-     * @param {String} Name space
-     * @param {String} Type
-     * @param {Array} Parameters - optional
-     * @returns {Object}
-     */
-    buildClause: function (nameSpace, type, parameters, orderBy) {
-      parameters = parameters || [];
-
-      var that = this,
-        arrayIdentifiers = [],
-        arrayParams,
-        charSql,
-        childOrm,
-        clauses = [],
-        count = 1,
-        fromKeyProp,
-        groupByColumnParams = [],
-        identifiers = [],
-        joinIdentifiers = [],
-        orderByList = [],
-        orderByColumnList = [],
-        isArray = false,
-        op,
-        orClause,
-        orderByIdentifiers = [],
-        orderByColumnIdentifiers = [],
-        orderByParams = [],
-        orderByColumnParams = [],
-        joins = [],
-        orm = this.fetchOrm(nameSpace, type),
-        param,
-        params = [],
-        parts,
-        pcount,
-        pertinentExtension,
-        pgType,
-        prevOrm,
-        privileges = orm.privileges,
-        prop,
-        sourceTableAlias,
-        ret = {};
-
-      ret.conditions = "";
-      ret.parameters = [];
-
-      /* Handle privileges. */
-      if (orm.isNestedOnly) { plv8.elog(ERROR, 'Access Denied'); }
-      if (privileges &&
-          (!privileges.all ||
-            (privileges.all &&
-              (!this.checkPrivilege(privileges.all.read) &&
-              !this.checkPrivilege(privileges.all.update)))
-          ) &&
-          privileges.personal &&
-          (this.checkPrivilege(privileges.personal.read) ||
-            this.checkPrivilege(privileges.personal.update))
-        ) {
-
-        parameters.push({
-          attribute: privileges.personal.properties,
-          isLower: true,
-          isUsernamePrivFilter: true,
-          value: XT.username
-        });
-      }
-
-      /* Support the short cut wherein the client asks for a filter on a toOne with a
-        string. Technically they should use "theAttr.theAttrNaturalKey", but if they
-        don't, massage the inputs as if they did */
-      parameters.map(function (parameter) {
-        var attributeIsString = typeof parameter.attribute === 'string';
-          attributes = attributeIsString ? [parameter.attribute] : parameter.attribute;
-
-        attributes.map(function (attribute) {
-          var rootAttribute = (attribute.indexOf('.') < 0) ? attribute : attribute.split(".")[0],
-            prop = XT.Orm.getProperty(orm, rootAttribute),
-            propName = prop.name,
-            childOrm,
-            naturalKey,
-            index,
-            walkPath = function (pathParts, currentOrm, pathIndex) {
-              var currentAttributeIsString = typeof pathParts[pathIndex] === 'string',
-                currentProp = XT.Orm.getProperty(currentOrm, pathParts[pathIndex]),
-                subChildOrm,
-                naturalKey;
-
-              if ((currentProp.toOne || currentProp.toMany)) {
-                if (currentProp.toOne && currentProp.toOne.type) {
-                  subChildOrm = that.fetchOrm(nameSpace, currentProp.toOne.type);
-                } else if (currentProp.toMany && currentProp.toMany.type) {
-                  subChildOrm = that.fetchOrm(nameSpace, currentProp.toMany.type);
-                } else {
-                  plv8.elog(ERROR, "toOne or toMany property is missing it's 'type': " + currentProp.name);
-                }
-
-                if (pathIndex < pathParts.length - 1) {
-                  /* Recurse. */
-                  walkPath(pathParts, subChildOrm, pathIndex + 1);
-                } else {
-                  /* This is the end of the path. */
-                  naturalKey = XT.Orm.naturalKey(subChildOrm);
-                  if (currentAttributeIsString) {
-                    /* add the natural key to the end of the requested attribute */
-                    parameter.attribute = attribute + "." + naturalKey;
-                  } else {
-                    /* swap out the attribute in the array for the one with the prepended natural key */
-                    index = parameter.attribute.indexOf(attribute);
-                    parameter.attribute.splice(index, 1);
-                    parameter.attribute.splice(index, 0, attribute + "."  + naturalKey);
-                  }
-                }
-              }
-            }
-
-          if ((prop.toOne || prop.toMany)) {
-            /* Someone is querying on a toOne without using a path */
-            if (prop.toOne && prop.toOne.type) {
-              childOrm = that.fetchOrm(nameSpace, prop.toOne.type);
-            } else if (prop.toMany && prop.toMany.type) {
-              childOrm = that.fetchOrm(nameSpace, prop.toMany.type);
-            } else {
-              plv8.elog(ERROR, "toOne or toMany property is missing it's 'type': " + prop.name);
-            }
-
-            if (attribute.indexOf('.') < 0) {
-              naturalKey = XT.Orm.naturalKey(childOrm);
-              if (attributeIsString) {
-                /* add the natural key to the end of the requested attribute */
-                parameter.attribute = attribute + "." + naturalKey;
-              } else {
-                /* swap out the attribute in the array for the one with the prepended natural key */
-                index = parameter.attribute.indexOf(attribute);
-                parameter.attribute.splice(index, 1);
-                parameter.attribute.splice(index, 0, attribute + "."  + naturalKey);
-              }
-            } else {
-              /* Even if there's a path x.y, it's possible that it's still not
-                correct because the correct path maybe is x.y.naturalKeyOfY */
-              walkPath(attribute.split("."), orm, 0);
-            }
-          }
-        });
-      });
-
-      /* Handle parameters. */
-      if (parameters.length) {
-        for (var i = 0; i < parameters.length; i++) {
-          orClause = [];
-          param = parameters[i];
-          op = param.operator || '=';
-          switch (op) {
-          case '=':
-          case '>':
-          case '<':
-          case '>=':
-          case '<=':
-          case '!=':
-            break;
-          case 'BEGINS_WITH':
-            op = '~^';
-            break;
-          case 'ENDS_WITH':
-            op = '~?';
-            break;
-          case 'MATCHES':
-            op = '~*';
-            break;
-          case 'ANY':
-            op = '<@';
-            for (var c = 0; c < param.value.length; c++) {
-              ret.parameters.push(param.value[c]);
-              param.value[c] = '$' + count;
-              count++;
-            }
-            break;
-          case 'NOT ANY':
-            op = '!<@';
-            for (var c = 0; c < param.value.length; c++) {
-              ret.parameters.push(param.value[c]);
-              param.value[c] = '$' + count;
-              count++;
-            }
-            break;
-          default:
-            plv8.elog(ERROR, 'Invalid operator: ' + op);
-          }
-
-          /* Handle characteristics. This is very specific to xTuple,
-             and highly dependant on certain table structures and naming conventions,
-             but otherwise way too much work to refactor in an abstract manner right now. */
-          if (param.isCharacteristic) {
-            /* Handle array. */
-            if (op === '<@') {
-              param.value = ' ARRAY[' + param.value.join(',') + ']';
-            }
-
-            /* Booleans are stored as strings. */
-            if (param.value === true) {
-              param.value = 't';
-            } else if (param.value === false) {
-              param.value = 'f';
-            }
-
-            /* Yeah, it depends on a property called 'characteristics'... */
-            prop = XT.Orm.getProperty(orm, 'characteristics');
-
-            /* Build the characteristics query clause. */
-            identifiers.push(XT.Orm.primaryKey(orm, true));
-            identifiers.push(prop.toMany.inverse);
-            identifiers.push(orm.nameSpace.toLowerCase());
-            identifiers.push(prop.toMany.type.decamelize());
-            identifiers.push(param.attribute);
-            identifiers.push(param.value);
-
-            charSql = '%' + (identifiers.length - 5) + '$I in (' +
-                      '  select %' + (identifiers.length - 4) + '$I '+
-                      '  from %' + (identifiers.length - 3) + '$I.%' + (identifiers.length - 2) + '$I ' +
-                      '    join char on (char_name = characteristic)' +
-                      '  where 1=1 ' +
-                      /* Note: Not using $i for these. L = literal here. These is not identifiers. */
-                      '    and char_name = %' + (identifiers.length - 1) + '$L ' +
-                      '    and value ' + op + ' %' + (identifiers.length) + '$L ' +
-                      ')';
-
-            clauses.push(charSql);
-
-          /* Array comparisons handle another way. e.g. %1$I !<@ ARRAY[$1,$2] */
-          } else if (op === '<@' || op === '!<@') {
-            /* Handle paths if applicable. */
-            if (param.attribute.indexOf('.') > -1) {
-              parts = param.attribute.split('.');
-              childOrm = this.fetchOrm(nameSpace, type);
-              params.push("");
-              pcount = params.length - 1;
-
-              for (var n = 0; n < parts.length; n++) {
-                /* Validate attribute. */
-                prop = XT.Orm.getProperty(childOrm, parts[n]);
-                if (!prop) {
-                  plv8.elog(ERROR, 'Attribute not found in object map: ' + parts[n]);
-                }
-
-                /* Build path. */
-                if (n === parts.length - 1) {
-                  identifiers.push("jt" + (joins.length - 1));
-                  identifiers.push(prop.attr.column);
-                  pgType = this.getPgTypeFromOrmType(
-                    this.getNamespaceFromNamespacedTable(childOrm.table),
-                    this.getTableFromNamespacedTable(childOrm.table),
-                    prop.attr.column
-                  );
-                  pgType = pgType ? "::" + pgType + "[]" : '';
-                  params[pcount] += "%" + (identifiers.length - 1) + "$I.%" + identifiers.length + "$I";
-                  params[pcount] += ' ' + op + ' ARRAY[' + param.value.join(',') + ']' + pgType;
-                } else {
-                  childOrm = this.fetchOrm(nameSpace, prop.toOne.type);
-                  sourceTableAlias = n === 0 ? "t1" : "jt" + (joins.length - 1);
-                  joinIdentifiers.push(
-                    this.getNamespaceFromNamespacedTable(childOrm.table),
-                    this.getTableFromNamespacedTable(childOrm.table),
-                    sourceTableAlias, prop.toOne.column,
-                    XT.Orm.primaryKey(childOrm, true));
-                  joins.push("left join %" + (joinIdentifiers.length - 4) + "$I.%" + (joinIdentifiers.length - 3)
-                    + "$I jt" + joins.length + " on %"
-                    + (joinIdentifiers.length - 2) + "$I.%"
-                    + (joinIdentifiers.length - 1) + "$I = jt" + joins.length + ".%" + joinIdentifiers.length + "$I");
-                }
-              }
-            } else {
-              prop = XT.Orm.getProperty(orm, param.attribute);
-              pertinentExtension = XT.Orm.getProperty(orm, param.attribute, true);
-              if(pertinentExtension.isChild || pertinentExtension.isExtension) {
-                /* We'll need to join this orm extension */
-                fromKeyProp = XT.Orm.getProperty(orm, pertinentExtension.relations[0].inverse);
-                joinIdentifiers.push(
-                  this.getNamespaceFromNamespacedTable(pertinentExtension.table),
-                  this.getTableFromNamespacedTable(pertinentExtension.table),
-                  fromKeyProp.attr.column,
-                  pertinentExtension.relations[0].column);
-                joins.push("left join %" + (joinIdentifiers.length - 3) + "$I.%" + (joinIdentifiers.length - 2)
-                  + "$I jt" + joins.length + " on t1.%"
-                  + (joinIdentifiers.length - 1) + "$I = jt" + joins.length + ".%" + joinIdentifiers.length + "$I");
-              }
-              if (!prop) {
-                plv8.elog(ERROR, 'Attribute not found in object map: ' + param.attribute);
-              }
-
-              identifiers.push(pertinentExtension.isChild || pertinentExtension.isExtension ?
-                "jt" + (joins.length - 1) :
-                "t1");
-              identifiers.push(prop.attr.column);
-              pgType = this.getPgTypeFromOrmType(
-                this.getNamespaceFromNamespacedTable(orm.table),
-                this.getTableFromNamespacedTable(orm.table),
-                prop.attr.column
-              );
-              pgType = pgType ? "::" + pgType + "[]" : '';
-              params.push("%" + (identifiers.length - 1) + "$I.%" + identifiers.length + "$I " + op + ' ARRAY[' + param.value.join(',') + ']' + pgType);
-              pcount = params.length - 1;
-            }
-            clauses.push(params[pcount]);
-
-          /* Everything else handle another. */
-          } else {
-            if (XT.typeOf(param.attribute) !== 'array') {
-              param.attribute = [param.attribute];
-            }
-
-            for (var c = 0; c < param.attribute.length; c++) {
-              /* Handle paths if applicable. */
-              if (param.attribute[c].indexOf('.') > -1) {
-                parts = param.attribute[c].split('.');
-                childOrm = this.fetchOrm(nameSpace, type);
-                params.push("");
-                pcount = params.length - 1;
-                isArray = false;
-
-                /* Check if last part is an Array. */
-                for (var m = 0; m < parts.length; m++) {
-                  /* Validate attribute. */
-                  prop = XT.Orm.getProperty(childOrm, parts[m]);
-                  if (!prop) {
-                    plv8.elog(ERROR, 'Attribute not found in object map: ' + parts[m]);
-                  }
-
-                  if (m < parts.length - 1) {
-                    if (prop.toOne && prop.toOne.type) {
-                      childOrm = this.fetchOrm(nameSpace, prop.toOne.type);
-                    } else if (prop.toMany && prop.toMany.type) {
-                      childOrm = this.fetchOrm(nameSpace, prop.toMany.type);
-                    } else {
-                      plv8.elog(ERROR, "toOne or toMany property is missing it's 'type': " + prop.name);
-                    }
-                  } else if (prop.attr && prop.attr.type === 'Array') {
-                    /* The last property in the path is an array. */
-                    isArray = true;
-                    params[pcount] = '$' + count;
-                  }
-                }
-
-                /* Reset the childOrm to parent. */
-                childOrm = this.fetchOrm(nameSpace, type);
-
-                for (var n = 0; n < parts.length; n++) {
-                  /* Validate attribute. */
-                  prop = XT.Orm.getProperty(childOrm, parts[n]);
-                  if (!prop) {
-                    plv8.elog(ERROR, 'Attribute not found in object map: ' + parts[n]);
-                  }
-
-                  /* Do a persional privs array search e.g. 'admin' = ANY (usernames_array). */
-                  if (param.isUsernamePrivFilter && isArray) {
-                    identifiers.push(prop.attr.column);
-                    arrayIdentifiers.push(identifiers.length);
-
-                    if (n < parts.length - 1) {
-                      childOrm = this.fetchOrm(nameSpace, prop.toOne.type);
-                    }
-                  } else {
-                    pertinentExtension = XT.Orm.getProperty(childOrm, parts[n], true);
-                    var isExtension = pertinentExtension.isChild || pertinentExtension.isExtension;
-                    if(isExtension) {
-                      /* We'll need to join this orm extension */
-                      fromKeyProp = XT.Orm.getProperty(orm, pertinentExtension.relations[0].inverse);
-                      joinIdentifiers.push(
-                        this.getNamespaceFromNamespacedTable(pertinentExtension.table),
-                        this.getTableFromNamespacedTable(pertinentExtension.table),
-                        fromKeyProp.attr.column,
-                        pertinentExtension.relations[0].column);
-                      joins.push("left join %" + (joinIdentifiers.length - 3) + "$I.%" + (joinIdentifiers.length - 2)
-                        + "$I jt" + joins.length + " on t1.%"
-                        + (joinIdentifiers.length - 1) + "$I = jt" + joins.length + ".%" + joinIdentifiers.length + "$I");
-                    }
-                    /* Build path, e.g. table_name.column_name */
-                    if (n === parts.length - 1) {
-                      identifiers.push("jt" + (joins.length - 1));
-                      identifiers.push(prop.attr.column);
-                      params[pcount] += "%" + (identifiers.length - 1) + "$I.%" + identifiers.length + "$I";
-                      if (param.isLower) {
-                        params[pcount] = "lower(" + params[pcount] + ")";
-                      }
-                    } else {
-                      sourceTableAlias = n === 0 && !isExtension ? "t1" : "jt" + (joins.length - 1);
-                      if (prop.toOne && prop.toOne.type) {
-                        childOrm = this.fetchOrm(nameSpace, prop.toOne.type);
-                        joinIdentifiers.push(
-                          this.getNamespaceFromNamespacedTable(childOrm.table),
-                          this.getTableFromNamespacedTable(childOrm.table),
-                          sourceTableAlias, prop.toOne.column,
-                          XT.Orm.primaryKey(childOrm, true)
-                        );
-                      } else if (prop.toMany && prop.toMany.type) {
-                        childOrm = this.fetchOrm(nameSpace, prop.toMany.type);
-                        joinIdentifiers.push(
-                          this.getNamespaceFromNamespacedTable(childOrm.table),
-                          this.getTableFromNamespacedTable(childOrm.table),
-                          sourceTableAlias, prop.toMany.column,
-                          XT.Orm.primaryKey(childOrm, true)
-                        );
-                      }
-                      joins.push("left join %" + (joinIdentifiers.length - 4) + "$I.%" + (joinIdentifiers.length - 3)
-                        + "$I jt" + joins.length + " on %"
-                        + (joinIdentifiers.length - 2) + "$I.%"
-                        + (joinIdentifiers.length - 1) + "$I = jt" + joins.length + ".%" + joinIdentifiers.length + "$I");
-                    }
-                  }
-                }
-              } else {
-                /* Validate attribute. */
-                prop = XT.Orm.getProperty(orm, param.attribute[c]);
-                pertinentExtension = XT.Orm.getProperty(orm, param.attribute[c], true);
-                if(pertinentExtension.isChild || pertinentExtension.isExtension) {
-                  /* We'll need to join this orm extension */
-                  fromKeyProp = XT.Orm.getProperty(orm, pertinentExtension.relations[0].inverse);
-                  joinIdentifiers.push(
-                    this.getNamespaceFromNamespacedTable(pertinentExtension.table),
-                    this.getTableFromNamespacedTable(pertinentExtension.table),
-                    fromKeyProp.attr.column,
-                    pertinentExtension.relations[0].column);
-                  joins.push("left join %" + (joinIdentifiers.length - 3) + "$I.%" + (joinIdentifiers.length - 2)
-                    + "$I jt" + joins.length + " on t1.%"
-                    + (joinIdentifiers.length - 1) + "$I = jt" + joins.length + ".%" + joinIdentifiers.length + "$I");
-                }
-                if (!prop) {
-                  plv8.elog(ERROR, 'Attribute not found in object map: ' + param.attribute[c]);
-                }
-
-                identifiers.push(pertinentExtension.isChild || pertinentExtension.isExtension ?
-                  "jt" + (joins.length - 1) :
-                  "t1");
-                identifiers.push(prop.attr.column);
-
-                /* Do a persional privs array search e.g. 'admin' = ANY (usernames_array). */
-                if (param.isUsernamePrivFilter && ((prop.toMany && !prop.isNested) ||
-                  (prop.attr && prop.attr.type === 'Array'))) {
-
-                  params.push('$' + count);
-                  pcount = params.length - 1;
-                  arrayIdentifiers.push(identifiers.length);
-                } else {
-                  params.push("%" + (identifiers.length - 1) + "$I.%" + identifiers.length + "$I");
-                  pcount = params.length - 1;
-                }
-              }
-
-              /* Add persional privs array search. */
-              if (param.isUsernamePrivFilter && ((prop.toMany && !prop.isNested)
-                || (prop.attr && prop.attr.type === 'Array') || isArray)) {
-
-                /* XXX: this bit of code has not been touched by the optimization refactor */
-                /* e.g. 'admin' = ANY (usernames_array) */
-                arrayParams = "";
-                params[pcount] += ' ' + op + ' ANY (';
-
-                /* Build path. e.g. ((%1$I).%2$I).%3$I */
-                for (var f =0; f < arrayIdentifiers.length; f++) {
-                  arrayParams += '%' + arrayIdentifiers[f] + '$I';
-                  if (f < arrayIdentifiers.length - 1) {
-                    arrayParams = "(" + arrayParams + ").";
-                  }
-                }
-                params[pcount] += arrayParams + ')';
-
-              /* Add optional is null clause. */
-              } else if (parameters[i].includeNull) {
-                /* e.g. %1$I = $1 or %1$I is null */
-                params[pcount] = params[pcount] + " " + op + ' $' + count + ' or ' + params[pcount] + ' is null';
-              } else {
-                /* e.g. %1$I = $1 */
-                params[pcount] += " " + op + ' $' + count;
-              }
-
-              orClause.push(params[pcount]);
-            }
-
-            /* If more than one clause we'll get: (%1$I = $1 or %1$I = $2 or %1$I = $3) */
-            clauses.push('(' + orClause.join(' or ') + ')');
-            count++;
-            ret.parameters.push(param.value);
-          }
-        }
-      }
-
-      ret.conditions = (clauses.length ? '(' + XT.format(clauses.join(' and '), identifiers) + ')' : ret.conditions) || true;
-
-      /* Massage orderBy with quoted identifiers. */
-      /* We need to support the xm case for sql2 and the xt/public (column) optimized case for sql1 */
-      /* In practice we build the two lists independently of one another */
-      if (orderBy) {
-        for (var i = 0; i < orderBy.length; i++) {
-          /* Handle path case. */
-          if (orderBy[i].attribute.indexOf('.') > -1) {
-            parts = orderBy[i].attribute.split('.');
-            prevOrm = orm;
-            orderByParams.push("");
-            orderByColumnParams.push("");
-            groupByColumnParams.push("");
-            pcount = orderByParams.length - 1;
-
-            for (var n = 0; n < parts.length; n++) {
-              prop = XT.Orm.getProperty(orm, parts[n]);
-              if (!prop) {
-                plv8.elog(ERROR, 'Attribute not found in map: ' + parts[n]);
-              }
-              orderByIdentifiers.push(parts[n]);
-              orderByParams[pcount] += "%" + orderByIdentifiers.length + "$I";
-
-              if (n === parts.length - 1) {
-                orderByColumnIdentifiers.push("jt" + (joins.length - 1));
-                orderByColumnIdentifiers.push(prop.attr.column);
-                orderByColumnParams[pcount] += "%" + (orderByColumnIdentifiers.length - 1) + "$I.%" + orderByColumnIdentifiers.length + "$I"
-                groupByColumnParams[pcount] += "%" + (orderByColumnIdentifiers.length - 1) + "$I.%" + orderByColumnIdentifiers.length + "$I"
-              } else {
-                orderByParams[pcount] = "(" + orderByParams[pcount] + ").";
-                orm = this.fetchOrm(nameSpace, prop.toOne.type);
-                sourceTableAlias = n === 0 ? "t1" : "jt" + (joins.length - 1);
-                joinIdentifiers.push(
-                  this.getNamespaceFromNamespacedTable(orm.table),
-                  this.getTableFromNamespacedTable(orm.table),
-                  sourceTableAlias, prop.toOne.column,
-                  XT.Orm.primaryKey(orm, true));
-                joins.push("left join %" + (joinIdentifiers.length - 4) + "$I.%" + (joinIdentifiers.length - 3)
-                  + "$I jt" + joins.length + " on %"
-                  + (joinIdentifiers.length - 2) + "$I.%"
-                  + (joinIdentifiers.length - 1) + "$I = jt" + joins.length + ".%" + joinIdentifiers.length + "$I");
-              }
-            }
-            orm = prevOrm;
-          /* Normal case. */
-          } else {
-            prop = XT.Orm.getProperty(orm, orderBy[i].attribute);
-            if (!prop) {
-              plv8.elog(ERROR, 'Attribute not found in map: ' + orderBy[i].attribute);
-            }
-            orderByIdentifiers.push(orderBy[i].attribute);
-            orderByColumnIdentifiers.push("t1");
-            /*
-              We might need to look at toOne if the client is asking for a toOne without specifying
-              the path. Unfortunately, if they do specify the path, then sql2 will fail. So this does
-              work, although we're really sorting by the primary key of the toOne, whereas the
-              user probably wants us to sort by the natural key TODO
-            */
-            orderByColumnIdentifiers.push(prop.attr ? prop.attr.column : prop.toOne.column);
-            orderByParams.push("%" + orderByIdentifiers.length + "$I");
-            orderByColumnParams.push("%" + (orderByColumnIdentifiers.length - 1) + "$I.%" + orderByColumnIdentifiers.length + "$I");
-            groupByColumnParams.push("%" + (orderByColumnIdentifiers.length - 1) + "$I.%" + orderByColumnIdentifiers.length + "$I");
-            pcount = orderByParams.length - 1;
-          }
-
-          if (orderBy[i].isEmpty) {
-            orderByParams[pcount] = "length(" + orderByParams[pcount] + ")=0";
-            orderByColumnParams[pcount] = "length(" + orderByColumnParams[pcount] + ")=0";
-          }
-          if (orderBy[i].descending) {
-            orderByParams[pcount] += " desc";
-            orderByColumnParams[pcount] += " desc";
-          }
-
-          orderByList.push(orderByParams[pcount])
-          orderByColumnList.push(orderByColumnParams[pcount])
-        }
-      }
-
-      ret.orderBy = orderByList.length ? XT.format('order by ' + orderByList.join(','), orderByIdentifiers) : '';
-      ret.orderByColumns = orderByColumnList.length ? XT.format('order by ' + orderByColumnList.join(','), orderByColumnIdentifiers) : '';
-      ret.groupByColumns = groupByColumnParams.length ? XT.format(', ' + groupByColumnParams.join(','), orderByColumnIdentifiers) : '';
-      ret.joins = joins.length ? XT.format(joins.join(' '), joinIdentifiers) : '';
-
-      return ret;
-    },
-
-    /**
      * Queries whether the current user has been granted the privilege passed.
      *
      * @param {String} privilege
@@ -961,9 +384,23 @@ select xt.install_js('XT','Data','xtuple', $$
         encryptionKey = options.encryptionKey,
         i,
         orm = this.fetchOrm(options.nameSpace, options.type),
-        sql = this.prepareInsert(orm, data, null, encryptionKey),
+        sql,
         pkey = XT.Orm.primaryKey(orm),
         rec;
+
+      /*
+        https://github.com/xtuple/xtuple/pull/1964
+        Document associations are stored "wrong" on the client.
+        Swap out the object of a document association for its primary key
+      */
+      if (orm.type === "DocumentAssociation" && typeof data.target === "object") {
+        var targetType = XT.documentAssociations[data.targetType];
+        var targetOrm = this.fetchOrm("XM", targetType);
+        var targetNaturalKeyAttr = XT.Orm.naturalKey(targetOrm);
+        var targetId = this.getId(targetOrm, data.target[targetNaturalKeyAttr]);
+        data.target = targetId;
+      }
+      sql = this.prepareInsert(orm, data, null, encryptionKey);
 
       /* Handle extensions on the same table. */
       for (var i = 0; i < orm.extensions.length; i++) {
@@ -1009,6 +446,32 @@ select xt.install_js('XT','Data','xtuple', $$
 
       /* Okay, now lets handle arrays. */
       this.commitArrays(orm, data, encryptionKey);
+
+      /*
+       * After commitArrays, trigger an update to this parent record so any
+       * update triggers fire that rely on data in those array commits.
+       * This allows things like characteristics on SO Lines to create child WOs.
+       */
+      var columnNKey = XT.Orm.naturalKey(orm, true);
+      var columnPKey = XT.Orm.primaryKey(orm, true);
+      if (columnNKey && options.nameSpace === 'XM') {
+        var updateSql = 'UPDATE %1$I.%2$I SET %3$I = %4$I WHERE %5$I = $1';
+        if (orm.table.indexOf(".") > 0) {
+          var namespace = orm.table.beforeDot();
+          var table = orm.table.afterDot();
+          updateSql = XT.format(updateSql, [namespace, table, columnNKey, columnNKey, columnPKey]);
+        } else {
+          updateSql = XT.format(updateSql, ['public', orm.table, columnNKey, columnNKey, columnPKey]);
+        }
+        updateParams = [data[pkey]];
+
+        if (DEBUG) {
+          XT.debug('createRecord update sql =', updateSql);
+          XT.debug('createRecord update values =', updateParams);
+        }
+
+        plv8.execute(updateSql, updateParams);
+      }
     },
 
     /**
@@ -1728,6 +1191,31 @@ select xt.install_js('XT','Data','xtuple', $$
     },
 
     /**
+     * Get the current database server version.
+     * If the optional precision argument is passed, return the first prec
+     * fields of the full version number.
+     *
+     * @example
+     * var x   = getPgVersion(1),       // '9'
+     *     xy  = getPgVersion(2),       // '9.1'
+     *     xyz = getPgVersion(3),       // '9.1.3'
+     *     all = getPgVersion();        // '9.1.3'
+     *
+     * @param   {Number} proc - optional precision
+     * @returns {String} X[.Y[.Z]]
+     */
+    getPgVersion: function (prec) {
+      var q = plv8.execute("select setting from pg_settings " +
+                           "where name='server_version';"),
+          ret;
+      ret = q[0].setting;
+      if (typeof prec === 'number') {
+        ret = ret.split(".").slice(0,prec).join(".");
+      }
+      return ret;
+    },
+
+    /**
      * Get the oid for a given table name.
      *
      * @param {String} table name
@@ -1798,6 +1286,7 @@ select xt.install_js('XT','Data','xtuple', $$
       return fullName.indexOf(".") > 0 ? fullName.afterDot() : fullName;
     },
 
+// TODO: Do we need to use this function in buildQuery?
     getPgTypeFromOrmType: function (schema, table, column) {
       var sql = "select data_type from information_schema.columns " +
                 "where true " +
@@ -1865,180 +1354,1223 @@ select xt.install_js('XT','Data','xtuple', $$
      * @param {Number|String} Record id
      */
     getVersion: function (orm, id) {
-      if (!orm.lockable) { return; }
+      if (!orm.lockable) {
+        return;
+      }
 
       var etag,
+        i = 0,
         oid = this.getTableOid(orm.lockTable || orm.table),
         res,
-        sql = 'select ver_etag from xt.ver where ver_table_oid = $1 and ver_record_id = $2;';
+        selectSql = 'select ver_etag from xt.ver where ver_table_oid = $1 and ver_record_id = $2;',
+        insertSql = 'insert into xt.ver (ver_table_oid, ver_record_id, ver_etag) values ($1, $2, $3::uuid);';
 
-      if (DEBUG) {
-        XT.debug('getVersion sql = ', sql);
-        XT.debug('getVersion values = ', [oid, id]);
-      }
-      res = plv8.execute(sql, [oid, id]);
-      etag = res.length ? res[0].ver_etag : false;
+      while (i < 5) {
+        try {
+          if (DEBUG) {
+            XT.debug('getVersion sql = ', selectSql);
+            XT.debug('getVersion values = ', [oid, id]);
+          }
+          res = plv8.execute(selectSql, [oid, id]);
+          etag = res.length ? res[0].ver_etag : false;
 
-      if (!etag) {
-        etag = XT.generateUUID();
-        sql = 'insert into xt.ver (ver_table_oid, ver_record_id, ver_etag) values ($1, $2, $3::uuid);';
-        // TODO - Handle insert error.
+          if (!etag) {
+            etag = XT.generateUUID();
 
-        if (DEBUG) {
-          XT.debug('getVersion insert sql = ', sql);
-          XT.debug('getVersion insert values = ', [oid, id, etag]);
+            if (DEBUG) {
+              XT.debug('getVersion insert sql = ', insertSql);
+              XT.debug('getVersion insert values = ', [oid, id, etag]);
+            }
+            plv8.execute(insertSql, [oid, id, etag]);
+            /* The insert worked, exit the loop and move on. */
+            break;
+          } else {
+            /* The select worked, exit the loop and move on. */
+            break;
+          }
+        } catch (err) {
+          /* It's possible to get ERROR duplicate key value violates unique constraint */
+          /* "ver_ver_table_oid_ver_record_id" from the insert due to concurrency. */
+          /* Continue looping and try the insert again. */
+          plv8.elog(WARNING, 'Insert duplicate key error on XT.getVersion.');
+          i++;
         }
-        plv8.execute(sql, [oid, id, etag]);
       }
 
       return etag;
     },
 
     /**
-     * Fetch an array of records from the database.
+     * Add additional parameters to the `payload.query` to enforce
+     * privileges when building the query.
      *
-     * @param {Object} Options
-     * @param {String} [dataHash.nameSpace] Namespace. Required.
-     * @param {String} [dataHash.type] Type. Required.
-     * @param {Array} [dataHash.parameters] Parameters
-     * @param {Array} [dataHash.orderBy] Order by - optional
-     * @param {Number} [dataHash.rowLimit] Row limit - optional
-     * @param {Number} [dataHash.rowOffset] Row offset - optional
-     * @returns Array
+     * @param payload {Object} The payload of query details.
+     * @return {Array} The query result.
      */
-    fetch: function (options) {
-      var nameSpace = options.nameSpace,
-        type = options.type,
-        query = options.query || {},
-        encryptionKey = options.encryptionKey,
-        orderBy = query.orderBy,
-        orm = this.fetchOrm(nameSpace, type),
-        table,
-        tableNamespace,
-        parameters = query.parameters,
-        clause = this.buildClause(nameSpace, type, parameters, orderBy),
-        i,
-        pkey = XT.Orm.primaryKey(orm),
-        pkeyColumn = XT.Orm.primaryKey(orm, true),
-        nkey = XT.Orm.naturalKey(orm),
-        limit = query.rowLimit ? XT.format('limit %1$L', [query.rowLimit]) : '',
-        offset = query.rowOffset ? XT.format('offset %1$L', [query.rowOffset]) : '',
-        parts,
-        ret = {
-          nameSpace: nameSpace,
-          type: type
-        },
-        qry,
-        ids = [],
-        idParams = [],
-        counter = 1,
-        sqlCount,
-        etags,
-        sql_etags,
-        sql1 = 'select t1.%3$I as id from %1$I.%2$I t1 {joins} where {conditions} group by t1.%3$I{groupBy} {orderBy} {limit} {offset};',
-        sql2 = 'select * from %1$I.%2$I where %3$I in ({ids}) {orderBy}';
+    addPrivileges: function addPrivileges (payload) {
+      if (!this.orm) {
+        this.orm = this.fetchOrm(payload.nameSpace, payload.type);
+      }
 
-      /* Validate - don't bother running the query if the user has no privileges. */
-      if (!this.checkPrivileges(nameSpace, type)) { return []; }
+      var privileges = this.orm.privileges;
 
-      tableNamespace = this.getNamespaceFromNamespacedTable(orm.table);
-      table = this.getTableFromNamespacedTable(orm.table);
+      if (this.orm.isNestedOnly) {
+        plv8.elog(ERROR, 'Access Denied');
+      }
 
-      if (query.count) {
-        /* Just get the count of rows that match the conditions */
-        sqlCount = 'select count(distinct t1.%3$I) as count from %1$I.%2$I t1 {joins} where {conditions};';
-        sqlCount = XT.format(sqlCount, [tableNamespace.decamelize(), table.decamelize(), pkeyColumn]);
-        sqlCount = sqlCount.replace('{joins}', clause.joins)
-                           .replace('{conditions}', clause.conditions);
+      if (privileges &&
+          (!privileges.all ||
+            (privileges.all &&
+              (!this.checkPrivilege(privileges.all.read) &&
+              !this.checkPrivilege(privileges.all.update)))
+          ) &&
+          privileges.personal &&
+          (this.checkPrivilege(privileges.personal.read) ||
+            this.checkPrivilege(privileges.personal.update))
+        ) {
 
-        if (DEBUG) {
-          XT.debug('fetch sqlCount = ', sqlCount);
-          XT.debug('fetch values = ', clause.parameters);
+        if (privileges.personal.properties.length > 0) {
+          if (!payload.query) {
+            payload.query = {
+              parameters: []
+            }
+          }
+          if (!payload.query.parameters) {
+            payload.query.parameters = [];
+          }
+
+          /*
+           * To improve Shared User Access performance, we set this flag here and
+           * use it to control adding a `JOIN` below:
+           *   `JOIN xm.share_users ON t1.uuid = share_users.uuid`
+           * along with a `WHERE` clause:
+           *   `AND share_users.username = XT.username-here`
+           * This helps Postgres's query planner avoid a full scan of `xm.share_users`.
+           */
+          if (privileges.personal.properties.indexOf('crmaccountUsers') !== -1) {
+            payload.query.crmaccountUsers = true;
+          }
+
+          payload.query.parameters.push({
+            attribute: privileges.personal.properties,
+            operator: 'MATCHES',
+            value: XT.username
+          });
         }
-
-        ret.data = plv8.execute(sqlCount, clause.parameters);
-        return ret;
       }
 
-      /* Because we query views of views, you can get inconsistent results */
-      /* when doing limit and offest queries without an order by. Add a default. */
-      if (limit && offset && (!orderBy || !orderBy.length) && !clause.orderByColumns) {
-        /* We only want this on sql1, not sql2's clause.orderBy. */
-        clause.orderByColumns = XT.format('order by t1.%1$I', [pkeyColumn]);
+      return payload;
+    },
+
+    /**
+     * @typedef Query
+     * @type Object
+     * @property sql {String} The SQL query string.
+     * @property values {Array} The `WHERE` clause literal values.
+     */
+
+    /**
+     * Build the SQL query string from the payload.
+     *
+     * @param payload {Object} The payload of query details.
+     * @return {Query} The SQL query object.
+     */
+    buildQuery: function buildQuery (payload) {
+      payload = this.addPrivileges(payload);
+
+      var parts = this.getQueryParts(payload);
+      var sql = parts.select +
+                parts.columns +
+                parts.from +
+                parts.joins +
+                parts.where +
+                parts.orderBy +
+                parts.limit +
+                parts.offset +
+                ';';
+
+      return {
+        sql: sql,
+        values: parts.whereLiteralValues
+      };
+    },
+
+    /**
+     * @typedef QueryParts
+     * @type Object
+     * @property select {String} The built `SELECT` clause.
+     * @property columns {String} The built `SELECT` column list.
+     * @property from {String} The built `FROM` clause.
+     * @property joins {String} The built `JOIN` clauses.
+     * @property where {String} The built `WHERE` clause.
+     * @property orderBy {String} The built `ORDER BY` clause.
+     * @property limit {String} The built `LIMIT` clause.
+     * @property offset {String} The built `OFFSET` clause.
+     * @property whereLiteralValues {Array} The `WHERE` clause literal values.
+     */
+
+    /**
+     * Get the query parts from the payload.
+     *
+     * @param payload {Object} The payload of query details.
+     * @return {QueryParts} The parts of the SQL Query.
+     */
+    getQueryParts: function getQueryParts (payload) {
+      var queryParts = {};
+
+      queryParts.select =this.buildSelect(payload);
+      queryParts.columns = this.buildColumns(payload);
+      queryParts.from = this.buildFrom(payload);
+      queryParts.joins = this.buildJoins(payload);
+      queryParts.where = this.buildWhere(payload);
+      queryParts.orderBy = this.buildOrderBy(payload);
+      queryParts.limit = this.buildLimit(payload);
+      queryParts.offset = this.buildOffset(payload);
+      queryParts.whereLiteralValues = this.whereLiteralValues;
+
+      return queryParts;
+    },
+
+    /**
+     * Build the `SELECT` clause from the payload.
+     *
+     * @param payload {Object} The payload of query details.
+     * @return {String} The built `SELECT` clause.
+     */
+    buildSelect: function buildSelect (payload) {
+      var selectClause = 'SELECT\n';
+
+      return selectClause;
+    },
+
+    columnsStaticExtensions: this.columnsStaticExtensions || {},
+
+    /**
+     * Add a static, always present, extension handler function to `XT.Data.columnsStaticExtensions`
+     * for a `nameSpace` and `type` ORM. The supplied `extFunc` will be called when building an
+     * ORM's query's select columns'.
+     *
+     * @param nameSpace {String} The ORM nameSpace.
+     * @param type {String} The ORM type to extend.
+     * @param extFunc {Function} The extension function to run.
+     */
+    addColumnsStaticExtension: function addColumnsStaticExtension (nameSpace, type, extFunc) {
+      if (!XT.Data.columnsStaticExtensions[nameSpace]) {
+        XT.Data.columnsStaticExtensions[nameSpace] = {};
       }
 
-      /* Query the model. */
-      sql1 = XT.format(sql1, [tableNamespace.decamelize(), table.decamelize(), pkeyColumn]);
-      sql1 = sql1.replace('{joins}', clause.joins)
-                 .replace('{conditions}', clause.conditions)
-                 .replace(/{groupBy}/g, clause.groupByColumns)
-                 .replace(/{orderBy}/g, clause.orderByColumns)
-                 .replace('{limit}', limit)
-                 .replace('{offset}', offset);
-
-      if (DEBUG) {
-        XT.debug('fetch sql1 = ', sql1);
-        XT.debug('fetch values = ', clause.parameters);
+      if (!XT.Data.columnsStaticExtensions[nameSpace][type]) {
+        XT.Data.columnsStaticExtensions[nameSpace][type] = [];
       }
 
-      /* First query for matching ids, then get entire result set. */
-      /* This improves performance over a direct query on the view due */
-      /* to the way sorting is handled by the query optimizer */
-      qry = plv8.execute(sql1, clause.parameters) || [];
-      if (!qry.length) { return [] };
-      qry.forEach(function (row) {
-        ids.push(row.id);
-        idParams.push("$" + counter);
-        counter++;
+      XT.Data.columnsStaticExtensions[nameSpace][type].push(extFunc);
+    },
+
+    /**
+     * Add a dynamic, runtime only, extension function to `this.columnsDynamicExtensions` for a
+     * `nameSpace` and `type` ORM. Note, `columnsDynamicExtensions` does not exist on `XT.Data`
+     * It is only present on a child object that inherits from `XT.Data`. See `XM.InventoryAvailability.fetch`
+     * for a use of this function. The supplied `extFunc` will be called when building an ORM's
+     * query's select columns'.
+     *
+     * @param nameSpace {String} The ORM nameSpace.
+     * @param type {String} The ORM type to extend.
+     * @param extFunc {Function} The extension function to run.
+     */
+    addColumnsDynamicExtension: function addColumnsDynamicExtension (nameSpace, type, extFunc) {
+      if (!this.columnsDynamicExtensions) {
+        this.columnsDynamicExtensions = {};
+      }
+
+      if (!this.columnsDynamicExtensions[nameSpace]) {
+        this.columnsDynamicExtensions[nameSpace] = {};
+      }
+
+      if (!this.columnsDynamicExtensions[nameSpace][type]) {
+        this.columnsDynamicExtensions[nameSpace][type] = [];
+      }
+
+      this.columnsDynamicExtensions[nameSpace][type].push(extFunc);
+    },
+
+    /**
+     * Get the `SELECT` columns extensions and run them. The extension handler
+     * functions are passed the payload and current columns. The handler should
+     * modify or replace the columns string and return it.
+     *
+     * @param payload {Object} The payload of query details.
+     * @param columns {String} The default columns built by `buildColumns()`.
+     */
+    buildColumnsExtensions: function buildColumnsExtensions (payload, columns) {
+      var self = this;
+      var columnExtensions = [];
+
+      if (this.columnsStaticExtensions[payload.nameSpace] &&
+          this.columnsStaticExtensions[payload.nameSpace][payload.type]) {
+
+        columnExtensions = columnExtensions.concat(this.columnsStaticExtensions[payload.nameSpace][payload.type]);
+      }
+
+      if (this.columnsDynamicExtensions &&
+          this.columnsDynamicExtensions[payload.nameSpace] &&
+          this.columnsDynamicExtensions[payload.nameSpace][payload.type]) {
+
+        columnExtensions = columnExtensions.concat(this.columnsDynamicExtensions[payload.nameSpace][payload.type]);
+      }
+
+      columnExtensions.forEach(function (extFunc) {
+        columns = '-- Added by buildColumnsExtensions\n' +
+                  extFunc.call(self, payload, columns);
       });
 
-      if (orm.lockable) {
-        sql_etags = "select ver_etag as etag, ver_record_id as id " +
-                    "from xt.ver " +
-                    "where ver_table_oid = ( " +
-                      "select pg_class.oid::integer as oid " +
-                      "from pg_class join pg_namespace on relnamespace = pg_namespace.oid " +
-                      /* Note: using $L for quoted literal e.g. 'contact', not an identifier. */
-                      "where nspname = %1$L and relname = %2$L " +
-                    ") " +
-                    "and ver_record_id in ({ids})";
-        sql_etags = XT.format(sql_etags, [tableNamespace, table]);
-        sql_etags = sql_etags.replace('{ids}', idParams.join());
+      return columns;
+    },
 
-        if (DEBUG) {
-          XT.debug('fetch sql_etags = ', sql_etags);
-          XT.debug('fetch etags_values = ', JSON.stringify(ids));
+    /**
+     * Build the columns list from the payload.
+     *
+     * @param payload {Object} The payload of query details.
+     * @return {String} The built `SELECT` column list.
+     */
+    buildColumns: function buildColumns (payload) {
+      if (!this.orm) {
+        this.orm = this.fetchOrm(payload.nameSpace, payload.type);
+      }
+      if (!this.whereLiteralValues) {
+        this.whereLiteralValues = [];
+      }
+
+      /* The default `columnsClause` is `SELECT *`. */
+      var columnsClause = '  *';
+
+      if (payload.query && payload.query.count) {
+        columnsClause = '  count(*)';
+      } else {
+        /* Pass off `columnsClause` to any extensions to modify it. */
+        columnsClause = this.buildColumnsExtensions(payload, columnsClause);
+      }
+
+      return columnsClause + '\n';
+    },
+
+    /**
+     * Build the `FROM` clause from the payload.
+     *
+     * @param payload {Object} The payload of query details.
+     * @return {String} The built `FROM` clause.
+     */
+    buildFrom: function buildFrom (payload) {
+      var fromClause = XT.format('FROM %1$I.%2$I AS t1\n', [payload.nameSpace.decamelize(), payload.type.decamelize()]);
+
+      return fromClause;
+    },
+
+    /**
+     * Build the `JOIN` clause for etags from the payload.
+     *
+     * @param payload {Object} The payload of query details.
+     * @return {String} The built `JOIN` clause for etags.
+     */
+    buildJoinEtags: function buildJoinEtags (payload) {
+      if (!this.orm) {
+        this.orm = this.fetchOrm(payload.nameSpace, payload.type);
+      }
+
+      var oid = this.getTableOid(this.orm.lockTable || this.orm.table);
+      var joinEtagsClause = '';
+
+      /* If this is a count query, etags do not matter. */
+      if (payload.query && payload.query.count) {
+        return joinEtagsClause;
+      }
+
+      if (this.orm.lockable) {
+        var etagsSql = 'LEFT JOIN (\n' +
+                       '  SELECT\n' +
+                       '    ver_etag as etag,\n' +
+                       '    ver_record_id as id\n' +
+                       '  FROM xt.ver\n' +
+                       '  WHERE true\n' +
+                       '    AND ver_table_oid = %1$L' +
+                       ') AS etags USING (id)\n';
+
+        joinEtagsClause = XT.format(etagsSql, [oid]);
+      }
+
+      return joinEtagsClause;
+    },
+
+    /**
+     * Build the `JOIN` clause for `xm.share_users` for `crmaccountUsers` restriction.
+     *
+     * @param payload {Object} The payload of query details.
+     * @return {String} The built `JOIN` clause for etags.
+     */
+    buildJoinShareUsers: function buildJoinShareUsers (payload) {
+      var joinShareUsersClause = '';
+
+      if (payload.query && payload.query.crmaccountUsers) {
+        /* buildFrom() will create an alias for the base table as `t1`. Reference it here. */
+        joinShareUsersClause = 'JOIN xm.share_users ON t1.uuid = share_users.uuid\n';
+      }
+
+      return joinShareUsersClause;
+    },
+
+    joinClauseStaticExtensions: this.joinClauseStaticExtensions || {},
+
+    /**
+     * Add a static, always present, extension handler function to `XT.Data.joinClauseStaticExtensions`
+     * for a `nameSpace` and `type` ORM. The supplied `extFunc` will be called when building an
+     * ORM's query and added as `JOIN`s to it.
+     *
+     * @param nameSpace {String} The ORM nameSpace.
+     * @param type {String} The ORM type to extend.
+     * @param extFunc {Function} The extension function to run.
+     */
+    addJoinClauseStaticExtension: function addJoinClauseStaticExtension (nameSpace, type, extFunc) {
+      if (!XT.Data.joinClauseStaticExtensions[nameSpace]) {
+        XT.Data.joinClauseStaticExtensions[nameSpace] = {};
+      }
+
+      if (!XT.Data.joinClauseStaticExtensions[nameSpace][type]) {
+        XT.Data.joinClauseStaticExtensions[nameSpace][type] = [];
+      }
+
+      XT.Data.joinClauseStaticExtensions[nameSpace][type].push(extFunc);
+    },
+
+    /**
+     * Add a dynamic, runtime only, extension function to `this.joinClauseDynamicExtensions` for a
+     * `nameSpace` and `type` ORM. Note, `joinClauseDynamicExtensions` does not exist on `XT.Data`
+     * It is only present on a child object that inherits from `XT.Data`. See `XM.ItemSitePrivate.fetch`
+     * for a use of this function. The supplied `extFunc` will be called when building an ORM's
+     * query and added as `JOIN` clauses to it.
+     *
+     * @param nameSpace {String} The ORM nameSpace.
+     * @param type {String} The ORM type to extend.
+     * @param extFunc {Function} The extension function to run.
+     */
+    addJoinClauseDynamicExtension: function addJoinClauseDynamicExtension (nameSpace, type, extFunc) {
+      if (!this.joinClauseDynamicExtensions) {
+        this.joinClauseDynamicExtensions = {};
+      }
+
+      if (!this.joinClauseDynamicExtensions[nameSpace]) {
+        this.joinClauseDynamicExtensions[nameSpace] = {};
+      }
+
+      if (!this.joinClauseDynamicExtensions[nameSpace][type]) {
+        this.joinClauseDynamicExtensions[nameSpace][type] = [];
+      }
+
+      this.joinClauseDynamicExtensions[nameSpace][type].push(extFunc);
+    },
+
+    /**
+     * Get `JOIN` clause extensions and add them.
+     *
+     * @param payload {Object} The payload of query details.
+     */
+    buildJoinExtensions: function buildJoinExtensions (payload) {
+      var self = this;
+      var joinsClauseExtensions = '';
+      var joinExtensions = [];
+
+      if (this.joinClauseStaticExtensions[payload.nameSpace] &&
+          this.joinClauseStaticExtensions[payload.nameSpace][payload.type]) {
+
+        joinExtensions = joinExtensions.concat(this.joinClauseStaticExtensions[payload.nameSpace][payload.type]);
+      }
+
+      if (this.joinClauseDynamicExtensions &&
+          this.joinClauseDynamicExtensions[payload.nameSpace] &&
+          this.joinClauseDynamicExtensions[payload.nameSpace][payload.type]) {
+
+        joinExtensions = joinExtensions.concat(this.joinClauseDynamicExtensions[payload.nameSpace][payload.type]);
+      }
+
+      joinExtensions.forEach(function (extFunc) {
+        joinsClauseExtensions += '-- Added by buildJoinExtensions\n';
+        joinsClauseExtensions += extFunc.call(self, payload);
+      });
+
+      return joinsClauseExtensions;
+    },
+
+    /**
+     * Build the `JOIN`s from the payload or extensions.
+     *
+     * @param payload {Object} The payload of query details.
+     * @return {String} The built `JOIN`s clause.
+     */
+    buildJoins: function buildJoins (payload) {
+      if (!this.orm) {
+        this.orm = this.fetchOrm(payload.nameSpace, payload.type);
+      }
+      if (!this.whereLiteralValues) {
+        this.whereLiteralValues = [];
+      }
+
+      var joinsClause = '';
+
+      joinsClause += this.buildJoinEtags(payload);
+      joinsClause += this.buildJoinShareUsers(payload);
+      joinsClause += this.buildJoinExtensions(payload);
+
+      return joinsClause;
+    },
+
+    /**
+     * Map the `WHERE` parameter `operator` to the corresponding SQL operator.
+     *
+     * @param operator {String} The operator of the `WHERE` parameter.
+     * @return {String} The mapped `WHERE` parameter operator.
+     */
+    mapOperator: function mapOperator (operator) {
+      switch (operator) {
+        case '':
+        case undefined: /* Default if not provided is `=`. */
+          operator = ' = ';
+          break;
+        case '=':
+        case '>':
+        case '<':
+        case '>=':
+        case '<=':
+        case '!=':
+          operator = ' ' + operator + ' ';
+          break;
+        case 'BEGINS_WITH':
+          operator = ' ~^ ';
+          break;
+        case 'ENDS_WITH':
+          operator = ' ~? ';
+          break;
+        case 'MATCHES':
+          operator = ' ~* ';
+          break;
+        case 'ANY':
+          operator = ' <@ ';
+          break;
+        case 'NOT ANY':
+          operator = ' !<@ ';
+          break;
+        default:
+          plv8.elog(ERROR, 'Invalid operator: ' + operator);
+      }
+
+      return operator;
+    },
+
+    whereClauseStaticExtensions: this.whereClauseStaticExtensions || {},
+
+    /**
+     * Add a static, always present, extension handler function to `XT.Data.whereClauseStaticExtensions`
+     * for a `nameSpace` and `type` ORM. The supplied `extFunc` will be called when building an
+     * ORM's query and added as `WHERE` clauses to it.
+     *
+     * @param nameSpace {String} The ORM nameSpace.
+     * @param type {String} The ORM type to extend.
+     * @param extFunc {Function} The extension function to run.
+     */
+    addWhereClauseStaticExtension: function addWhereClauseStaticExtension (nameSpace, type, extFunc) {
+      if (!XT.Data.whereClauseStaticExtensions[nameSpace]) {
+        XT.Data.whereClauseStaticExtensions[nameSpace] = {};
+      }
+
+      if (!XT.Data.whereClauseStaticExtensions[nameSpace][type]) {
+        XT.Data.whereClauseStaticExtensions[nameSpace][type] = [];
+      }
+
+      XT.Data.whereClauseStaticExtensions[nameSpace][type].push(extFunc);
+    },
+
+    /**
+     * Add a dynamic, runtime only, extension function to `this.whereClauseDynamicExtensions` for a
+     * `nameSpace` and `type` ORM. Note, `whereClauseDynamicExtensions` does not exist on `XT.Data`
+     * It is only present on a child object that inherits from `XT.Data`. See `XM.ItemSitePrivate.fetch`
+     * for a use of this function. The supplied `extFunc` will be called when building an ORM's
+     * query and added as `WHERE` clauses to it.
+     *
+     * @param nameSpace {String} The ORM nameSpace.
+     * @param type {String} The ORM type to extend.
+     * @param extFunc {Function} The extension function to run.
+     */
+    addWhereClauseDynamicExtension: function addWhereClauseDynamicExtension (nameSpace, type, extFunc) {
+      if (!this.whereClauseDynamicExtensions) {
+        this.whereClauseDynamicExtensions = {};
+      }
+
+      if (!this.whereClauseDynamicExtensions[nameSpace]) {
+        this.whereClauseDynamicExtensions[nameSpace] = {};
+      }
+
+      if (!this.whereClauseDynamicExtensions[nameSpace][type]) {
+        this.whereClauseDynamicExtensions[nameSpace][type] = [];
+      }
+
+      this.whereClauseDynamicExtensions[nameSpace][type].push(extFunc);
+    },
+
+    /**
+     * Get `WHERE` clause extensions and run them.
+     *
+     * @param payload {Object} The payload of query details.
+     */
+    buildWhereClauseExtensions: function buildWhereClauseExtensions (payload) {
+      var self = this;
+      var whereBody = '';
+      var whereExtensions = [];
+
+      if (this.whereClauseStaticExtensions[payload.nameSpace] &&
+          this.whereClauseStaticExtensions[payload.nameSpace][payload.type]) {
+
+        whereExtensions = whereExtensions.concat(this.whereClauseStaticExtensions[payload.nameSpace][payload.type]);
+      }
+
+      if (this.whereClauseDynamicExtensions &&
+          this.whereClauseDynamicExtensions[payload.nameSpace] &&
+          this.whereClauseDynamicExtensions[payload.nameSpace][payload.type]) {
+
+        whereExtensions = whereExtensions.concat(this.whereClauseDynamicExtensions[payload.nameSpace][payload.type]);
+      }
+
+      whereExtensions.forEach(function (extFunc) {
+        whereBody += '-- Added by buildWhereClauseExtensions\n';
+        whereBody += extFunc.call(self, payload);
+      });
+
+
+      return whereBody;
+    },
+
+    /**
+     * @typedef WhereClauseObject
+     * @type Object
+     * @property whereClause {String} The single `WHERE` clause with placeholders.
+     * @property whereLiteralValues {Array} The `WHERE` clause literal values.
+     */
+
+    /**
+     * Build a single `WHERE` clause from the payload or extensions. e.g.
+     *
+     *   AND (false
+     *     OR number ~^ $1
+     *     OR barcode ~^ $1
+     *   )
+     *
+     * This is a helper function for `buildWhere()` below, but can also be called from a
+     * `addWhereClauseDynamicExtension()`'s callback if additional manipulation is needed.
+     * See `XM.ItemSitePrivate.fetch` for any example of that.
+     *
+     * @param payload {Object} The payload of query details.
+     * @param parameter {Object} The parameter to build the `WHERE` clause part for.
+     * @param literalIndex {Number} The index of the whereLiteralValues array to build with.
+     * @return {WhereClauseObject} The built single `WHERE` clause object.
+     */
+    buildWhereClause: function buildWhereClause (payload, parameter, literalIndex) {
+      if (!this.orm) {
+        this.orm = this.fetchOrm(payload.nameSpace, payload.type);
+      }
+
+      var whereLiterals = [];
+      var whereLiteralValues = [];
+      var whereClause = '';
+
+      /**
+       * Add a `WHERE` clause literal value to the `whereLiterals` and `whereLiteralValues` arrays.
+       *
+       * @param value {String|Number|Date} The parameter value for this part of the `WHERE` clause.
+       * @return {Number} The index of the whereLiteralValues just added.
+       */
+      function _addLiteral (value) {
+        whereLiteralValues.push(value);
+        whereLiterals[literalIndex] = '$' + (literalIndex);
+      }
+
+      /**
+       * Create a cast string e.g. '::integer[]' for query params that need one.
+       *
+       * The old XT.Data.buildClause() would generate: `t1.product_id <@ ARRAY[$1,$2,$3,$4]::integer[]`
+       * mimic that for the `ANY` and `NOT ANY` operators like: `AND product_id <@ $1::integer[]`
+       */
+      function _paramCast (paramOrmProp, operator) {
+        var cast = '';
+
+        if ((operator === 'ANY' || operator === 'NOT ANY') && paramOrmProp.attr) {
+          switch (paramOrmProp.attr.type) {
+            case 'Date':
+              cast = '::date[]';
+              break;
+            case 'Number':
+              cast = '::integer[]';
+              break;
+            case 'String':
+              cast = '::text[]';
+              break;
+            default:
+          }
         }
-        etags = plv8.execute(sql_etags, ids) || {};
-        ret.etags = {};
+
+        return cast;
       }
 
-      sql2 = XT.format(sql2, [nameSpace.decamelize(), type.decamelize(), pkey]);
-      sql2 = sql2.replace(/{orderBy}/g, clause.orderBy)
-                 .replace('{ids}', idParams.join());
+      /**
+       * Build array clause. e.g. `["account.name","name","phone"]`:
+       *
+       *   "query":{
+       *     "parameters":[
+       *       {
+       *         "attribute": [
+       *           "name",
+       *           "account.name", // This is a path and must be handled too.
+       *           "phone"
+       *         ],
+       *         "operator": "MATCHES",
+       *         "value": "ttoys"
+       *       }
+       *     ]
+       *   },
+       *
+       * @param parameter {Object} The parameter to build the `WHERE` clause part for.
+       * @param literalIndex {Number} The index of the whereLiteralValues array to build with.
+       * @return {String} The part of the `WHERE` clause for this parameter.
+       */
+      function _buildArray (parameter, literalIndex) {
+        var clause = [];
+        var wrappedOrClause = '';
 
-      if (DEBUG) {
-        XT.debug('fetch sql2 = ', sql2);
-        XT.debug('fetch values = ', JSON.stringify(ids));
+        for (var i = 0; i < parameter.attribute.length; i++) {
+          var subParam = {
+            attribute: parameter.attribute[i],
+            value: parameter.value
+          };
+
+          if (parameter.operator) {
+            subParam.operator = parameter.operator;
+          }
+
+          if (parameter.includeNull) {
+            subParam.includeNull = parameter.includeNull;
+          }
+
+          if (subParam.attribute.indexOf('.') > -1) {
+            /* Handle path case. e.g. `address.state` */
+            clause = clause.concat(_buildPath.call(this, subParam, literalIndex));
+          } else {
+            /* Handle normal case. */
+            clause = clause.concat(_buildNormal.call(this, subParam, literalIndex));
+          }
+        }
+
+        /* Wrap the returned clauses in an `( ... OR ... )`.
+         * Build clause like:
+         *
+         *  (
+         *    (account).number ~* $1
+         *    OR (account).name ~* $1
+         *    OR name ~* $1
+         *    OR ("billingContact").address.city ~* $1
+         *  )
+         */
+        if (clause.length > 0) {
+          wrappedOrClause = '(\n' +
+                            '    ' + clause.join('    OR ') +
+                            '  )\n';
+        }
+
+        return wrappedOrClause;
       }
-      ret.data = plv8.execute(sql2, ids) || [];
 
-      for (var i = 0; i < ret.data.length; i++) {
-        ret.data[i] = this.decrypt(nameSpace, type, ret.data[i], encryptionKey);
+      /**
+       * Build normal clause. e.g. `state`:
+       *
+       *   "query":{
+       *     "parameters":[
+       *       {
+       *         "attribute": "state",
+       *         "operator": "MATCHES",
+       *         "value": "VA"
+       *       }
+       *     ]
+       *   },
+       *
+       * @param parameter {Object} The parameter to build the `WHERE` clause part for.
+       * @param literalIndex {Number} The index of the whereLiteralValues array to build with.
+       * @return {String} The part of the `WHERE` clause for this parameter.
+       */
+      function _buildNormal (parameter, literalIndex) {
+        var operator = this.mapOperator(parameter.operator);
+        var paramOrmProp = XT.Orm.getPathProperty(this.orm, parameter.attribute);
+        var clause = '';
 
-        if (etags) {
-          /* Add etags to result in pkey->etag format. */
-          for (var j = 0; j < etags.length; j++) {
-            if (etags[j].id === ret.data[i][pkey]) {
-              ret.etags[ret.data[i][nkey]] = etags[j].etag;
-            }
+        if (!paramOrmProp) {
+          plv8.elog(ERROR, 'Invalid query:', parameter.attribute, operator, parameter.value);
+        }
+
+        if ((paramOrmProp.attr && paramOrmProp.attr.type === 'Array') ||
+            (paramOrmProp.toMany && !paramOrmProp.toMany.isNested)) {
+
+          /* Build clause like: `$4 = ANY ("contactRelations")` */
+          return XT.format(whereLiterals[literalIndex] + operator + 'ANY (%1$I)', [parameter.attribute]) + ' \n';
+        } else if (paramOrmProp.toMany && paramOrmProp.toMany.isNested) {
+          /*
+           * Support the short cut wherein the client asks for a filter on a toMany.isNested with a
+           * string, but no path. Technically they should use "theAttr.theAttrNaturalKey",
+           * but if they don't, add the naturalKey to the attribute as if they did.
+           */
+          var paramOrm = XT.Orm.getPathOrm(this.orm, parameter.attribute);
+          var naturalKey = XT.Orm.naturalKey(paramOrm);
+          parameter.attribute += '.' + naturalKey;
+
+          return _buildPath.call(this, parameter, literalIndex);
+        } else if (paramOrmProp.toOne && paramOrmProp.toOne.isNested) {
+          /*
+           * Support the short cut wherein the client asks for a filter on a toOne with a
+           * string, but no path. Technically they should use "theAttr.theAttrNaturalKey",
+           * but if they don't, add the naturalKey to the attribute as if they did.
+           */
+          var paramOrm = XT.Orm.getPathOrm(this.orm, parameter.attribute);
+          var naturalKey = XT.Orm.naturalKey(paramOrm);
+          parameter.attribute += '.' + naturalKey;
+
+          /* Build cluase like: `AND ("billingContact").number = $6` */
+          return _buildPath.call(this, parameter, literalIndex);
+        } else {
+          if (parameter.includeNull) {
+            /* Build clause like: `(name = $5 OR name IS NULL)` */
+            return XT.format('(%1$I' + operator + whereLiterals[literalIndex] + ' OR %1$I IS NULL)', [parameter.attribute]) +
+                   _paramCast(paramOrmProp, parameter.operator) +
+                   ' \n';
+          } else {
+            /* Build clause like: `name = $5` */
+            return XT.format('%1$I' + operator + whereLiterals[literalIndex], [parameter.attribute]) +
+                   _paramCast(paramOrmProp, parameter.operator) +
+                   ' \n';
           }
         }
       }
 
-      this.sanitize(nameSpace, type, ret.data, options);
+      /**
+       * Build path clause. e.g. `address.state`:
+       *
+       *   "query":{
+       *     "parameters":[
+       *       {
+       *         "attribute": "address.state",
+       *         "operator": "MATCHES",
+       *         "value": "VA"
+       *       }
+       *     ]
+       *   },
+       *
+       * @param parameter {Object} The parameter to build the `WHERE` clause part for.
+       * @param literalIndex {Number} The index of the whereLiteralValues array to build with.
+       * @return {String} The part of the `WHERE` clause for this parameter.
+       */
+      function _buildPath (parameter, literalIndex) {
+        var operator = this.mapOperator(parameter.operator);
+        var paramOrmProp = XT.Orm.getPathProperty(this.orm, parameter.attribute);
+        var whereIdentifiers = [];
+        var whereIdentifierValues = [];
+        var childPath = parameter.attribute.split('.');
+        var parentPath = childPath.slice(0, (childPath.length - 1));
+        var parentOrmProp = XT.Orm.getPathProperty(this.orm, parentPath.join('.'));
+        var clause = '';
 
-      return ret;
+        if (!paramOrmProp) {
+          plv8.elog(ERROR, 'Invalid query:', parameter.attribute, operator, parameter.value);
+        }
+
+        /**
+         * Build up the Identifier string and replacement values for a path.
+         * e.g. `(%1$I).%2$I.%3$I` for use in a `WHERE` clause like:
+         *   `AND ("billingContact").address.city = $1`.
+         *
+         * @param path {Array} The `WHERE` clause table.column path.
+         */
+        function _buildPathIdentifiers (path) {
+          for (var i = 0; i < path.length; i++) {
+            whereIdentifierValues.push(path[i]);
+            if (i === 0) {
+              whereIdentifiers[i] = '(%' + (whereIdentifierValues.length) + '$I)';
+            } else {
+              whereIdentifiers[i] = '.%' + (whereIdentifierValues.length) + '$I';
+            }
+          }
+        }
+
+        /**
+         * Build an `id IN (sub select array)` clause like:
+         *
+         * id IN (
+         *     SELECT id FROM (
+         *       SELECT
+         *         id,
+         *         unnest(shiptos) AS list_item
+         *       FROM xm.customer
+         *     ) AS unnested -- Need to unnest the array so you can address individual parts of the composite type in the where clause.
+         *     WHERE true
+         *       -- Note, the () are required around (table.column), even if table is omitted; i.e., "(list_item).text"
+         *       AND (unnested.list_item).uuid = 'eb431661-be71-401b-b49e-d0cb6907700d'
+         *   )
+         *
+         * @See: http://www.postgresql.org/message-id/01da01cda028$091353d0$1b39fb70$@yahoo.com
+         *
+         * @param column {String} The column name at the end of the path to filter on.
+         * @return {String} The in array clause.
+         */
+        function _buildIdInToManyArrayClause (column) {
+          var idInToManyArrayClause = 'id IN (\n' +
+                                      '    SELECT id FROM (\n' +
+                                      '      SELECT\n' +
+                                      '        id,\n' +
+                                      '        unnest(' + whereIdentifiers.join('') + ') AS list_item\n' +
+                                      '      ' + this.buildFrom(payload) +
+                                      '    ) AS unnested\n' +
+                                      '    WHERE true\n' +
+                                      '      AND (unnested.list_item).' + column + operator + whereLiterals[literalIndex] + '\n' +
+                                      '  )';
+
+          return XT.format(idInToManyArrayClause, whereIdentifierValues) + ' \n';
+        }
+
+        if (parentOrmProp.toMany && parentOrmProp.toMany.isNested) {
+          _buildPathIdentifiers.call(this, parentPath);
+
+          return _buildIdInToManyArrayClause.call(this, paramOrmProp.name);
+        } else if (parentOrmProp.toOne && !parentOrmProp.toOne.isNested) {
+          _buildPathIdentifiers.call(this, parentPath);
+
+          if (parameter.includeNull) {
+            /* Build clause like: `(("billingContact").address.city = $5 OR ("billingContact").address.city IS NULL)` */
+            return XT.format('(' + whereIdentifiers.join('') + operator + whereLiterals[literalIndex] +
+                               ' OR ' + whereIdentifiers.join('') + ' IS NULL)',
+                             whereIdentifierValues) + ' \n';
+          } else {
+            /* Build clause like: `("billingContact").address.city = $1` */
+            return whereIdentifiers.length ?
+              XT.format(whereIdentifiers.join(''), whereIdentifierValues) + operator + whereLiterals[literalIndex] + ' \n'
+              : '';
+          }
+        } else if (paramOrmProp.toMany && paramOrmProp.toMany.isNested) {
+          /*
+           * Support the short cut wherein the client asks for a filter on a toMany.isNested with a
+           * string, but no path. Technically they should use "theAttr.theAttrNaturalKey",
+           * but if they don't, add the naturalKey to the attribute as if they did.
+           */
+          var paramOrm = XT.Orm.getPathOrm(orm, parameter.attribute);
+          var naturalKey = XT.Orm.naturalKey(paramOrm);
+          _buildPathIdentifiers.call(this, childPath);
+
+          return _buildIdInToManyArrayClause.call(this, naturalKey);
+        } else if ((paramOrmProp.attr && paramOrmProp.attr.type === 'Array') ||
+                   (paramOrmProp.toMany && !paramOrmProp.toMany.isNested)) {
+
+          _buildPathIdentifiers.call(this, childPath);
+
+          /* Build clause like: `'admin' = ANY ((address)."crmaccountUsers")` */
+          return XT.format(whereLiterals[literalIndex] + operator + 'ANY (' + whereIdentifiers.join('') + ')', whereIdentifierValues) + ' \n';
+        } else if (paramOrmProp.toOne && paramOrmProp.toOne.isNested) {
+          /*
+           * Support the short cut wherein the client asks for a filter on a toOne with a
+           * string, but no path. Technically they should use "theAttr.theAttrNaturalKey",
+           * but if they don't, add the naturalKey to the attribute as if they did.
+           */
+          var paramOrm = XT.Orm.getPathOrm(orm, parameter.attribute);
+          var naturalKey = XT.Orm.naturalKey(paramOrm);
+          parameter.attribute += '.' + naturalKey;
+
+          /* Build cluase like: `("billingContact").address.number = $6` where `number` is the added naturalKey. */
+          return _buildPath.call(this, parameter, literalIndex);
+        } else {
+          _buildPathIdentifiers.call(this, childPath);
+
+          if (parameter.includeNull) {
+            /* Build clause like: `(("billingContact").address.city = $5 OR ("billingContact").address.city IS NULL)` */
+            return XT.format('(' + whereIdentifiers.join('') + operator + whereLiterals[literalIndex] +
+                               ' OR ' + whereIdentifiers.join('') + ' IS NULL)',
+                             whereIdentifierValues) + ' \n';
+          } else {
+            /* Build clause like: `("billingContact").address.city = $1` */
+            return whereIdentifiers.length ?
+              XT.format(whereIdentifiers.join(''), whereIdentifierValues) + operator + whereLiterals[literalIndex] + ' \n'
+              : '';
+          }
+        }
+      }
+
+      _addLiteral.call(this, parameter.value);
+
+      if (parameter.attribute.indexOf('.') > -1) {
+        /* Handle path case. e.g. `address.state` */
+        whereClause += _buildPath.call(this, parameter, literalIndex);
+      } else if (Array.isArray(parameter.attribute)) {
+        /* Handle array case. e.g. `["account.name","name","phone"]` */
+        whereClause += _buildArray.call(this, parameter, literalIndex);
+      } else {
+        /* Handle normal case. e.g. `state` */
+        whereClause += _buildNormal.call(this, parameter, literalIndex);
+      }
+
+      var whereClauseObject = {
+        whereClause: whereClause,
+        whereLiteralValues: whereLiteralValues
+      };
+
+      return whereClauseObject;
+    },
+
+    /**
+     * Build the `WHERE` clause from the payload or extensions.
+     *
+     * @param payload {Object} The payload of query details.
+     * @return {String} The built `WHERE` clause.
+     */
+    buildWhere: function buildWhere (payload) {
+      var parameters = (payload.query) ? payload.query.parameters : undefined;
+      var whereBody = '';
+
+      if (!this.whereLiteralValues) {
+        this.whereLiteralValues = [];
+      }
+
+      /**
+       * Handle characteristics parameters e.g.:
+       *  {
+       *    "isCharacteristic": true,
+       *    "attribute": "CUST-VOLUME",
+       *    "operator": "=",
+       *    "value": "> 50,000"
+       *  }
+       *
+       * Add two new parameters that will create a `AND id IN (... char sub query here ...)` clause.
+       *
+       * @param param {Object} The isCharacteristic parameter.
+       */
+      function _mapCharacteristic (param) {
+        var charParamCharacteristic = {
+          attribute: "characteristics.characteristic",
+          value: param.attribute
+        };
+        var charParamValue = {
+          attribute: "characteristics.value",
+          value: param.value
+        };
+
+        if (param.operator) {
+          charParamCharacteristic.operator = param.operator;
+          charParamValue.operator = param.operator;
+        }
+
+        parameters.push(charParamCharacteristic);
+        parameters.push(charParamValue);
+      }
+
+      whereBody = 'WHERE true\n';
+
+      if (payload.query && payload.query.crmaccountUsers) {
+        whereBody += XT.format('  AND share_users.username = %1$L', [XT.username]) + '\n';
+      }
+
+      if (parameters) {
+        for (var i = 0; i < parameters.length; i++) {
+          if (parameters[i].isCharacteristic) {
+            // This will increase the `parameters.length` by two when the characteristic
+            // parameters are added by `_mapCharacteristic()`. The for loop eveluates `parameters.length`
+            // on each iteration of the loop, so it will know the length has increased each time.
+            _mapCharacteristic.call(this, parameters[i]);
+            continue;
+          }
+
+          var literalIndex = this.whereLiteralValues.length + 1;
+          var whereClause = this.buildWhereClause(payload, parameters[i], literalIndex);
+          whereBody += '  AND ' + whereClause.whereClause;
+          Array.prototype.push.apply(this.whereLiteralValues, whereClause.whereLiteralValues);
+        }
+      }
+
+      whereBody += this.buildWhereClauseExtensions(payload);
+
+      return whereBody;
+    },
+
+    /**
+     * Build the `ORDER BY` clause from the payload.
+     *
+     * @param payload {Object} The payload of query details.
+     * @return {String} The built `ORDER BY` clause.
+     */
+    buildOrderBy: function buildOrderBy (payload) {
+      if (!this.orm) {
+        this.orm = this.fetchOrm(payload.nameSpace, payload.type);
+      }
+
+      var orderBy = (payload.query && payload.query.orderBy) ? payload.query.orderBy : [];
+      var orderByIdentifiers = [];
+      var orderByIdentifierValues = [];
+      var orderByClause = '';
+
+      /* If this is a count query, `ORDER BY` doesn't matter. */
+      if (payload.query && payload.query.count) {
+        return orderByClause;
+      }
+
+      for (var i = 0; i < orderBy.length; i++) {
+        if (orderBy[i].attribute.indexOf('.') > -1) { /* Handle path case. e.g. `address.state` */
+          path = orderBy[i].attribute.split('.');
+          for (var n = 0; n < path.length; n++) {
+            orderByIdentifierValues.push(path[n]);
+            if (n === 0) {
+              orderByIdentifiers[i] = '(%' + (orderByIdentifierValues.length) + '$I)';
+            } else {
+              orderByIdentifiers[i] += '.%' + (orderByIdentifierValues.length) + '$I';
+            }
+          }
+        } else { /* Normal case. */
+          orderByIdentifierValues.push(orderBy[i].attribute);
+          orderByIdentifiers[i] = '%' + (orderByIdentifierValues.length) + '$I';
+        }
+
+        if (orderBy[i].descending) {
+          orderByIdentifiers[i] += ' DESC';
+        }
+      }
+      orderByClause = orderByIdentifiers.length ?
+        XT.format('ORDER BY\n  ' + orderByIdentifiers.join(', \n  '), orderByIdentifierValues) + ' \n'
+        : '';
+
+      /* Because we query views of views, you can get inconsistent results */
+      /* when doing limit and offest queries without an order by. Add a default. */
+      if (payload.query &&
+          payload.query.rowLimit &&
+          payload.query.rowOffset &&
+          (!orderBy || !orderBy.length) &&
+          !orderByClause.length) {
+
+        var pkeyColumn = XT.Orm.primaryKey(this.orm);
+        orderByClause = XT.format('ORDER BY\n  %1$I ', [pkeyColumn]);
+      }
+
+      return orderByClause;
+    },
+
+    /**
+     * Build the `LIMIT` clause from the payload.
+     * Note, the `restQueryFormat()` function sets a default `rowLimit` to 100 if none is supplied.
+     * This is intended to protect the API from misuse/abuse. Although a high `rowLimit` can be set
+     * by API clients. e.g. `rowLimit: 1000000`
+     *
+     * Internally, no `rowLimit` will be defaulted unless specifically set on the payload.
+     *
+     * @param payload {Object} The payload of query details.
+     * @return {String} The built `LIMIT` clause.
+     */
+    buildLimit: function buildLimit (payload) {
+      if (!this.orm) {
+        this.orm = this.fetchOrm(payload.nameSpace, payload.type);
+      }
+
+      var limitClause;
+
+      if (payload.query && !payload.query.count) {
+        limitClause = payload.query.rowLimit ? XT.format('LIMIT %1$L', [payload.query.rowLimit]) + ' \n' : '';
+      } else {
+        limitClause = '';
+      }
+      return limitClause;
+    },
+
+    /**
+     * Build the `OFFSET` clause from the payload.
+     *
+     * @param payload {Object} The payload of query details.
+     * @return {String} The built `OFFSET` clause.
+     */
+    buildOffset: function buildOffset (payload) {
+      if (!this.orm) {
+        this.orm = this.fetchOrm(payload.nameSpace, payload.type);
+      }
+
+      var offsetClause;
+
+      if (payload.query) {
+        offsetClause = payload.query.rowOffset ? XT.format('OFFSET %1$L', [payload.query.rowOffset]) + ' \n' : '';
+      } else {
+        offsetClause = '';
+      }
+
+      return offsetClause;
+    },
+
+    /**
+     * Fetch an array of records from the database.
+     *
+     * @param payload {Object} The payload of query details.
+     * @param {String} [payload.nameSpace] The ORM Namespace. Required.
+     * @param {String} [payload.type] The ORM Type. Required.
+     * @param {Array}  [payload.parameters] The query parameters - optional
+     * @param {Array}  [payload.orderBy] The query `ORDER BY` - optional
+     * @param {Number} [payload.rowLimit] The query `LIMIT` - optional
+     * @param {Number} [payload.rowOffset] The query `OFFSET` - optional
+     * @return {Array} The query result.
+     */
+    fetch: function fetch (payload) {
+      if (!this.orm) {
+        this.orm = this.fetchOrm(payload.nameSpace, payload.type);
+      }
+      if (!this.checkPrivileges(payload.nameSpace, payload.type)) {
+        return [];
+      }
+
+      var encryptionKey = payload.encryptionKey;
+      var nkey = XT.Orm.naturalKey(this.orm);
+      var pkey = XT.Orm.primaryKey(this.orm);
+      var query = this.buildQuery(payload);
+      var result = {
+        nameSpace: payload.nameSpace,
+        type: payload.type
+      };
+
+      if (DEBUG) {
+        XT.debug('fetch sql = ' + query.sql);
+        XT.debug('fetch values = ', query.values);
+      }
+      result.data = plv8.execute(query.sql, query.values);
+
+      if (!result.data.length) {
+        return [];
+      };
+
+      /* If this is a count query, we do not need to decrypt, sanitize and add etags. */
+      if (payload.query && payload.query.count) {
+        return result;
+      }
+
+      if (this.orm.lockable) {
+        result.etags = {};
+      }
+
+      // Loop over the result data, decrypt if needed, sanitize and add etags if needed.
+      for (var i = 0; i < result.data.length; i++) {
+        result.data[i] = this.decrypt(payload.nameSpace, payload.type, result.data[i], encryptionKey);
+
+        if (this.orm.lockable) {
+          /* Add etags to result or create new one. */
+          if (result.data[i].etag) {
+            result.etags[result.data[i][nkey]] = result.data[i].etag;
+            delete result.data[i].etag;
+          } else {
+            result.etags[result.data[i][nkey]] = this.getVersion(this.orm, result.data[i][pkey]);
+          }
+        }
+
+        /* The sanitizeRow() method will remove the `pkey`, `id`. This must be after etags are handled. */
+        this.sanitizeRow(payload.nameSpace, payload.type, result.data[i], payload);
+      }
+
+      return result;
     },
 
     /**
@@ -2048,6 +2580,7 @@ select xt.install_js('XT','Data','xtuple', $$
     @param {String} Return type 'text', 'boolean' or 'number' (default 'text')
     */
     fetchMetric: function (name, type) {
+      plv8.elog(ERROR, "name: " + name + " type: " + type);
       var fn = 'fetchmetrictext';
       if (type === 'boolean') {
         fn = 'fetchmetricbool';
@@ -2107,7 +2640,7 @@ select xt.install_js('XT','Data','xtuple', $$
       }
 
       /* If this object uses a natural key, go get the primary key id. */
-      if (nkey) {
+      if (nkey && !options.queryOnPrimaryKey) {
         id = this.getId(map, id);
         if (!id) {
           return false;
@@ -2181,7 +2714,7 @@ select xt.install_js('XT','Data','xtuple', $$
         ret.data = this.decrypt(nameSpace, type, ret.data, encryptionKey);
       }
 
-      this.sanitize(nameSpace, type, ret.data, options);
+      this.sanitizeRow(nameSpace, type, ret.data, options);
 
       /* Return the results. */
       return ret || {};
@@ -2192,135 +2725,133 @@ select xt.install_js('XT','Data','xtuple', $$
      *  Only removes the primary key if a natural key has been specified in the ORM.
      *  Also format for printing using XT.format functions if printFormat=true'
      *
-     * @param {String} Namespace
-     * @param {String} Type
-     * @param {Object|Array} Data
-     * @param {Object} Options
-     * @param {Boolean} [options.includeKeys=false] Do not remove primary and foreign keys.
-     * @param {Boolean} [options.superUser=false] Do not remove unprivileged attributes.
-     * @param {Boolean} [options.printFormat=true] Format for printing.
+     * @param nameSpace {String} The ORM Namespace.
+     * @param type {String} The ORM Type.
+     * @param row {Object} The data row to sanitize.
+     * @param payload {Object} They query payload.
+     * @param {Boolean} [payload.includeKeys=false] Do not remove primary and foreign keys.
+     * @param {Boolean} [payload.superUser=false] Do not remove unprivileged attributes.
+     * @param {Boolean} [payload.printFormat=true] Format for printing.
      */
-    sanitize: function (nameSpace, type, data, options) {
-      options = options || {};
-      if (options.includeKeys && options.superUser) { return; }
-      if (XT.typeOf(data) !== "array") { data = [data]; }
-      var orm = this.fetchOrm(nameSpace, type),
-        pkey = XT.Orm.primaryKey(orm),
-        nkey = XT.Orm.naturalKey(orm),
-        props = orm.properties,
-        attrPriv = orm.privileges && orm.privileges.attribute ?
-          orm.privileges.attribute : false,
-        inclKeys = options.includeKeys,
-        superUser = options.superUser,
-        printFormat = options.printFormat,
-        c,
-        i,
-        item,
-        n,
-        prop,
-        itemAttr,
-        filteredProps,
-        val,
-        preOffsetDate,
-        offsetDate,
-        check = function (p) {
-          return p.name === itemAttr;
-        };
+    sanitizeRow: function sanitizeRow (nameSpace, type, row, payload) {
+      payload = payload || {};
+      if (payload.includeKeys && payload.superUser) {
+        return;
+      }
 
-      for (var c = 0; c < data.length; c++) {
-        item = data[c];
+      var orm = this.fetchOrm(nameSpace, type);
+      var pkey = XT.Orm.primaryKey(orm);
+      var nkey = XT.Orm.naturalKey(orm);
+      var props = orm.properties;
+      var attrPriv = orm.privileges && orm.privileges.attribute ?
+          orm.privileges.attribute : false;
+      var inclKeys = payload.includeKeys;
+      var superUser = payload.superUser;
+      var printFormat = payload.printFormat;
+      var prop;
+      var rowAttr;
+      var filteredProps;
+      var preOffsetDate;
+      var offsetDate;
+      var check = function (p) {
+        return p.name === rowAttr;
+      };
 
-        /* Remove primary key if applicable */
-        if (!inclKeys && nkey && nkey !== pkey) { delete item[pkey]; }
 
-        for (itemAttr in item) {
-          if (!item.hasOwnProperty(itemAttr)) {
-            continue;
-          }
-          filteredProps = orm.properties.filter(check);
+      /* Remove primary key if applicable */
+      if (!inclKeys && nkey && nkey !== pkey) {
+        delete row[pkey];
+      }
 
-          if (filteredProps.length === 0 && orm.extensions.length > 0) {
-            /* Try to get the orm prop from an extension if it's not in the core*/
-            orm.extensions.forEach(function (ext) {
-              if (filteredProps.length === 0) {
-                filteredProps = ext.properties.filter(check);
-              }
-            });
-          }
+      for (rowAttr in row) {
+        if (!row.hasOwnProperty(rowAttr)) {
+          continue;
+        }
+        filteredProps = orm.properties.filter(check);
 
-          /* Remove attributes not found in the ORM */
-          if (filteredProps.length === 0) {
-            delete item[itemAttr];
-          } else {
-            prop = filteredProps[0];
-          }
-
-          /* Remove unprivileged attribute if applicable */
-          if (!superUser && attrPriv && attrPriv[prop.name] &&
-            (attrPriv[prop.name].view !== undefined) &&
-            !this.checkPrivilege(attrPriv[prop.name].view)) {
-            delete item[prop.name];
-          }
-
-          /*  Format for printing if printFormat and not an object */
-          if (printFormat && !prop.toOne && !prop.toMany) {
-            switch(prop.attr.type) {
-              case "Date":
-              case "DueDate":
-                preOffsetDate = item[itemAttr];
-                offsetDate = preOffsetDate &&
-                  new Date(preOffsetDate.valueOf() + 60000 * preOffsetDate.getTimezoneOffset());
-                item[itemAttr] = XT.formatDate(offsetDate).formatdate;
-              break;
-              case "Cost":
-                item[itemAttr] = XT.formatCost(item[itemAttr]).formatcost.toString();
-              break;
-              case "Number":
-                item[itemAttr] = XT.formatNumeric(item[itemAttr], "").formatnumeric.toString();
-              break;
-              case "Money":
-                item[itemAttr] = XT.formatMoney(item[itemAttr]).formatmoney.toString();
-              break;
-              case "SalesPrice":
-                item[itemAttr] = XT.formatSalesPrice(item[itemAttr]).formatsalesprice.toString();
-              break;
-              case "PurchasePrice":
-                item[itemAttr] = XT.formatPurchPrice(item[itemAttr]).formatpurchprice.toString();
-              break;
-              case "ExtendedPrice":
-                item[itemAttr] = XT.formatExtPrice(item[itemAttr]).formatextprice.toString();
-              break;
-              case "Quantity":
-                item[itemAttr] = XT.formatQty(item[itemAttr]).formatqty.toString();
-              break;
-              case "QuantityPer":
-                item[itemAttr] = XT.formatQtyPer(item[itemAttr]).formatqtyper.toString();
-              break;
-              case "UnitRatioScale":
-                item[itemAttr] = XT.formatRatio(item[itemAttr]).formatratio.toString();
-              break;
-              case "Percent":
-                item[itemAttr] = XT.formatPrcnt(item[itemAttr]).formatprcnt.toString();
-              break;
-              case "WeightScale":
-                item[itemAttr] = XT.formatWeight(item[itemAttr]).formatweight.toString();
-              break;
-              default:
-                item[itemAttr] = (item[itemAttr] || "").toString();
+        if (filteredProps.length === 0 && orm.extensions.length > 0) {
+          /* Try to get the orm prop from an extension if it's not in the core*/
+          orm.extensions.forEach(function (ext) {
+            if (filteredProps.length === 0) {
+              filteredProps = ext.properties.filter(check);
             }
+          });
+        }
+
+        /* Remove attributes not found in the ORM */
+        if (filteredProps.length === 0) {
+          delete row[rowAttr];
+        } else {
+          prop = filteredProps[0];
+        }
+
+        /* Remove unprivileged attribute if applicable */
+        if (!superUser && attrPriv && attrPriv[prop.name] &&
+          (attrPriv[prop.name].view !== undefined) &&
+          !this.checkPrivilege(attrPriv[prop.name].view)) {
+          delete row[prop.name];
+        }
+
+        /*  Format for printing if printFormat and not an object. */
+        if (printFormat && !prop.toOne && !prop.toMany) {
+          switch(prop.attr.type) {
+            case "Date":
+            case "DueDate":
+              preOffsetDate = row[rowAttr];
+              offsetDate = preOffsetDate &&
+                new Date(preOffsetDate.valueOf() + 60000 * preOffsetDate.getTimezoneOffset());
+              row[rowAttr] = XT.formatDate(offsetDate).formatdate;
+            break;
+            case "Cost":
+              row[rowAttr] = XT.formatCost(row[rowAttr]).formatcost.toString();
+            break;
+            case "Number":
+              row[rowAttr] = XT.formatNumeric(row[rowAttr], "").formatnumeric.toString();
+            break;
+            case "Money":
+              row[rowAttr] = XT.formatMoney(row[rowAttr]).formatmoney.toString();
+            break;
+            case "SalesPrice":
+              row[rowAttr] = XT.formatSalesPrice(row[rowAttr]).formatsalesprice.toString();
+            break;
+            case "PurchasePrice":
+              row[rowAttr] = XT.formatPurchPrice(row[rowAttr]).formatpurchprice.toString();
+            break;
+            case "ExtendedPrice":
+              row[rowAttr] = XT.formatExtPrice(row[rowAttr]).formatextprice.toString();
+            break;
+            case "Quantity":
+              row[rowAttr] = XT.formatQty(row[rowAttr]).formatqty.toString();
+            break;
+            case "QuantityPer":
+              row[rowAttr] = XT.formatQtyPer(row[rowAttr]).formatqtyper.toString();
+            break;
+            case "UnitRatioScale":
+              row[rowAttr] = XT.formatRatio(row[rowAttr]).formatratio.toString();
+            break;
+            case "Percent":
+              row[rowAttr] = XT.formatPrcnt(row[rowAttr]).formatprcnt.toString();
+            break;
+            case "WeightScale":
+              row[rowAttr] = XT.formatWeight(row[rowAttr]).formatweight.toString();
+            break;
+            default:
+              row[rowAttr] = (row[rowAttr] || "").toString();
           }
+        }
 
-          /* Handle composite types */
-          if (prop.toOne && prop.toOne.isNested && item[prop.name]) {
-            this.sanitize(nameSpace, prop.toOne.type, item[prop.name], options);
-          } else if (prop.toMany && prop.toMany.isNested && item[prop.name]) {
-            for (var n = 0; n < item[prop.name].length; n++) {
-              val = item[prop.name][n];
+        /* Handle composite types */
+        if (prop.toOne && prop.toOne.isNested && row[prop.name]) {
+          this.sanitizeRow(nameSpace, prop.toOne.type, row[prop.name], payload);
+        } else if (prop.toMany && prop.toMany.isNested && row[prop.name]) {
+          for (var i = 0; i < row[prop.name].length; i++) {
+            var val = row[prop.name][i];
 
-              /* Remove foreign key if applicable */
-              if (!inclKeys) { delete val[prop.toMany.inverse]; }
-              this.sanitize(nameSpace, prop.toMany.type, val, options);
+            /* Remove foreign key if applicable */
+            if (!inclKeys) {
+              delete val[prop.toMany.inverse];
             }
+            this.sanitizeRow(nameSpace, prop.toMany.type, val, payload);
           }
         }
       }
@@ -2399,18 +2930,22 @@ select xt.install_js('XT','Data','xtuple', $$
         lockExp,
         oid,
         pcheck,
+        pgver = 0 + this.getPgVersion(2),
         pid = options.pid || null,
-        pidSql = "select usename, procpid " +
+        pidcol = (pgver < 9.2) ? "procpid" : "pid",
+        pidSql = "select usename, {pidcol} " +
                  "from pg_stat_activity " +
                  "where datname=current_database() " +
                  " and usename=$1 " +
-                 " and procpid=$2;",
+                 " and {pidcol}=$2;",
         query,
         selectSql = "select * " +
                     "from xt.lock " +
                     "where lock_table_oid = $1 " +
                     " and lock_record_id = $2;",
         username = XT.username;
+
+      pidSql = pidSql.replace(/{pidcol}/g, pidcol);
 
       /* If passed a table name, look up the oid. */
       oid = typeof table === "string" ? this.getTableOid(table) : table;
@@ -2528,8 +3063,7 @@ select xt.install_js('XT','Data','xtuple', $$
      */
     renewLock: function (key, options) {
       var expires = new Date(),
-        query,
-        selectSql = "select * from xt.lock where lock_id = $1;",
+        updated,
         timeout = options && options.timeout ? options.timeout : 30,
         updateSql = "update xt.lock set lock_expires = $1 where lock_id = $2;";
 
@@ -2537,18 +3071,12 @@ select xt.install_js('XT','Data','xtuple', $$
       expires = new Date(expires.setSeconds(expires.getSeconds() + timeout));
 
       if (DEBUG) {
-        XT.debug('renewLock sql = ', selectSql);
-        XT.debug('renewLock values = ', [key]);
+        XT.debug('renewLock sql = ', updateSql);
+        XT.debug('renewLock values = ', [expires, key]);
       }
-      query = plv8.execute(selectSql, [key]);
+      updated = plv8.execute(updateSql, [expires, key]);
 
-      if (query.length) {
-        if (DEBUG) {
-          XT.debug('renewLock sql = ', updateSql);
-          XT.debug('renewLock values = ', [expires, key]);
-        }
-        plv8.execute(updateSql, [expires, key]);
-
+      if (updated) {
         return true;
       }
 

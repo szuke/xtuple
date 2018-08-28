@@ -19,7 +19,8 @@ SELECT cmhead_number, cmhead_freight, cmhead_curr_id,
                    JOIN calculateTaxDetailSummary('CM', <? value("cmhead_id") ?>, 'T') ON (taxdetail_tax_id=tax_id)
                   GROUP BY tax_id) AS data), 0) AS tax_in_cmcurr,
        ccard_id, ccard_seq, ccpay_id,
-       cohead_number
+       cohead_number,
+       COALESCE(cohead_id, -1) AS cohead_id
 FROM ccard, cmitem, cmhead LEFT OUTER JOIN
      rahead ON (cmhead_rahead_id=rahead_id) LEFT OUTER JOIN
      cohead ON (rahead_orig_cohead_id=cohead_id) LEFT OUTER JOIN
@@ -31,6 +32,6 @@ WHERE ((cmitem_cmhead_id=cmhead_id)
   AND  (cmhead_id=<? value("cmhead_id") ?>))
 GROUP BY cmhead_number, cmhead_curr_id, cmhead_freight,
          cmhead_misc, ccard_id, ccard_seq, ccpay_id,
-	 cohead_number
+	 cohead_number, cohead_id
 ORDER BY ccpay_id DESC, ccard_seq 
 LIMIT 1;

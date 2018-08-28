@@ -75,7 +75,7 @@ trailing:true, white:true, strict:false*/
 
   /* @private */
   var _namify = function (obj) {
-    return "show" + obj.type.pluralize();
+    return "show" + _.pluralize(obj.type);
   };
 
   enyo.kind({
@@ -151,7 +151,7 @@ trailing:true, white:true, strict:false*/
           // Create filter Widget
           that.createComponent({
             name: _namify(obj),
-            label: obj.label ? obj.label : ("_" + obj.type.pluralize().camelize()).loc(),
+            label: obj.label ? obj.label : ("_" + _.pluralize(_.titleize(obj.type))).loc(),
             defaultKind: "XV.ToggleButtonWidget"
           });
         });
@@ -296,6 +296,7 @@ trailing:true, white:true, strict:false*/
   enyo.kind({
     name: "XV.CustomerListParameters",
     kind: "XV.ParameterWidget",
+    characteristicsRole: "isCustomers",
     components: [
       {kind: "onyx.GroupboxHeader", content: "_customer".loc()},
       {name: "isActive", attr: "isActive", label: "_showInactive".loc(), defaultKind: "XV.CheckboxWidget",
@@ -775,6 +776,7 @@ trailing:true, white:true, strict:false*/
         }
       },
       {name: "name", label: "_name".loc(), attr: "name"},
+      {name: "number", label: "_number".loc(), attr: "number"},
       {kind: "onyx.GroupboxHeader", content: "_status".loc()},
       {name: "stage", label: "_stage".loc(), attr: "opportunityStage",
         defaultKind: "XV.OpportunityStagePicker"},

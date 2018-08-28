@@ -26,30 +26,6 @@ white:true*/
     /**
       @class
 
-      @extends XM.CharacteristicAssignment
-    */
-    XM.PurchaseTypeCharacteristic = XM.CharacteristicAssignment.extend(/** @lends XM.PurchaseTypeCharacteristic.prototype */{
-
-      recordType: "XM.PurchaseTypeCharacteristic",
-
-      which: "isPurchaseOrders"
-
-    });
-
-    /**
-      @class
-
-      @extends XM.WorkflowSource
-    */
-    XM.PurchaseTypeWorkflow = XM.WorkflowSource.extend({
-
-      recordType: "XM.PurchaseTypeWorkflow"
-
-    });
-
-    /**
-      @class
-
       @extends XM.Model
     */
     XM.PurchaseEmailProfile = XM.Model.extend(/** @lends XM.PurchaseEmail.prototype */{
@@ -119,7 +95,6 @@ white:true*/
         "add:lineItems remove:lineItems": "lineItemsChanged",
         "change:currency": "handleLineItems",
         "change:freight": "calculateFreightTax",
-        "change:purchaseType": "purchaseTypeChanged",
         "change:site": "siteChanged",
         "change:status": "purchaseOrderStatusChanged",
         "change:taxZone": "recalculateTaxes",
@@ -224,6 +199,30 @@ white:true*/
         this.set("total", total);
       },
 
+      getPrintParameters: function (callback) {
+        var that = this,
+          dispOptions = {},
+          dispParams = {
+            docNumber: that.id,
+            table: "pohead",
+            column: "pohead_number"
+          };
+
+        dispOptions.success = function (pkId) {
+          // Send back to enyo:
+          callback({
+            id: that.id, // Used for pdf naming convention in generate-report route.
+            reportName: "PurchaseOrder",
+            printParameters: [
+              {name: "pohead_id", type: "integer", value: pkId},
+              {name: "title", type: "string", value: ""}
+            ]
+          });
+        };
+
+        this.dispatch('XM.Model', 'fetchPrimaryKeyId', dispParams, dispOptions);
+      },
+
       handleLineItems: function () {
         var vendor = this.get("vendor"),
           currency = this.get("currency"),
@@ -284,14 +283,6 @@ white:true*/
             lineItem.set("status", status);
           }
         });
-      },
-
-      purchaseTypeChanged: function () {
-        this.inheritWorkflowSource(
-          this.get("purchaseType"),
-          "XM.PurchaseOrderCharacteristic",
-          "XM.PurchaseOrderWorkflow"
-        );
       },
 
       /**
@@ -483,7 +474,6 @@ white:true*/
     });
 
     XM.PurchaseOrder = XM.PurchaseOrder.extend(XM.PurchaseOrderMixin);
-    XM.PurchaseOrder = XM.PurchaseOrder.extend(XM.WorkflowMixin);
     XM.PurchaseOrder = XM.PurchaseOrder.extend(XM.EmailSendMixin);
     XM.PurchaseOrder = XM.PurchaseOrder.extend({
       emailDocumentName: "_purchaseOrder".loc(),
@@ -557,32 +547,6 @@ white:true*/
       sourceName: "P"
 
     });
-
-    /**
-      @class
-
-      @extends XM.Model
-    */
-    XM.PurchaseOrderWorkflow = XM.Workflow.extend(/** @lends XM.PurchaseOrderWorkflow.prototype */{
-
-      recordType: "XM.PurchaseOrderWorkflow",
-
-      getPurchaseOrderWorkflowStatusString: function () {
-        return XM.PurchaseOrderWorkflow.prototype.getWorkflowStatusString.call(this);
-      }
-
-    });
-
-    _.extend(XM.PurchaseOrderWorkflow, /** @lends XM.PurchaseOrderWorkflow# */{
-
-      TYPE_POST_RECEIPTS: "T",
-
-      TYPE_RECEIVE: "R",
-
-      TYPE_OTHER: "O"
-
-    });
-
 
     /**
       @class
@@ -1128,8 +1092,8 @@ white:true*/
 
       @extends XM.CharacteristicAssignment
     */
-    XM.PurchaseOrderLineCharacteristic = XM.CharacteristicAssignment.extend(
-      /** @lends XM.PurchaseOrderLineCharacteristic.prototype */{
+    XM.PurchaseOrderLineCharacteristic = XM.CharacteristicAssignment.extend({
+    /** @lends XM.PurchaseOrderLineCharacteristic.prototype */
 
       recordType: "XM.PurchaseOrderLineCharacteristic",
 
@@ -1221,7 +1185,9 @@ white:true*/
 
       doUnrelease: function (callback) {
         return _doDispatch.call(this, "unrelease", callback);
-      }
+      },
+
+      getPrintParameters: XM.PurchaseOrder.prototype.getPrintParameters
 
     });
 
@@ -1266,7 +1232,6 @@ white:true*/
 
     });
 
-
     /**
       @class
 
@@ -1278,8 +1243,7 @@ white:true*/
 
     });
 
-
-    /**
+     /**
       @class
 
       @extends XM.Collection

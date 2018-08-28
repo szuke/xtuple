@@ -2,6 +2,32 @@
 CREATE OR REPLACE FUNCTION postComment(pCmnttypename TEXT,
                                        pSource TEXT,
                                        pSourceid INTEGER,
+                                       pColumn TEXT,
+                                       pFrom TEXT,
+                                       pTo TEXT) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- See www.xtuple.com/CPAL for the full text of the software license.
+DECLARE
+  _cmnttypeid INTEGER;
+  _text TEXT;
+
+BEGIN
+  SELECT cmnttype_id INTO _cmnttypeid
+  FROM cmnttype
+  WHERE (cmnttype_name=pCmnttypename);
+  IF (NOT FOUND) THEN
+    RAISE EXCEPTION 'Comment type % not found.', pCmnttypename;
+  END IF;
+
+  _text := (pColumn || ' changed from "' || pFrom || '" to "' || pTo || '"');
+
+  RETURN postComment(_cmnttypeid, pSource, pSourceid, _text, NULL);
+END
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION postComment(pCmnttypename TEXT,
+                                       pSource TEXT,
+                                       pSourceid INTEGER,
                                        pText TEXT) RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
@@ -18,7 +44,7 @@ BEGIN
 
   RETURN postComment(_cmnttypeid, pSource, pSourceid, pText, NULL);
 END
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION postComment(pCmnttypeid INTEGER,
                                        pSource TEXT,
@@ -31,7 +57,7 @@ DECLARE
 BEGIN
   RETURN postComment(pCmnttypeid, pSource, pSourceid, pText, NULL);
 END
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION postComment(pCmnttypeid INTEGER,
                                        pSource TEXT,
@@ -58,5 +84,5 @@ BEGIN
   RETURN _commentid;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 

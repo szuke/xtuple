@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION _apopenTrigger() RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _currrate NUMERIC;
@@ -11,8 +11,8 @@ BEGIN
     SELECT curr_rate INTO _currrate
     FROM curr_rate
     WHERE ( (NEW.apopen_curr_id=curr_id)
-    AND ( NEW.apopen_docdate BETWEEN curr_effective 
-                                 AND curr_expires) );
+    AND ( COALESCE(NEW.apopen_distdate, NEW.apopen_docdate) BETWEEN curr_effective
+                                                                AND curr_expires) );
     IF (FOUND) THEN
       NEW.apopen_curr_rate := _currrate;
     ELSE

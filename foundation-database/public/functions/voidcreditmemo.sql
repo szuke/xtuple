@@ -1,14 +1,16 @@
-CREATE OR REPLACE FUNCTION voidCreditMemo(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+DROP FUNCTION IF EXISTS voidCreditMemo(INTEGER);
+CREATE OR REPLACE FUNCTION voidCreditMemo(pCmheadid INTEGER,
+                                          pItemlocSeries INTEGER DEFAULT NULL,
+                                          pPreDistributed BOOLEAN DEFAULT FALSE) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pCmheadid ALIAS FOR $1;
   _r RECORD;
   _p RECORD;
   _n RECORD;
   _glSequence INTEGER := 0;
   _glJournal INTEGER := 0;
-  _itemlocSeries INTEGER := 0;
+  _itemlocSeries INTEGER := COALESCE(pItemlocSeries, NEXTVAL('itemloc_series_seq'));
   _invhistid INTEGER;
   _test INTEGER;
   _amount NUMERIC;
@@ -20,8 +22,14 @@ DECLARE
   _toClose BOOLEAN;
   _glDate	DATE;
   _taxBaseValue	NUMERIC	:= 0;
+  _hasControlledItems BOOLEAN := FALSE;
 
 BEGIN
+  IF (pPreDistributed AND COALESCE(pItemlocSeries, 0) = 0) THEN 
+    RAISE EXCEPTION 'pItemlocSeries is Required when pPreDistributed [xtuple: voidCreditMemo, -3]';
+  ELSIF (_itemlocSeries <= 0) THEN
+    _itemlocSeries := NEXTVAL('itemloc_series_seq');
+  END IF;
 
 --  Cache C/M information
   SELECT cmhead.*,
@@ -34,7 +42,7 @@ BEGIN
   FROM cmhead
   WHERE (cmhead_id=pCmheadid);
   IF (NOT FOUND) THEN
-    RAISE EXCEPTION 'Cannot Void Credit Memo as cmhead not found';
+    RAISE EXCEPTION 'Cannot Void Credit Memo as cmhead not found [xtuple: voidCreditMemo, -12]';
   END IF;
   IF (NOT _p.cmhead_posted) THEN
     RETURN -10;
@@ -46,7 +54,7 @@ BEGIN
   WHERE ( (aropen_doctype='C')
     AND   (aropen_docnumber=_p.cmhead_number) );
   IF (NOT FOUND) THEN
-    RAISE EXCEPTION 'Cannot Void Credit Memo as aropen not found';
+    RAISE EXCEPTION 'Cannot Void Credit Memo as aropen not found [xtuple: voidCreditMemo, -13]';
   END IF;
 
 --  Check for ARApplications
@@ -125,7 +133,12 @@ BEGIN
 --  If the Misc. Charges Account was not found then punt
     IF (NOT FOUND) THEN
       PERFORM deleteGLSeries(_glSequence);
-      RETURN _test;
+      IF (_test < 0) THEN
+        RETURN _test;
+      ELSE 
+        RAISE EXCEPTION 'Failed to create GL entry, no record found for accnt_id % 
+          [xtuple: voidCreditMemo, -7, %]', _p.cmhead_misc_accnt_id, _p.cmhead_misc_accnt_id;
+      END IF;
     END IF;
 
 --  Cache the Misc. Amount distributed
@@ -146,7 +159,12 @@ BEGIN
 --  If the Freight Charges Account was not found then punt
     IF (NOT FOUND) THEN
       PERFORM deleteGLSeries(_glSequence);
-      RETURN _test;
+      IF (_test < 0) THEN
+        RETURN _test;
+      ELSE
+        RAISE EXCEPTION 'Failed to create GL entry, no record found for accnt_id % [xtuple: voidCreditMemo, -8, %]',
+          findFreightAccount(_p.cmhead_cust_id), findFreightAccount(_p.cmhead_cust_id);
+      END IF;
     END IF;
 
 --  Cache the Amount Distributed to Freight
@@ -165,7 +183,12 @@ BEGIN
                                  _glDate, ('Void-' || _p.cmhead_billtoname) ) INTO _test;
     ELSE
       PERFORM deleteGLSeries(_glSequence);
-      RETURN _test;
+      IF (_test < 0) THEN
+        RETURN _test;
+      ELSE 
+        RAISE EXCEPTION 'Failed to create GL entry for accnt_id % [xtuple: voidCreditMemo, -9, %]',
+          _p.ar_accnt_id, _p.ar_accnt_id;
+      END IF;
     END IF;
   END IF;
 
@@ -190,32 +213,40 @@ BEGIN
   WHERE (aropen_doctype='C' AND aropen_docnumber=_p.cmhead_number);
 
 -- Handle the Inventory and G/L Transactions for any returned Inventory where cmitem_updateinv is true (reverse sense)
-  FOR _r IN SELECT cmitem_itemsite_id AS itemsite_id, cmitem_id,
+  FOR _r IN SELECT cmhead_id, cmitem_itemsite_id AS itemsite_id, cmitem_id,
                    (cmitem_qtyreturned * cmitem_qty_invuomratio) AS qty,
                    cmhead_number, cmhead_cust_id AS cust_id, item_number,
                    cmhead_prj_id AS prj_id, cmhead_saletype_id AS saletype_id,
-                   cmhead_shipzone_id AS shipzone_id
+                   cmhead_shipzone_id AS shipzone_id, isControlledItemsite(cmitem_itemsite_id) AS controlled
             FROM cmhead, cmitem, itemsite, item
             WHERE ( (cmitem_cmhead_id=cmhead_id)
              AND (cmitem_itemsite_id=itemsite_id)
              AND (itemsite_item_id=item_id)
              AND (cmitem_qtyreturned <> 0)
              AND (cmitem_updateinv)
-             AND (cmhead_id=_p.cmhead_id) ) LOOP
+             AND (cmhead_id=_p.cmhead_id) ) 
+            ORDER BY cmitem_id LOOP
 
 --  Return credited stock to inventory
-    IF (_itemlocSeries = 0) THEN
-      SELECT NEXTVAL('itemloc_series_seq') INTO _itemlocSeries;
-    END IF;
     SELECT postInvTrans( itemsite_id, 'RS', (_r.qty * -1),
                          'S/O', 'CM', _r.cmhead_number, '',
                          ('Credit Voided ' || _r.item_number),
                          costcat_asset_accnt_id,
                          getPrjAccntId(_r.prj_id, resolveCOSAccount(itemsite_id, _r.cust_id, _r.saletype_id, _r.shipzone_id)),  
-                         _itemlocSeries, _glDate) INTO _invhistid
+                         _itemlocSeries, _glDate, NULL, NULL, NULL, pPreDistributed,
+                         _r.cmhead_id, _r.cmitem_id) INTO _invhistid
     FROM itemsite, costcat
     WHERE ( (itemsite_costcat_id=costcat_id)
      AND (itemsite_id=_r.itemsite_id) );
+
+    IF (NOT FOUND) THEN 
+      RAISE EXCEPTION 'Could not post inventory transaction: no cost category found for 
+        itemsite_id % [xtuple: voidCreditMemo, -2, %]', _r.itemsite_id, _r.itemsite_id;
+    END IF;
+
+    IF (_r.controlled) THEN
+      _hasControlledItems := TRUE;
+    END IF; 
 
   END LOOP;
 
@@ -242,8 +273,14 @@ BEGIN
   SET cmhead_void=TRUE
   WHERE (cmhead_id=_p.cmhead_id);
 
+  IF (pPreDistributed) THEN 
+    IF (postDistDetail(_itemlocSeries) <= 0 AND _hasControlledItems) THEN
+      RAISE EXCEPTION 'Posting Distribution Detail Returned 0 Results [xtuple: voidCreditMemo, -6]';
+    END IF;
+  END IF;
+
   RETURN _itemlocSeries;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 

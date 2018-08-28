@@ -1,14 +1,11 @@
--- Function: formatabachecks(integer, integer, text)
-
-CREATE OR REPLACE FUNCTION formatabachecks(integer, integer, text)
+CREATE OR REPLACE FUNCTION formatabachecks(pbankaccntid integer,
+                                           pcheckheadid integer, -- or null
+                                           penckey      text)
   RETURNS SETOF achline AS
 $BODY$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pbankaccntid     ALIAS FOR $1;   -- all unprinted checks for this bankaccnt
-  pcheckheadid     ALIAS FOR $2;   -- but if 2nd arg not null then just 1 check
-  penckey          ALIAS FOR $3;
   _bank            RECORD;
   _batchcount      INTEGER := 0;
   _batchdate       DATE;
@@ -35,10 +32,10 @@ BEGIN
   -- This function has been adapted from the US-centric ACH formatACHChecks function.
 
   IF (NOT fetchMetricBool('ACHEnabled')) THEN
-    RAISE EXCEPTION 'Cannot format the ABA file because the system is not configured for ABA file generation.';
+    RAISE EXCEPTION 'Cannot format the ABA file because the system is not configured for ABA file generation. [xtuple: formatabachecks, -1]';
   END IF;
   IF (LENGTH(COALESCE(penckey, '')) <= 0) THEN
-    RAISE EXCEPTION 'Cannot format the ABA file because there is no encryption key.';
+    RAISE EXCEPTION 'Cannot format the ABA file because there is no encryption key. [xtuple: formatabachecks, -2]';
   END IF;
 
   SELECT * INTO _bank
@@ -46,12 +43,14 @@ BEGIN
   WHERE (bankaccnt_id=pbankaccntid);
 
   IF (NOT FOUND) THEN
-    RAISE EXCEPTION 'Could not find the bank information to create the ABA file.';
+    RAISE EXCEPTION 'Could not find the bank information to create the ABA file. [xtuple: formatabachecks, -3, %]',
+                     pbankaccntid;
   ELSIF (NOT _bank.bankaccnt_ach_enabled) THEN
-    RAISE EXCEPTION 'Cannot format the ABA file because the Bank Account % is not configured for ABA transactions.',
-      _bank.bankaccnt_name;
-  ELSIF (LENGTH(COALESCE(_bank.bankaccnt_routing, '')) <= 0) THEN 
-    RAISE EXCEPTION 'Cannot format the ABA file because the Bank Account % has no BSB number.', _bank.bankaccnt_name;
+    RAISE EXCEPTION 'Cannot format the ABA file because the Bank Account % is not configured for ABA transactions. [xtuple: formatabachecks, -4, %]',
+                    _bank.bankaccnt_name, pbankaccntid;
+  ELSIF (LENGTH(COALESCE(_bank.bankaccnt_routing, '')) <= 0) THEN
+    RAISE EXCEPTION 'Cannot format the ABA file because the Bank Account % has no BSB number. [xtuple: formatabachecks, -5, %]',
+                    _bank.bankaccnt_name, pbankaccntid;
   END IF;
 
   -- Check the BSB number is in the right format and then re-format for output.
@@ -61,8 +60,8 @@ BEGIN
       _bank.bankaccnt_routing,
       E'^(\\d{3})(?:-(?=\\d{3}$)|(?=\\d{3}0{3}$))(\\d{3})(0{3})?$', E'\\1-\\2'
     );
-  ELSE RAISE EXCEPTION 'Cannot format the ABA file because the Bank Account % has an invalid BSB number.',
-    _bank.bankaccnt_name;
+  ELSE RAISE EXCEPTION 'Cannot format the ABA file because the Bank Account % has an invalid BSB number. [xtuple: formatabachecks, -6, %]',
+                        _bank.bankaccnt_name, pbankaccntid;
   END IF;
 
 
@@ -74,19 +73,19 @@ BEGIN
   ELSIF (_bank.bankaccnt_ach_lastfileid = '9') THEN
     _bank.bankaccnt_ach_lastfileid = 'A';
   ELSIF (_bank.bankaccnt_ach_lastfileid = 'Z') THEN
-    RAISE EXCEPTION 'Cannot write % check % to an ABA file because too many files have been written for this bank already today.',
-      _bank.bankaccnt_name, _check.checkhead_number;
+    RAISE EXCEPTION 'Cannot write % check % to an ABA file because too many files have been written for this bank already today. [xtuple: formatabachecks, -7, %]',
+                    _bank.bankaccnt_name, _check.checkhead_number, pbankaccntid;
   ELSE
     _bank.bankaccnt_ach_lastfileid = CHR(ASCII(_bank.bankaccnt_ach_lastfileid) + 1);
   END IF;
-  
+
 
   _row.achline_checkhead_id := NULL;
   _row.achline_batch := _filenum;
   _row.achline_type := 'HEADER';
   _row.achline_value := RPAD(
     RPAD('0',18)                                    -- Record Type 0 blank filled with 17 spaces
-    || '01'                                         -- Reel sequence number 
+    || '01'                                         -- Reel sequence number
     || RPAD(_bank.bankaccnt_bankname,3)             -- Approved financial instition abbreviation.
     || RPAD('',7)                                   -- blank filled
     || RPAD(fetchMetricText('ACHCompanyName'), 26)  -- Name of user supplying ABA file
@@ -98,7 +97,11 @@ BEGIN
   );
   RETURN NEXT _row;
 
-  FOR _check IN SELECT *
+  FOR _check IN SELECT checkhead_id, checkhead_number, checkhead_bankaccnt_id,
+         checkhead_recip_id, checkhead_amount,
+         crmacct_id, crmacct_type,
+         vend_ach_use_vendinfo, vend_number, vend_ach_indiv_number, vend_name,
+         vend_ach_indiv_name, vend_ach_routingnumber, vend_ach_accntnumber
     FROM checkhead
     JOIN vendinfo ON (checkhead_recip_type='V'
       AND checkhead_recip_id=vend_id
@@ -123,12 +126,12 @@ BEGIN
     END IF;
 
     -- Although a crmacct record is not required for used in this function
-    -- this code is retained for consistancy with the original formatachchecks function.
+    -- this code is retained for consistency with the original formatachchecks function.
     IF (_check.crmacct_id IS NULL) THEN
-      RAISE NOTICE 'Vendor % does not have a corresponding crmacct record.',
+      RAISE WARNING 'Vendor % does not have a corresponding crmacct record.',
         _check.checkhead_recip_id;
     ELSIF (_check.crmacct_type IS NULL) THEN
-      RAISE NOTICE 'crmacct for vendor % does not have a valid crmacct_type.',
+      RAISE WARNING 'crmacct for vendor % does not have a valid crmacct_type.',
          _check.checkhead_recip_id;
     END IF;
 
@@ -140,17 +143,17 @@ BEGIN
       END;
 
     IF (COALESCE(_check.vend_ach_routingnumber, '') = '') THEN
-      RAISE EXCEPTION 'Cannot write % check % to an ABA file because the BSB number for % has not been supplied.',
-        _bank.bankaccnt_name, _check.checkhead_number, _vendnumber;
+      RAISE EXCEPTION 'Cannot write % check % to an ABA file because the BSB number for % has not been supplied. [xtuple: formatabachecks, -8, %]',
+        _bank.bankaccnt_name, _check.checkhead_number, _vendnumber, _check.checkhead_id;
     ELSIF (COALESCE(_check.vend_ach_accntnumber, '') = '') THEN
-      RAISE EXCEPTION 'Cannot write % check % to an ABA file because the account number for % has not been supplied.',
-        _bank.bankaccnt_name, _check.checkhead_number, _vendnumber;
+      RAISE EXCEPTION 'Cannot write % check % to an ABA file because the account number for % has not been supplied. [xtuple: formatabachecks, -9, %]',
+        _bank.bankaccnt_name, _check.checkhead_number, _vendnumber, _check.checkhead_id;
     END IF;
     _check.vend_ach_routingnumber := decrypt(setbytea(_check.vend_ach_routingnumber),
       setbytea(penckey), 'bf');
     _check.vend_ach_accntnumber   := decrypt(setbytea(_check.vend_ach_accntnumber),
       setbytea(penckey), 'bf');
-    
+
     -- Check the BSB number is in the right format and then re-format for output.
     -- Valid format is \d{3}-\d{3}|\d{6}000
     IF (formatbytea(_check.vend_ach_routingnumber) ~ E'^(\\d{3})(?:-(?=\\d{3}$)|(?=\\d{3}0{3}$))(\\d{3})(0{3})?$') THEN
@@ -158,8 +161,8 @@ BEGIN
         formatbytea(_check.vend_ach_routingnumber),
         E'^(\\d{3})(?:-(?=\\d{3}$)|(?=\\d{3}0{3}$))(\\d{3})(0{3})?$', E'\\1-\\2'
       );
-    ELSE RAISE EXCEPTION 'Cannot write % check % to an ABA file because the BSB number for % is not valid.',
-      _bank.bankaccnt_name, _check.checkhead_number, _vendnumber;
+    ELSE RAISE EXCEPTION 'Cannot write % check % to an ABA file because the BSB number for % is not valid. [xtuple: formatabachecks, -10, %]',
+      _bank.bankaccnt_name, _check.checkhead_number, _vendnumber, _vendnumber;
     END IF;
 
     _row.achline_checkhead_id := _check.checkhead_id;
@@ -169,7 +172,7 @@ BEGIN
     _totaldb      := _totaldb + _check.checkhead_amount;                -- Total debits for balancing entry
     _detailcount  := _detailcount + 1;                                  -- Detail record counter (type 1)
     _totalcr      := _totalcr + _check.checkhead_amount;                -- Total credits from payments
-                                                                        
+
     _row.achline_value := RPAD('1'                                      -- record type 1
       || _vendbsb                                                       -- vendor BSB #
       || LPAD(formatbytea(_check.vend_ach_accntnumber), 9)              -- vendor account no.
@@ -194,17 +197,17 @@ BEGIN
   END LOOP;
 
   IF (NOT FOUND) THEN
-    RAISE EXCEPTION 'Cannot write an ABA file for % because there are no checks pending in AUD for EFT-enabled Vendors.',
-      _bank.bankaccnt_name;
+    RAISE EXCEPTION 'Cannot write an ABA file for % because there are no checks pending in AUD for EFT-enabled Vendors. [xtuple: formatABAchecks, -11, %]',
+      _bank.bankaccnt_name, pbankaccntid;
   END IF;
 
   -- Place a final balancing detail record.
   -- Check that the balancing record actually balances.
   IF (_totalcr != _totaldb) THEN
-    RAISE EXCEPTION 'Cannot write an ABA file for % because the total credits: % does not equal the total debits: %, file will not balance.',
-    _bank.bankaccnt_name, _totalcr, _totaldb;
+    RAISE EXCEPTION 'Cannot write an ABA file for % because the total credits and debits - % and % - do not balance. [xtuple: formatABAchecks, -12, %]',
+    _bank.bankaccnt_name, _totalcr, _totaldb, pbankaccntid;
   END IF;
-  
+
 
   _detailcount := _detailcount + 1;
   _row.achline_checkhead_id := NULL;
@@ -219,7 +222,7 @@ BEGIN
     || '13'                                               -- transaction code
     || to_char(_totaldb,'FM09999999V99')                  -- the balancing amount
     || RPAD(fetchMetricText('ACHCompanyName'),   32)      -- company name
-    || RPAD('DIRECT DEPOSIT',18)                          
+    || RPAD('DIRECT DEPOSIT',18)
     || _bank.bankaccnt_routing                            -- Austalian BSB #
     || RPAD(_bank.bankaccnt_accntnumber, 9)               -- company account number
     || RPAD(fetchMetricText('ACHCompanyName'), 16)        -- company account name
@@ -257,4 +260,4 @@ BEGIN
 
 END;
 $BODY$
-  LANGUAGE 'plpgsql' VOLATILE;
+  LANGUAGE plpgsql VOLATILE;

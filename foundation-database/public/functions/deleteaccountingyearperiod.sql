@@ -1,33 +1,33 @@
-
-CREATE OR REPLACE FUNCTION deleteAccountingYearPeriod(INTEGER) RETURNS INTEGER AS '
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION deleteAccountingYearPeriod(pPeriodid INTEGER) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pPeriodid ALIAS FOR $1;
-  _check RECORD;
+  _period INTEGER;
+  _result INTEGER;
 
 BEGIN
 
---  Check to make sure that the passed yearperiod is not closed
-  IF ( ( SELECT yearperiod_closed
-         FROM yearperiod
-         WHERE (yearperiod_id=pPeriodid) ) ) THEN
-    RETURN -1;
+  IF (SELECT yearperiod_closed
+        FROM yearperiod
+       WHERE yearperiod_id = pPeriodid) THEN
+    RAISE EXCEPTION 'Cannot delete a closed Fiscal Year. [xtuple: deleteAccountingYearPeriod, -1]';
   END IF;
 
-  -- this yearperiod is in use by existing periods
-  IF (EXISTS(SELECT period_id
-             FROM period
-             WHERE (period_yearperiod_id=pPeriodid))) THEN
-    RETURN -2;
-  END IF;
+  FOR _period IN SELECT period_id
+                   FROM period
+                  WHERE period_yearperiod_id = pPeriodid
+                  ORDER BY period_start DESC LOOP
+    _result := deleteAccountingPeriod(_period);
+    IF _result < 0 THEN
+      RAISE EXCEPTION 'Cannot delete an Accounting Period. [xtuple: deleteAccountingPeriod, %, %]',
+                      _result, _period;
+    END IF;
+  END LOOP;
 
---  Delete the yearperiod
-  DELETE FROM yearperiod
-  WHERE (yearperiod_id=pPeriodid);
+  DELETE FROM yearperiod WHERE yearperiod_id = pPeriodid;
 
   RETURN 1;
 
 END;
-' LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 

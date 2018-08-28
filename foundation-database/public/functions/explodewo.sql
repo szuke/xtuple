@@ -1,39 +1,30 @@
 
-CREATE OR REPLACE FUNCTION explodeWo(INTEGER, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION explodewo(pWoid INTEGER, pExplodeChildren BOOLEAN)
+  RETURNS integer AS
+$$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pWoid ALIAS FOR $1;
-  pExplodeChildren ALIAS FOR $2;
-  resultCode INTEGER;
   newWo RECORD;
   _newwoid INTEGER;
   _p RECORD;
   _r RECORD;
-  _bbom BOOLEAN;
+  _bbom    BOOLEAN := fetchMetricBool('BBOM') AND packageIsEnabled('xtmfg');
 
 BEGIN
--- Find out if Breeder BOMs are enabled
-  SELECT metric_value='t' INTO _bbom
-         FROM metric
-         WHERE (metric_name='BBOM');
 
---  Make sure that this W/O is Open
-  SELECT wo_id INTO resultCode
-  FROM wo
-  WHERE ((wo_status='O')
-   AND (wo_id=pWoid));
-  IF (NOT FOUND) THEN
+  IF NOT EXISTS(SELECT 1 FROM wo WHERE wo_status = 'O' AND wo_id=pWoid) THEN
     RETURN -4;
   END IF;
 
 --  Make sure that all Component Item Sites exist and are valid
 --  Item Sites must be active and not Job Costed
-  SELECT bomitem_id INTO resultCode
-  FROM wo, bomitem, itemsite
-  WHERE ( (wo_itemsite_id=itemsite_id)
-   AND (itemsite_item_id=bomitem_parent_item_id)
-   AND (woEffectiveDate(wo_startdate) BETWEEN bomitem_effective AND (bomitem_expires - 1))
+  IF EXISTS(SELECT 1
+              FROM wo
+              JOIN itemsite ON wo_itemsite_id   = itemsite_id
+              JOIN bomitem  ON itemsite_item_id = bomitem_parent_item_id
+             WHERE woEffectiveDate(wo_startdate) BETWEEN
+                                     bomitem_effective AND (bomitem_expires - 1)
    AND (wo_id=pWoid)
    AND (bomitem_rev_id=wo_bom_rev_id)
    AND (bomitem_item_id NOT IN
@@ -44,40 +35,35 @@ BEGIN
            AND (bomitem_item_id=component.itemsite_item_id)
            AND (woEffectiveDate(wo_startdate) BETWEEN bomitem_effective AND (bomitem_expires - 1))
            AND (component.itemsite_active)
-           AND (component.itemsite_warehous_id=parent.itemsite_warehous_id) ) ) ) )
-  LIMIT 1;
-  IF (FOUND) THEN
+           AND (component.itemsite_warehous_id=parent.itemsite_warehous_id) ) ) )
+    )  THEN
     RETURN -2;
   END IF;
 
 --  If the Parent Item is a Breeder, make sure that all the
 --  Co-Product/By-Product Item Sites exist
   IF (_bbom) THEN
-
-    IF ( ( SELECT (item_type='B')
-           FROM wo, itemsite, item
-           WHERE ( (wo_itemsite_id=itemsite_id)
-            AND (itemsite_item_id=item_id)
-            AND (wo_id=pWoid) ) ) ) THEN
-      SELECT bbomitem_id INTO resultCode
-      FROM wo, xtmfg.bbomitem, itemsite
-      WHERE ( (wo_itemsite_id=itemsite_id)
-       AND (itemsite_item_id=bbomitem_parent_item_id)
-       AND (woEffectiveDate(wo_startdate) BETWEEN bbomitem_effective AND (bbomitem_expires - 1))
-       AND (wo_id=pWoid)
-       AND (bbomitem_item_id NOT IN
-            ( SELECT component.itemsite_item_id
-              FROM itemsite AS component, itemsite AS parent
-              WHERE ( (wo_itemsite_id=parent.itemsite_id)
-               AND (parent.itemsite_item_id=bbomitem_parent_item_id)
-               AND (bbomitem_item_id=component.itemsite_item_id)
-               AND (woEffectiveDate(wo_startdate) BETWEEN bbomitem_effective AND (bbomitem_expires - 1))
-               AND (component.itemsite_active)
-               AND (component.itemsite_warehous_id=parent.itemsite_warehous_id) ) ) ) )
-      LIMIT 1;
-      IF (FOUND) THEN
-        RETURN -3;
-      END IF;
+    IF ( SELECT (item_type='B')
+           FROM wo
+           JOIN itemsite ON wo_itemsite_id   = itemsite_id
+           JOIN item     ON itemsite_item_id = item_id
+          WHERE wo_id = pWoid )
+       AND EXISTS(SELECT 1 FROM wo
+                  JOIN itemsite       ON wo_itemsite_id = itemsite_id
+                  JOIN xtmfg.bbomitem ON itemsite_item_id=bbomitem_parent_item_id
+                 WHERE woEffectiveDate(wo_startdate)
+                            BETWEEN bbomitem_effective AND (bbomitem_expires - 1)
+                   AND wo_id=pWoid
+                   AND bbomitem_item_id NOT IN
+                       ( SELECT component.itemsite_item_id
+                          FROM itemsite AS component, itemsite AS parent
+                          WHERE ( (wo_itemsite_id=parent.itemsite_id)
+                           AND (parent.itemsite_item_id=bbomitem_parent_item_id)
+                           AND (bbomitem_item_id=component.itemsite_item_id)
+                           AND (woEffectiveDate(wo_startdate) BETWEEN bbomitem_effective AND (bbomitem_expires - 1))
+                           AND (component.itemsite_active)
+                           AND (component.itemsite_warehous_id=parent.itemsite_warehous_id) ) ) ) THEN
+      RETURN -3;
     END IF;
   END IF;
 
@@ -102,7 +88,11 @@ BEGIN
          CASE WHEN (price=-9999.0) THEN 0.0
               ELSE price
          END
-  FROM (SELECT *, cs.itemsite_id AS matl_itemsite,
+  FROM (SELECT wo_id, bomitem_id, bomitem_booitem_seq_id, bomitem_schedatwooper,
+               bomitem_uom_id, bomitem_qtyfxd, bomitem_qtyper, bomitem_scrap,
+               bomitem_createwo, bomitem_issuemethod, bomitem_notes, bomitem_ref,
+               item_picklist, item_type,
+               cs.itemsite_id AS matl_itemsite,
                CASE WHEN bomitem_schedatwooper THEN COALESCE(calcWooperStartStub(wo_id,bomitem_booitem_seq_id), wo_startdate)
                     ELSE wo_startdate
                END AS duedate,
@@ -113,7 +103,7 @@ BEGIN
                END AS issuewo,
                CASE WHEN (cohead_id IS NULL) THEN item_listprice
                     ELSE (SELECT itemprice_price
-                          FROM itemIpsPrice(item_id, cohead_cust_id, cohead_shipto_id, 
+                          FROM itemIpsPrice(item_id, cohead_cust_id, cohead_shipto_id,
                                       roundQty(itemuomfractionalbyuom(bomitem_item_id, bomitem_uom_id), (bomitem_qtyfxd + bomitem_qtyper * wo_qtyord) * (1 + bomitem_scrap)),
                                       bomitem_uom_id, bomitem_uom_id, cohead_curr_id, CURRENT_DATE, CURRENT_DATE, cohead_warehous_id) LIMIT 1)
                END AS price
@@ -170,9 +160,7 @@ BEGIN
   END IF;
 
 --  Insert the W/O Operations if routings enabled
-  IF ( ( SELECT (metric_value='t')
-         FROM metric
-         WHERE (metric_name='Routings') ) ) THEN
+  IF fetchMetricBool('Routings') AND packageIsEnabled('xtmfg') THEN
 
     INSERT INTO xtmfg.wooper
     ( wooper_wo_id, wooper_booitem_id, wooper_seqnumber,
@@ -186,7 +174,7 @@ BEGIN
       wooper_suconsumed, wooper_sucomplete,
       wooper_rnconsumed, wooper_rncomplete,
       wooper_qtyrcv, wooper_instruc, wooper_scheduled,
-      wooper_wip_location_id, wooper_price )
+      wooper_wip_location_id, wooper_price, wooper_opntype_id )
     SELECT wo_id, booitem_id, booitem_seqnumber,
            booitem_wrkcnt_id, booitem_stdopn_id,
            booitem_descrip1, booitem_descrip2, booitem_toolref,
@@ -196,7 +184,7 @@ BEGIN
            CASE WHEN ((booitem_rnqtyper = 0) OR (booitem_invproduomratio = 0)) THEN 0
                 WHEN (NOT booitem_rnrpt) THEN 0
                 ELSE ( ( booitem_rntime /
-                         booitem_rnqtyper /
+                         booitem_rnqtyper *
                          booitem_invproduomratio ) * wo_qtyord )
            END, booitem_rncosttype, booitem_rnrpt,
            CASE WHEN (booitem_rnqtyper = 0) THEN 0
@@ -210,7 +198,8 @@ BEGIN
            0::NUMERIC, booitem_instruc,
            calculatenextworkingdate(itemsite_warehous_id,wo_startdate,booitem_execday-1),
            booitem_wip_location_id,
-           (xtmfg.directlaborcostoper(booitem_id) + xtmfg.overheadcostoper(booitem_id) + xtmfg.machineoverheadcostoper(booitem_id))
+           (xtmfg.directlaborcostoper(booitem_id) + xtmfg.overheadcostoper(booitem_id) + xtmfg.machineoverheadcostoper(booitem_id)),
+           booitem_opntype_id
     FROM xtmfg.booitem, wo, itemsite
     WHERE ((wo_itemsite_id=itemsite_id)
      AND (itemsite_item_id=booitem_item_id)
@@ -232,12 +221,12 @@ BEGIN
     END IF;
 
 -- Handle all of the Phantom material requirements
-  WHILE ( ( SELECT COUNT(*)
-            FROM womatl, itemsite, item
-            WHERE ( (womatl_itemsite_id=itemsite_id)
-             AND (itemsite_item_id=item_id)
-             AND (womatl_wo_id=pWoid)
-             AND (item_type='F') ) ) > 0 ) LOOP
+  WHILE EXISTS ( SELECT 1
+            FROM womatl
+            JOIN itemsite ON (womatl_itemsite_id=itemsite_id)
+            JOIN item     ON (itemsite_item_id=item_id)
+            WHERE (womatl_wo_id=pWoid)
+              AND (item_type='F') ) LOOP
 
     FOR _p IN SELECT wo_qtyord, wo_startdate, womatl_id, womatl_wooper_id
               FROM wo, womatl, itemsite, item
@@ -260,7 +249,7 @@ BEGIN
       SELECT pWoid, cs.itemsite_id, _p.womatl_wooper_id,
              womatl_schedatwooper, womatl_duedate,
              bomitem_uom_id, bomitem_qtyfxd, (bomitem_qtyper * womatl_qtyper), bomitem_scrap,
-             roundQty(itemuomfractionalbyuom(bomitem_item_id, bomitem_uom_id), 
+             roundQty(itemuomfractionalbyuom(bomitem_item_id, bomitem_uom_id),
                      (bomitem_qtyfxd + _p.wo_qtyord * bomitem_qtyper * womatl_qtyper) * (1 + bomitem_scrap)),
              0, 0,
              startOfTime(), startOfTime(),
@@ -298,12 +287,27 @@ BEGIN
                 AND (wo_id=pWoid) )
                ORDER BY womatl_id LOOP
 
-    SELECT createWo( newWo.wo_number, newWo.itemsite_id, 1, 
+    SELECT createWo( newWo.wo_number, newWo.itemsite_id, 1,
                      itemuomtouom(newWo.item_id,newWo.womatl_uom_id,newWo.item_inv_uom_id,newWo.womatl_qtyreq),
                       newWo.itemsite_leadtime, newWo.womatl_duedate, '',
                       'W', newWo.womatl_wo_id, newWo.wo_prj_id ) INTO _newwoid;
 
     UPDATE wo SET wo_womatl_id = newWo.womatl_id WHERE wo_id=_newwoid;
+
+  -- Copy WO characteristics from parent to child
+    DELETE FROM charass
+    WHERE ((charass_target_type = 'W')
+     AND  (charass_target_id = _newwoid)
+     AND  (charass_char_id IN (SELECT charass_char_id
+                                FROM charass
+                                WHERE ((charass_target_type = 'W')
+                                AND  (charass_target_id = pWoid)))));
+
+    INSERT INTO charass (charass_target_type, charass_target_id, charass_char_id, charass_value, charass_default)
+      SELECT charass_target_type, _newwoid, charass_char_id, charass_value, charass_default
+      FROM charass
+      WHERE ((charass_target_type = 'W')
+        AND  (charass_target_id = pWoid));
 
   END LOOP;
 
@@ -312,7 +316,7 @@ BEGIN
   WHERE (wo_id=pWoid);
 
   IF (pExplodeChildren) THEN
-    SELECT MAX(explodeWo(wo_id, TRUE)) INTO resultCode
+    PERFORM MAX(explodeWo(wo_id, TRUE))
     FROM wo
     WHERE ( (wo_ordtype='W')
      AND (wo_ordid=pWoid) );
@@ -320,4 +324,4 @@ BEGIN
 
   RETURN pWoid;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

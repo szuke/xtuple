@@ -1,23 +1,20 @@
-CREATE OR REPLACE FUNCTION postVoucher(INTEGER, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION postvoucher(pVoheadid integer, pPostCosts boolean)
+  RETURNS integer AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
-DECLARE
-  pVoheadid ALIAS FOR $1;
-  pPostCosts ALIAS FOR $2;
-
 BEGIN
   RETURN postVoucher(pVoheadid, fetchJournalNumber('AP-VO'), pPostCosts);
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
-
-CREATE OR REPLACE FUNCTION postVoucher(INTEGER, INTEGER, BOOLEAN) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+CREATE OR REPLACE FUNCTION postvoucher(
+    pvoheadid integer,
+    pjournalnumber integer,
+    ppostcosts boolean)
+  RETURNS integer AS $$
+-- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pVoheadid ALIAS FOR $1;
-  pJournalNumber ALIAS FOR $2;
-  pPostCosts ALIAS FOR $3;
   _sequence INTEGER;
   _totalAmount_base NUMERIC;
   _totalAmount NUMERIC;
@@ -31,6 +28,7 @@ DECLARE
   _p RECORD;
   _r RECORD;
   _costx RECORD;
+  _fdist RECORD;
   _pPostCosts BOOLEAN;
   _pExplain BOOLEAN;
   _pLowLevel BOOLEAN;
@@ -39,7 +37,7 @@ DECLARE
   _firstExchDateFreight	DATE;
   _tmpTotal		NUMERIC;
   _glDate		DATE;
-
+  
 BEGIN
 
   RAISE DEBUG 'postVoucher(%, %, %)', pVoheadid, pJournalNumber, pPostCosts;
@@ -91,6 +89,10 @@ BEGIN
     FROM vodist
    WHERE ( (vodist_vohead_id=pVoheadid)
      AND   (vodist_tax_id=-1) )
+  UNION ALL
+  SELECT (vohead_freight - vohead_freight_distributed) AS amount
+    FROM vohead
+   WHERE (vohead_id=pVoheadid)     
   UNION ALL
   SELECT SUM(voitem_freight) AS amount
     FROM voitem
@@ -194,6 +196,7 @@ BEGIN
                             COALESCE(itemsite_id, -1) AS itemsiteid,
                             COALESCE(itemsite_costcat_id, -1) AS costcatid,
                             COALESCE(itemsite_item_id, -1) AS itemsite_item_id,
+                            COALESCE(item_type, '') AS item_type,
                             (SELECT SUM(value) 
                              FROM (
                                 SELECT SUM(recv_value) AS value
@@ -206,15 +209,16 @@ BEGIN
                            AS value_base,
 			   (poitem_freight_received - poitem_freight_vouchered) /
 			       (poitem_qty_received - poitem_qty_vouchered) * voitem_qty AS vouchered_freight,
-                            currToBase(_p.pohead_curr_id,
-				       (poitem_freight_received - poitem_freight_vouchered) /
-				       (poitem_qty_received - poitem_qty_vouchered) * voitem_qty,
-				        _firstExchDateFreight ) AS vouchered_freight_base,
+                           currToBase(_p.pohead_curr_id,
+			             (poitem_freight_received - poitem_freight_vouchered) /
+		                     (poitem_qty_received - poitem_qty_vouchered) * voitem_qty,
+				     _firstExchDateFreight ) AS vouchered_freight_base,
 			    voitem_freight,
 			    currToBase(_p.vohead_curr_id, voitem_freight,
                                        _p.vohead_distdate) AS voitem_freight_base
             FROM vodist, voitem,
                  poitem LEFT OUTER JOIN itemsite ON (poitem_itemsite_id=itemsite_id)
+                        LEFT OUTER JOIN item ON (item_id=itemsite_item_id)
             WHERE ( (vodist_poitem_id=poitem_id)
              AND (voitem_poitem_id=poitem_id)
              AND (voitem_vohead_id=vodist_vohead_id)
@@ -271,8 +275,11 @@ BEGIN
        END IF;
 
 --  Post the cost to the Actual if requested
+--  and item type is not manufactured
 --      IF ( (pPostCosts) AND (_d.vodist_costelem_id <> -1) ) THEN
-      IF ( (_d.vodist_costelem_id <> -1) AND (_g.itemsite_item_id <> -1) ) THEN
+      IF ( (_d.vodist_costelem_id <> -1) AND
+           (_g.itemsite_item_id <> -1) AND
+           (_g.item_type <> 'M') ) THEN 
         PERFORM updateCost( _g.itemsite_item_id, _d.vodist_costelem_id,
                             _pExplain, (_d.vodist_amount / (_g.voitem_qty * _g.poitem_invvenduomratio)),
 			    _p.vohead_curr_id );
@@ -360,27 +367,44 @@ BEGIN
   END LOOP;
 
 --  Loop through the vodist records for the passed vohead that
---  are not posted against a P/O Item
+--  are not posted against a P/O Item (Misc. Distributions)
 --  Skip the tax distributions
-  FOR _d IN SELECT vodist_id, vodist_discountable,
+  FOR _d IN SELECT vodist_id, vodist_discountable, 
 		   currToBase(_p.vohead_curr_id, vodist_amount,
 			      _p.vohead_distdate) AS vodist_amount_base,
 		   vodist_amount,
-		   vodist_accnt_id, vodist_expcat_id
+		   vodist_accnt_id, vodist_expcat_id, vodist_costelem_id,
+		   vodist_freight_vohead_id, vodist_freight_dist_method,
+                   vohead_curr_id, vohead_distdate
             FROM vodist
-            WHERE ( (vodist_vohead_id=pVoheadid)
+            JOIN vohead ON vodist_vohead_id=vohead_id
+            WHERE ( (vohead_id=pVoheadid)
              AND (vodist_poitem_id=-1)
              AND (vodist_tax_id=-1) ) LOOP
 
 --  Distribute from the misc. account
-    IF (_d.vodist_accnt_id = -1) THEN
+    IF (_d.vodist_expcat_id > 0) THEN  -- Expense Category
       PERFORM insertIntoGLSeries( _sequence, 'A/P', 'VO', text(_p.vohead_number),
 			  expcat_exp_accnt_id,
 			  round(_d.vodist_amount_base, 2) * -1,
 			  _glDate, _p.glnotes )
          FROM expcat
         WHERE (expcat_id=_d.vodist_expcat_id);
-    ELSE
+    ELSIF (_d.vodist_costelem_id > 0) THEN  -- Freight/Duty Distribution
+      FOR _fdist IN
+        SELECT freightdistr_accnt_id,
+                SUM(freightdistr_amount) AS freightdistr_amount
+         FROM calculatefreightdistribution(_d.vodist_freight_vohead_id, _d.vodist_costelem_id,
+                                           _d.vodist_freight_dist_method, _d.vodist_amount, true,
+                                           _d.vohead_curr_id, _d.vohead_distdate)
+        GROUP BY freightdistr_accnt_id 
+      LOOP
+        PERFORM insertIntoGLSeries( _sequence, 'A/P', 'VO', text(_p.vohead_number),
+			  _fdist.freightdistr_accnt_id,
+			  round(_fdist.freightdistr_amount, 2) * -1,
+			  _glDate, _p.glnotes );
+      END LOOP;  			  
+    ELSE -- G/L Account
       PERFORM insertIntoGLSeries( _sequence, 'A/P', 'VO', text(_p.vohead_number),
 			  _d.vodist_accnt_id,
 			  round(_d.vodist_amount_base, 2) * -1,
@@ -397,6 +421,21 @@ BEGIN
     END IF;
 
   END LOOP;
+
+-- Post Voucher (header) Freight
+  IF ((_p.vohead_freight - _p.vohead_freight_distributed) > 0) THEN
+    RAISE DEBUG 'postVoucher: _p.vohead_freight=%', _p.vohead_freight;
+    PERFORM insertIntoGLSeries( _sequence, 'A/P', 'VO', text(_p.vohead_number),
+			  expcat_exp_accnt_id,
+			  round(currtobase(_p.vohead_curr_id, _p.vohead_freight, _glDate), 2) * -1,
+			  _glDate, _p.glnotes )
+        FROM expcat
+        WHERE (expcat_id=_p.vohead_freight_expcat_id);
+
+    _totalAmount_base := _totalAmount_base + ROUND(currtobase(_p.vohead_curr_id, _p.vohead_freight, _glDate), 2);
+    _totalAmount := _totalAmount + _p.vohead_freight;        
+
+  END IF;  -- header freight
 
   SELECT insertIntoGLSeries( _sequence, 'A/P', 'VO', text(vohead_number),
                              accnt_id, round(_totalAmount_base, 2),
@@ -421,7 +460,6 @@ BEGIN
     apopen_docnumber, apopen_invcnumber, apopen_ponumber, apopen_reference,
     apopen_amount, apopen_paid, apopen_notes, apopen_username, apopen_posted,
     apopen_curr_id, apopen_discountable_amount )
--- TODO: 
   SELECT pJournalNumber, vohead_docdate, vohead_duedate, _glDate, TRUE,
          vohead_terms_id, vohead_vend_id, 'V',
          vohead_number, vohead_invcnumber, COALESCE(TEXT(pohead_number), 'Misc.'), vohead_reference,
@@ -440,8 +478,7 @@ BEGIN
 
 --  Check the P/O items and if they are all closed go ahead
 --  and close the P/O head.
-  IF ( (SELECT (count(*) < 1)
-          FROM vohead, poitem
+  IF ( NOT EXISTS(SELECT 1 FROM vohead, poitem
          WHERE ((vohead_pohead_id=poitem_pohead_id)
            AND  (poitem_status<>'C')
            AND  (vohead_id=pVoheadid) ) ) ) THEN
@@ -458,4 +495,5 @@ BEGIN
   RETURN pJournalNumber;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
+

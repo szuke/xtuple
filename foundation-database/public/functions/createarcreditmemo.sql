@@ -1,3 +1,5 @@
+SELECT dropifexists( 'FUNCTION', 'createarcreditmemo(integer, integer, text, text, date, numeric, text, integer, integer, integer, date, integer, integer, numeric, integer, integer, integer, integer)');
+
 CREATE OR REPLACE FUNCTION createARCreditMemo(pId            INTEGER,
                                               pCustid        INTEGER,
                                               pDocNumber     TEXT,
@@ -15,8 +17,9 @@ CREATE OR REPLACE FUNCTION createARCreditMemo(pId            INTEGER,
                                               pJournalNumber INTEGER = NULL,
                                               pCurrId        INTEGER = baseCurrId(),
                                               pArAccntid     INTEGER = NULL,
-                                              pCoCcpayId     INTEGER = NULL) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+                                              pCoCcpayId     INTEGER = NULL,
+                                              pTaxZoneid     INTEGER = NULL) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _accntid        INTEGER;
@@ -36,10 +39,6 @@ DECLARE
 BEGIN
 
   _aropenid := pId;
-
-  IF (pAmount <= 0) THEN
-    RETURN 0;
-  END IF;
 
   _arAccntid := COALESCE(pARAccntid, findARAccount(pCustid));
   _prepaidAccntid := findPrepaidAccount(pCustid);
@@ -87,7 +86,9 @@ BEGIN
       aropen_commission_due=pCommissiondue, aropen_commission_paid=FALSE,
       aropen_applyto='', aropen_ponumber='', aropen_cobmisc_id=-1,
       aropen_open=TRUE, aropen_notes=pNotes, aropen_rsncode_id=pRsncodeid,
-      aropen_salescat_id=_salescatid, aropen_accnt_id=_accntid, aropen_curr_id=pCurrId
+      aropen_salescat_id=_salescatid, aropen_accnt_id=_accntid, aropen_curr_id=pCurrId,
+      aropen_curr_rate=currrate(pCurrId, pDocDate),
+      aropen_taxzone_id=pTaxZoneid 
     WHERE aropen_id = pId;
   ELSE
     SELECT NEXTVAL('aropen_aropen_id_seq') INTO _aropenid;
@@ -98,7 +99,7 @@ BEGIN
       aropen_amount, aropen_paid, aropen_commission_due, aropen_commission_paid,
       aropen_applyto, aropen_ponumber, aropen_cobmisc_id,
       aropen_open, aropen_notes, aropen_rsncode_id,
-      aropen_salescat_id, aropen_accnt_id, aropen_curr_id )
+      aropen_salescat_id, aropen_accnt_id, aropen_curr_id, aropen_curr_rate, aropen_taxzone_id )
     VALUES
     ( _aropenid, getEffectiveXtUser(), _journalNumber,
       pCustid, pDocNumber, 'C', pOrderNumber,
@@ -106,7 +107,7 @@ BEGIN
       round(pAmount, 2), 0, pCommissiondue, FALSE,
       '', '', -1,
       TRUE, pNotes, pRsncodeid,
-      _salescatid, _accntid, pCurrId );
+      _salescatid, _accntid, pCurrId, currrate(pCurrId, pDocDate), pTaxZoneid );
   END IF;
 
   -- Credit the A/R account for the full amount
@@ -182,4 +183,4 @@ BEGIN
   RETURN _aropenid;
 
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

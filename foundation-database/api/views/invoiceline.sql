@@ -4,6 +4,9 @@ CREATE OR REPLACE RULE "_UPDATE" AS
 	ON UPDATE TO api.invoiceline DO INSTEAD NOTHING;
 SELECT dropIfExists('FUNCTION', 'insertInvoiceLineItem(api.invoiceline)');
 SELECT dropIfExists('FUNCTION', 'updateInvoiceLineItem(api.invoiceline, api.invoiceline)');
+-- Cleanup old bad installs.
+SELECT dropIfExists('FUNCTION', 'insertInvoiceLineItem(api.invoiceline)', 'xt');
+SELECT dropIfExists('FUNCTION', 'updateInvoiceLineItem(api.invoiceline, api.invoiceline)', 'xt');
 SELECT dropIfExists('VIEW', 'invoiceline', 'api');
 CREATE OR REPLACE VIEW api.invoiceline
 AS
@@ -35,7 +38,7 @@ AS
 		LEFT OUTER JOIN taxtype ON (taxtype_id=invcitem_taxtype_id)
 		LEFT OUTER JOIN uom AS qty_uom ON (qty_uom.uom_id=invcitem_qty_uom_id)
 		LEFT OUTER JOIN uom AS price_uom ON (price_uom.uom_id=invcitem_price_uom_id);
-	
+
 GRANT ALL ON TABLE api.invoiceline TO xtrole;
 COMMENT ON VIEW api.invoiceline IS '
 This view can be used as an interface to import Invoice Line Items data directly
@@ -45,7 +48,7 @@ populated';
 
 CREATE OR REPLACE FUNCTION insertInvoiceLineItem(api.invoiceline) RETURNS BOOLEAN AS
 $insertInvoiceLineItem$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
 	pNew ALIAS FOR $1;
@@ -138,7 +141,7 @@ $insertInvoiceLineItem$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION updateInvoiceLineItem(api.invoiceline, api.invoiceline) RETURNS BOOLEAN AS
 $updateInvoiceLineItem$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
 	pNew ALIAS FOR $1;
@@ -214,14 +217,14 @@ CREATE OR REPLACE RULE "_INSERT" AS
 		SELECT insertInvoiceLineItem(NEW);
 
 
-CREATE OR REPLACE RULE "_UPDATE" AS 
+CREATE OR REPLACE RULE "_UPDATE" AS
 	ON UPDATE TO api.invoiceline DO INSTEAD
 		SELECT updateInvoiceLineItem(NEW, OLD);
 
 
-CREATE OR REPLACE RULE "_DELETE" AS 
+CREATE OR REPLACE RULE "_DELETE" AS
 	ON DELETE TO api.invoiceline DO INSTEAD
-	
+
 	DELETE FROM invcitem
 	WHERE invcitem_invchead_id=(
 		SELECT invchead_id FROM invchead

@@ -40,6 +40,10 @@ BEGIN
   DELETE FROM period
   WHERE (period_id=pPeriodid);
 
+--  Also Delete the period from TrialBalance
+  DELETE FROM trialbal
+  WHERE (trialbal_period_id=pPeriodid);
+
   RETURN 1;
 
 END;

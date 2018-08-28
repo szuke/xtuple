@@ -1,5 +1,7 @@
 CREATE OR REPLACE RULE "_INSERT" AS ON INSERT TO api.creditmemo DO INSTEAD NOTHING;
 SELECT dropIfExists('FUNCTION', 'insertCreditMemo(api.creditmemo)');
+-- Cleanup old bad installs.
+SELECT dropIfExists('FUNCTION', 'insertCreditMemo(api.creditmemo)', 'xt');
 
 SELECT dropIfExists('VIEW', 'creditmemo', 'api');
 CREATE OR REPLACE VIEW api.creditmemo AS
@@ -53,14 +55,14 @@ CREATE OR REPLACE VIEW api.creditmemo AS
          LEFT OUTER JOIN salesrep ON (salesrep_id=cmhead_salesrep_id)
          LEFT OUTER JOIN taxzone ON (taxzone_id=cmhead_taxzone_id)
          LEFT OUTER JOIN rsncode ON (rsncode_id=cmhead_rsncode_id);
-      
+
 GRANT ALL ON TABLE api.creditmemo TO xtrole;
 COMMENT ON VIEW api.creditmemo IS 'Credit Memo Header';
 
 
 CREATE OR REPLACE FUNCTION insertCreditMemo(api.creditmemo) RETURNS boolean AS
 $insertCreditMemo$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
 	pNew ALIAS FOR $1;
@@ -174,7 +176,7 @@ CREATE OR REPLACE RULE "_INSERT" AS
 		SELECT insertCreditMemo(NEW);
 
 
-CREATE OR REPLACE RULE "_UPDATE" AS 
+CREATE OR REPLACE RULE "_UPDATE" AS
 	ON UPDATE TO api.creditmemo DO INSTEAD
 	UPDATE cmhead SET
 		cmhead_custponumber=NEW.customer_po_number,
@@ -211,9 +213,9 @@ CREATE OR REPLACE RULE "_UPDATE" AS
 		AND (cmhead_posted = FALSE);
 
 
-CREATE OR REPLACE RULE "_DELETE" AS 
+CREATE OR REPLACE RULE "_DELETE" AS
 	ON DELETE TO api.creditmemo DO INSTEAD
-	
+
 	SELECT deleteCreditMemo(cmhead_id)
 	FROM cmhead
 	WHERE cmhead_number = OLD.memo_number AND cmhead_posted = FALSE;
