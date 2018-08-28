@@ -5,7 +5,8 @@ ALTER TABLE public.urlinfo DISABLE TRIGGER ALL;
 SELECT
   xt.add_column('urlinfo', 'url_id',      'SERIAL', 'NOT NULL', 'public'),
   xt.add_column('urlinfo', 'url_title',     'TEXT', 'NOT NULL', 'public'),
-  xt.add_column('urlinfo', 'url_url',       'TEXT',       NULL, 'public');
+  xt.add_column('urlinfo', 'url_url',       'TEXT',       NULL, 'public'),
+  xt.add_column('urlinfo', 'url_grp',     'TEXT[]',       NULL, 'public');
 
 SELECT
   xt.add_constraint('urlinfo', 'urlinfo_pkey', 'PRIMARY KEY (url_id)', 'public');
@@ -13,6 +14,7 @@ SELECT
 ALTER TABLE public.urlinfo ENABLE TRIGGER ALL;
 
 COMMENT ON TABLE urlinfo IS 'Website links and File links';
+COMMENT ON COLUMN public.urlinfo.url_grp IS 'Role permissions to access the file/document link.  No entry means all access';
 
 
 /* Migrate URLINFO sequence to use FILE sequence to ensure uniqueness across both */

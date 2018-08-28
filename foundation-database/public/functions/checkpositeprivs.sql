@@ -1,18 +1,19 @@
-CREATE OR REPLACE FUNCTION checkPOSitePrivs(INTEGER) RETURNS BOOLEAN STABLE AS '
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+DROP FUNCTION IF EXISTS checkPOSitePrivs(INTEGER);
+
+CREATE OR REPLACE FUNCTION checkPOSitePrivs(pPoheadid INTEGER) RETURNS BOOLEAN STABLE AS $$
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pPoheadid ALIAS FOR $1;
   _check    BOOLEAN;
   _result   INTEGER;
 
 BEGIN
 
-  IF (NOT fetchMetricBool(''MultiWhs'')) THEN
+  IF (NOT fetchMetricBool('MultiWhs')) THEN
     RETURN true;
   END IF;
 
-  IF (NOT fetchUsrPrefBool(''selectedSites'')) THEN
+  IF (NOT fetchUsrPrefBool('selectedSites')) THEN
     RETURN true;
   END IF;
 
@@ -38,4 +39,4 @@ BEGIN
 
   RETURN true;
 END;
-' LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;

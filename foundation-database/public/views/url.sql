@@ -13,6 +13,7 @@ select
   file_mime_type as url_mime_type
 from file
   join docass on ( docass_target_id = file_id ) and ( docass_target_type IN ('FILE', 'XFILE') )
+where checkfileprivs(file_id)
 union all
 select 
   docass_id as url_id,
@@ -24,7 +25,8 @@ select
   null as url_stream,
   null as url_mime_type
 from urlinfo
-  join docass on ( docass_target_id = url_id ) and ( docass_target_type = 'URL' );
+  join docass on ( docass_target_id = url_id ) and ( docass_target_type = 'URL' )
+where checkfileprivs(url_id);
 
 grant all on url to xtrole;
 

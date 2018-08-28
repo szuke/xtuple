@@ -66,7 +66,7 @@ JOIN (select DISTINCT ON (docass_target_type, docass_target_id) *
      LEFT OUTER JOIN char char_alias<? literal("char_id_date_list") ?> 
                   ON (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=char_alias<? literal("char_id_date_list") ?>.char_id)
    <? endforeach ?>
-WHERE true
+WHERE checkfileprivs(file_id)
 <? literal("charClause") ?>
 UNION
 -- URL links (includes non-imported File links)  
@@ -133,7 +133,7 @@ JOIN (select DISTINCT ON (docass_target_type, docass_target_id) *
      LEFT OUTER JOIN char char_alias<? literal("char_id_date_list") ?> 
                   ON (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=char_alias<? literal("char_id_date_list") ?>.char_id)
    <? endforeach ?>
-WHERE true
+WHERE checkfileprivs(url_id)
 <? literal("charClause") ?>
 UNION
 -- Document assignments
@@ -177,6 +177,7 @@ FROM docass
                   ON (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=char_alias<? literal("char_id_date_list") ?>.char_id)
    <? endforeach ?>
 WHERE docass_target_type SIMILAR TO '(%FILE|URL)'
+  AND checkfileprivs(docass_target_id)
 <? if exists("importDateStart") ?>
   AND docass_created >= <? value("importDateStart") ?>
 <? endif ?>
