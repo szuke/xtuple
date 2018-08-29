@@ -44,8 +44,7 @@
     "csslint": "~0.10.0",
     "jshint": "2.8.x",
     "mocha": "^5.0.0",
-    "nodemon": "~1.0.15",
-    "csslint": "~0.10.0"
+    "nodemon": "~1.0.15"
   },
   "engines": {
     "node": "0.8.x"
