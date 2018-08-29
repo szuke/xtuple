@@ -11,6 +11,7 @@ MAJ=
 MIN=
 PAT=
 TRANSLATIONS=false
+export PGOPTIONS="-c client_min_messages=warning"
 
 XTUPLEDIR=$(pwd)
 
@@ -345,21 +346,23 @@ done
 
 cd ${XTUPLEDIR}
 
-# build updater so we can use it
-cd ../qt-client
-git submodule update --init --recursive
-cd openrpt
-qmake
-make
-cd ../common
-qmake
-make
-cd ../../updater
-qmake
-make
-cd ${XTUPLEDIR}
+if $TRANSLATIONS ; then
+  # build updater so we can use it
+  cd ../qt-client
+  git submodule update --init --recursive
+  cd openrpt
+  qmake
+  make
+  cd ../common
+  qmake
+  make
+  cd ../../updater
+  qmake
+  make
+  cd ${XTUPLEDIR}
 
-export LD_LIBRARY_PATH=${XTUPLEDIR}/../qt-client/openrpt/lib:${XTUPLEDIR}/../qt-client/lib:$LD_LIBRARY_PATH
+  export LD_LIBRARY_PATH=${XTUPLEDIR}/../qt-client/openrpt/lib:${XTUPLEDIR}/../qt-client/lib:$LD_LIBRARY_PATH
+fi
 
 for EDITION in $EDITIONS ; do
   for DATABASE in $DATABASES ; do
@@ -371,8 +374,10 @@ for EDITION in $EDITIONS ; do
         done
       fi
 
-      ../updater/bin/updater -h $HOST -U $ADMIN -p $PORT -d $EDITION"_"$DATABASE \
-                             -f scripts/output/$EDITION-upgrade-$MAJ.$MIN.$PAT.gz -autorun
+      if $TRANSLATIONS ; then
+        ../updater/bin/updater -h $HOST -U $ADMIN -p $PORT -d $EDITION"_"$DATABASE \
+                               -f scripts/output/$EDITION-upgrade-$MAJ.$MIN.$PAT.gz -autorun
+      fi
     fi
   done
 done
@@ -401,7 +406,7 @@ for EDITION in $EDITIONS ; do
         fi
         CNT=$(($CNT + 1))
       done
-      /usr/bin/pg_dump --host $HOST --username $ADMIN --port $PORT --format c --file $DB-$MAJ.$MIN.$PAT.backup $DB
+      pg_dump --host $HOST --username $ADMIN --port $PORT --format c --file $DB-$MAJ.$MIN.$PAT.backup $DB
     fi
   done
 done

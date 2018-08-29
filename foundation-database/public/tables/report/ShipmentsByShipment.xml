@@ -3,6 +3,12 @@
  <title>Shipments By Shipment</title>
  <name>ShipmentsByShipment</name>
  <description></description>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
  <size>Letter</size>
  <portrait/>
  <topmargin>50</topmargin>
@@ -28,6 +34,7 @@
                      cohead_custponumber AS custponumber
                 FROM cohead JOIN shiphead ON (shiphead_order_id=cohead_id AND shiphead_order_type='SO')
                WHERE(shiphead_id=&lt;? value("shiphead_id") ?>)
+      &lt;? if exists('MultiWhs') ?>    
               UNION
               SELECT shiphead_number,
                      shiphead_tracknum,
@@ -38,11 +45,12 @@
                      NULL AS custponumber
                 FROM tohead JOIN shiphead ON (shiphead_order_id=tohead_id AND shiphead_order_type='TO')
                WHERE(shiphead_id=&lt;? value("shiphead_id") ?>) 
+      &lt;? endif ?>
              ) AS taborder
  WHERE(order_cust_id=cust_id);
 </sql>
  </querysource>
- <querysource loadFromDb="true" >
+ <querysource loadFromDb="true">
   <name>detail</name>
   <mqlgroup>shipments</mqlgroup>
   <mqlname>detail</mqlname>

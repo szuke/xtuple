@@ -108,7 +108,9 @@ XT.MetaSQL.parser = (function() {
         peg$c19 = { type: "literal", value: ")", description: "\")\"" },
         peg$c20 = function(id) {
               var stackidx,
-                  listidx;
+                  listidx,
+                  regExQuote = new RegExp("'", 'g'),
+                  regExSlash = new RegExp(/\\/g);
 
               if (Object.prototype.toString.call(params[id]) === '[object Array]') {
                 stackidx = stackIdx(id);
@@ -121,7 +123,7 @@ XT.MetaSQL.parser = (function() {
                   }
 
                   if (typeof params[id][0] == 'string') {
-                    return ("'" + params[id][listidx].replace("'", "''").replace(/\\/g, '\\\\') + "'");
+                    return ("'" + params[id][listidx].replace(regExQuote, "''").replace(regExSlash, '\\\\') + "'");
                   } else {
                     return params[id][listidx];
                   }
@@ -129,7 +131,7 @@ XT.MetaSQL.parser = (function() {
                 else {
                   // Not in a foreach loop
                   if (typeof params[id][0] == 'string') {
-                    return "'" + params[id][0].replace("'", "''").replace(/\\/g, '\\\\') + "'";
+                    return "'" + params[id][0].replace(regExQuote, "''").replace(regExSlash, '\\\\') + "'";
                   } else {
                     return params[id][0];
                   }
@@ -137,7 +139,7 @@ XT.MetaSQL.parser = (function() {
               }
 
               if (typeof params[id] == 'string') {
-                return ("'" + (params[id] ? params[id].replace("'", "''").replace(/\\/g, '\\\\') : 'NULL ') + "'");
+                return ("'" + (params[id] ? params[id].replace(regExQuote, "''").replace(regExSlash, '\\\\') : 'NULL ') + "'");
               } else {
                 return (params[id] ? params[id] : 'NULL ');
               }

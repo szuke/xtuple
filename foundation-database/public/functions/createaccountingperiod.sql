@@ -1,6 +1,6 @@
 
 CREATE OR REPLACE FUNCTION createAccountingPeriod(DATE, DATE) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pStartDate ALIAS FOR $1;
@@ -79,9 +79,11 @@ BEGIN
   SELECT NEXTVAL('period_period_id_seq') INTO _periodid;
   INSERT INTO period
   ( period_id, period_start, period_end, period_closed, period_freeze, 
-    period_initial, period_number, period_yearperiod_id, period_quarter )
+    period_initial, period_number, period_yearperiod_id, period_quarter,
+    period_name  )
   VALUES
-  ( _periodid, pStartDate, pEndDate, FALSE, FALSE, _initial, _number, pYearPeriodId, pQuarter );
+  ( _periodid, pStartDate, pEndDate, FALSE, FALSE, _initial, _number, pYearPeriodId, pQuarter,
+    to_char(pEndDate, 'YYYY - Mon') );
 
 --  Post any unposted G/L Transactions into the new period
   FOR _r IN SELECT DISTINCT gltrans_sequence

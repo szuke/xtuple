@@ -65,7 +65,8 @@
 
                               AND (bankrecitem_source_id=gltrans_id))
    LEFT OUTER JOIN bankrec actrec ON (actrec.bankrec_id = bankrecitem_bankrec_id)
- WHERE (COALESCE(actrec.bankrec_postdate,endoftime()) > COALESCE(selrec.bankrec_postdate,now()))</sql>
+ WHERE (COALESCE(actrec.bankrec_postdate,endoftime()) > COALESCE(selrec.bankrec_postdate,now()))
+   AND NOT gltrans_deleted</sql>
  </querysource>
  <querysource loadFromDb="true">
   <name>unreconciled</name>

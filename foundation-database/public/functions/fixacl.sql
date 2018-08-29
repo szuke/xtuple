@@ -24,7 +24,7 @@ BEGIN
             WHERE ((n.oid=c.relnamespace)
               AND  (nspname in ('public', 'api') OR
                     nspname in (SELECT pkghead_name FROM pkghead))
-              AND  (relkind in ('S', 'r', 'v'))
+              AND  (relkind in ('S', 'r', 'v', 'm'))
               AND  (nspname||'.'||relname <> 'public.pkghead'))
             ORDER BY seq
   LOOP

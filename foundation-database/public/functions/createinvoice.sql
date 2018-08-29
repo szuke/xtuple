@@ -1,6 +1,6 @@
 
 CREATE OR REPLACE FUNCTION createInvoice(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pCobmiscid ALIAS FOR $1;
@@ -71,14 +71,14 @@ BEGIN
 	AND taxhist_taxtype_id = getadjustmenttaxtypeid();
 
 --  Create the Invoice Characteristic Assignments
-    INSERT INTO charass
-          (charass_target_type, charass_target_id, charass_char_id, charass_value, charass_default, charass_price)
-    SELECT 'INV', _invcheadid, charass_char_id, charass_value, charass_default, charass_price
-      FROM cobmisc JOIN cohead ON (cohead_id=cobmisc_cohead_id)
-                   JOIN charass ON charass_target_type = 'SO' AND charass_target_id = cohead_id
-                   JOIN char    ON char_id = charass_char_id
-                   JOIN charuse ON char_id = charuse_char_id AND charuse_target_type = 'INV'
-    WHERE cobmisc_id = pCobmiscid;
+  INSERT INTO charass
+        (charass_target_type, charass_target_id, charass_char_id, charass_value, charass_default, charass_price)
+  SELECT 'INV', _invcheadid, charass_char_id, charass_value, charass_default, charass_price
+    FROM cobmisc JOIN cohead ON (cohead_id=cobmisc_cohead_id)
+                  JOIN charass ON charass_target_type = 'SO' AND charass_target_id = cohead_id
+                  JOIN char    ON char_id = charass_char_id
+                  JOIN charuse ON char_id = charuse_char_id AND charuse_target_type = 'INV'
+  WHERE cobmisc_id = pCobmiscid;
 
 --  Create the Invoice items
   FOR _r IN SELECT coitem_id, coitem_linenumber, coitem_subnumber, coitem_custpn,
@@ -155,17 +155,17 @@ BEGIN
 	      WHERE ((shipitem_shiphead_id=shiphead_id)
 	        AND  (shipitem_orderitem_id=_r.coitem_id)
 	        AND  (shiphead_shipped)
-		AND  (shiphead_order_type='SO')
+		      AND  (shiphead_order_type='SO')
 	        AND  (NOT shipitem_invoiced))
 	      ORDER BY matched DESC, shipitem_qty DESC FOR UPDATE LOOP
       IF (_qtyToInvoice >= _s.shipitem_qty) THEN
-	UPDATE shipitem
-	SET shipitem_invoiced=TRUE, shipitem_invcitem_id=_invcitemid
-	WHERE (shipitem_id=_s.shipitem_id);
-	_qtyToInvoice := _qtyToInvoice - _s.shipitem_qty;
+        UPDATE shipitem
+        SET shipitem_invoiced=TRUE, shipitem_invcitem_id=_invcitemid
+        WHERE (shipitem_id=_s.shipitem_id);
+        _qtyToInvoice := _qtyToInvoice - _s.shipitem_qty;
       END IF;
       IF (_qtyToInvoice <= 0) THEN
-	EXIT;
+      	EXIT;
       END IF;
     END LOOP;
 
@@ -202,13 +202,17 @@ BEGIN
      AND (cobill_cobmisc_id=pCobmiscid) );
 
 -- close Job Costed W/O
-    UPDATE wo SET wo_status = 'C'
-    FROM cobill
-    WHERE ( (cobill_toclose)
-     AND (cobill_cobmisc_id=pCobmiscid)
-     AND (wo_ordid=cobill_coitem_id)
-     AND (wo_ordtype='S')
-     AND (wo_qtyrcv >= wo_qtyord) );
+    UPDATE wo 
+       SET wo_status = 'C'
+      FROM cobill 
+      JOIN coitem ON cobill_coitem_id = coitem_id
+      JOIN itemsite ON coitem_itemsite_id = itemsite_id 
+     WHERE wo_ordtype='S'
+       AND wo_qtyrcv >= wo_qtyord
+       AND wo_ordid=cobill_coitem_id
+       AND itemsite_costmethod = 'J'
+       AND cobill_toclose
+       AND cobill_cobmisc_id=pCobmiscid;
   END IF;
 
 --  Mark the cobmisc as posted

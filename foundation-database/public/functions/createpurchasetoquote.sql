@@ -4,7 +4,7 @@ CREATE OR REPLACE FUNCTION createpurchasetoquote(pQuitemId     integer,
                                                  pDropShip     boolean,
                                                  pPrice        numeric = NULL::numeric)
   RETURNS integer AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _pohead INTEGER := NULL; -- Legacy parameter
@@ -177,7 +177,10 @@ BEGIN
           COALESCE(_i.cntct_email, TEXT('')), COALESCE(_i.addr_line1, TEXT('')),
           COALESCE(_i.addr_line2, TEXT('')), COALESCE(_i.addr_line3, TEXT('')),
           COALESCE(_i.addr_city, TEXT('')), COALESCE(_i.addr_state, TEXT('')),
-          COALESCE(_i.addr_postalcode, TEXT('')), COALESCE(_i.addr_country, TEXT('')), COALESCE(_s.quhead_shipcomments, TEXT('')) );
+          COALESCE(_i.addr_postalcode, TEXT('')), COALESCE(_i.addr_country, TEXT('')),
+          CASE WHEN fetchmetricbool('CopySOShippingNotestoPO')
+               THEN COALESCE(_s.quhead_shipcomments, TEXT(''))
+               ELSE TEXT('') END );
     ELSE
       INSERT INTO pohead
         ( pohead_id, pohead_number, pohead_status, pohead_dropship,

@@ -1,7 +1,7 @@
 -- Group: shipments
 -- Name: detail
 -- Notes: used by dspShipmentsByDate, dspShipmentsBySalesOrder, dspShipmentsByShipment
---        Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+--        Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 --        See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT shiphead_id, lineitem_id,
@@ -125,6 +125,7 @@ GROUP BY shiphead_id, coitem_id, shiphead_order_type, shiphead_number,
          coitem_linenumber, item_number, item_descrip1, item_descrip2,
          warehous_code, shiphead_tracknum, coitem_qtyord, 
          shiphead_freight, shiphead_freight_curr_id 
+
 <? if exists("MultiWhs") ?>
 UNION
 SELECT shiphead_id, -1 AS lineitem_id, tohead_number AS sortkey1, shiphead_number AS sortkey2, 0 AS level,

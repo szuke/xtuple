@@ -682,7 +682,7 @@ select createDoctype(39, --pDocAssNum
                      '', --pWidget
                      'join vendinfo on vohead_vend_id=vend_id', --pJoin
                      'vohead_id', --pParam
-                     '', --pUi
+                     'miscVoucher', --pUi
                      '', --pPriv
                      'Purchase' --pModule
 );
@@ -894,3 +894,19 @@ SELECT createDocType(NULL,
                      'gltrans_docnumber',
                      'firstline(gltrans_notes)'
 );
+
+SELECT createDoctype(NULL,
+                     'ITEMGRP',
+                     'ITEMGRP',
+                     'ITEMGRP',
+                     'Item Group',
+                     'itemgrp',
+                     'itemgrp_id',
+                     'itemgrp_name',
+                     'itemgrp_descrip',
+                     'itemgrp_catalog::text',
+                     'SELECT itemgrp_id, itemgrp_name, itemgrp_name FROM itemgrp ORDER BY 2;',
+                     '',
+                     'itemgrp_id',
+                     'itemGroup',
+                     '');

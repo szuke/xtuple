@@ -20,7 +20,8 @@ AS
 		invcitem_notes AS notes,
                 CASE WHEN (invcitem_rev_accnt_id IS NOT NULL) THEN formatglaccount(invcitem_rev_accnt_id)
                      ELSE NULL::text
-                END AS alternate_rev_account
+                END AS alternate_rev_account,
+		invcitem_subnumber AS invoice_subnumber
 	FROM invcitem
 		LEFT OUTER JOIN invchead ON (invcitem_invchead_id=invchead_id)
 		LEFT OUTER JOIN item ON (item_id=invcitem_item_id)
@@ -43,8 +44,16 @@ $insertInvoiceLineItem$
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
 	pNew ALIAS FOR $1;
+    _check INTEGER;
 	_r RECORD;
 BEGIN
+  SELECT invchead_id INTO _check
+  FROM invchead
+  WHERE (invchead_id=getInvcheadId(pNew.invoice_number));
+  IF (NOT FOUND) THEN
+    RAISE EXCEPTION 'Invoice # % not found [xtuple: insertInvoiceLineItem, -1, %]',
+                    pNew.invoice_number, pNew.invoice_number;
+  END IF;
 	INSERT INTO invcitem (
 		invcitem_invchead_id,
 		invcitem_linenumber,
@@ -55,7 +64,7 @@ BEGIN
 		invcitem_descrip,
 		invcitem_ordered,
 		invcitem_billed,
-                invcitem_updateinv,
+        invcitem_updateinv,
 		invcitem_custprice,
 		invcitem_price,
 		invcitem_notes,
@@ -65,7 +74,8 @@ BEGIN
 		invcitem_qty_invuomratio,
 		invcitem_price_uom_id,
 		invcitem_price_invuomratio,
-                invcitem_rev_accnt_id
+        invcitem_rev_accnt_id,
+		invcitem_subnumber
 	) SELECT
 		invchead_id,
 		COALESCE(pNew.line_number,(
@@ -80,7 +90,7 @@ BEGIN
 		pNew.qty_ordered,
 		COALESCE(pNew.qty_billed, 0),
                 COALESCE(pNew.update_inventory,FALSE),
-		0, -- invcitem_custprice
+		0, -- invcitem_custprice 
 		COALESCE(pNew.net_unit_price,itemPrice(item_id,invchead_cust_id,
 			invchead_shipto_id,pNew.qty_ordered,invchead_curr_id,invchead_orderdate)),
 		COALESCE(pNew.notes,''),
@@ -116,8 +126,9 @@ BEGIN
 				)
 			ELSE 1
 		END,
-                getGlAccntId(pNew.alternate_rev_account)
-	FROM invchead
+		getGlAccntId(pNew.alternate_rev_account),
+		COALESCE(pNew.invoice_subnumber,0)
+	  FROM invchead
 		LEFT OUTER JOIN item ON (item_id=getItemId(pNew.item_number))
 		LEFT OUTER JOIN taxtype ON (taxtype_id=CASE
 			WHEN pNew.tax_type IS NULL THEN getItemTaxType(item_id,invchead_taxzone_id)
@@ -137,8 +148,16 @@ $updateInvoiceLineItem$
 DECLARE
 	pNew ALIAS FOR $1;
 	pOld ALIAS FOR $2;
+    _check INTEGER;
 	_r RECORD;
 BEGIN
+  SELECT invcitem_id INTO _check
+  FROM invcitem
+  WHERE ( (invcitem_id=getInvcheadId(pOld.invoice_number)) AND (invcitem_linenumber=pOld.line_number) );
+  IF (NOT FOUND) THEN
+    RAISE EXCEPTION 'Invoice % Line % not found [xtuple: updateInvoiceLineItem, -1, %, %]',
+                     pOld.invoice_number, pOld.line_number, pOld.invoice_number, pOld.line_number;
+  END IF;
 	UPDATE invcitem SET
 		invcitem_linenumber=pNew.line_number,
 		invcitem_item_id=COALESCE(item_id, -1),
@@ -184,7 +203,8 @@ BEGIN
 				)
 			ELSE 1
 		END,
-                invcitem_rev_accnt_id=getGlAccntId(alternate_rev_account)
+		invcitem_rev_accnt_id=getGlAccntId(pNew.alternate_rev_account),
+		invcitem_subnumber = COALESCE(pNew.invoice_subnumber,0)
 	FROM invchead
 		LEFT OUTER JOIN item ON (item_id=getItemId(pNew.item_number))
 		LEFT OUTER JOIN taxtype ON (taxtype_id=CASE
@@ -215,10 +235,9 @@ CREATE OR REPLACE RULE "_UPDATE" AS
 
 CREATE OR REPLACE RULE "_DELETE" AS
 	ON DELETE TO api.invoiceline DO INSTEAD
-
-	DELETE FROM invcitem
-	WHERE invcitem_invchead_id=(
-		SELECT invchead_id FROM invchead
-		WHERE invchead_invcnumber=OLD.invoice_number
-			AND invchead_posted = FALSE
-	);
+      DELETE FROM invcitem
+      WHERE invcitem_invchead_id=(
+        SELECT invchead_id FROM invchead
+        WHERE invchead_invcnumber=OLD.invoice_number
+          AND invchead_posted = FALSE
+    );

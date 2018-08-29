@@ -31,16 +31,23 @@ SELECT gltrans_id, gltrans_date, formatDate(gltrans_date) AS f_date,
    JOIN bankrec selrec ON ((selrec.bankrec_bankaccnt_id = bankaccnt_id)
                        AND (selrec.bankrec_id=<? value("bankrec_id") ?>))
    LEFT OUTER JOIN bankrecitem ON ((bankrecitem_source='GL')
-
+                  AND (bankrecitem_bankrec_id IN (SELECT bankrec_id FROM bankrec))
                               AND (bankrecitem_source_id=gltrans_id))
    LEFT OUTER JOIN bankrec actrec ON (actrec.bankrec_id = bankrecitem_bankrec_id)
-   LEFT OUTER JOIN checkhead ON ((gltrans_doctype='CK')
+   LEFT OUTER JOIN checkhead ON ((gltrans_source IN ('A/P', 'A/R'))
+                             AND (gltrans_doctype='CK')
                              AND (gltrans_misc_id=checkhead_id))
 <? if exists("showUnreconciled") ?>
  WHERE ((COALESCE(actrec.bankrec_postdate,endoftime()) > COALESCE(selrec.bankrec_postdate,now()))
   AND (NOT gltrans_deleted)
-  AND (NOT COALESCE(checkhead_void, false)))
-  AND (gltrans_doctype != 'JP')
+  AND gltrans_doctype != 'JP'
+  AND gltrans_date <= (SELECT period_end FROM period WHERE period_id = (SELECT getperiodid(selrec.bankrec_enddate))))
+  AND gltrans_id NOT IN (select gltrans_id from gltrans where gltrans_rec = true	
+  AND gltrans_id NOT IN (SELECT bankrecitem_source_id FROM bankrecitem)) 
+  AND (NOT COALESCE(checkhead_void, false) 
+   OR getvoidcheckdate(checkhead_number::INTEGER, bankaccnt_id::INTEGER) > 
+         (SELECT period_end FROM period WHERE period_id = (SELECT getperiodid(selrec.bankrec_enddate)) ))
+  AND (bankrecitem_bankrec_id != <? value("bankrec_id") ?> OR bankrecitem_bankrec_id IS NULL)
 <? else ?>
  WHERE (false)
 <? endif ?>
@@ -74,14 +81,23 @@ SELECT sltrans_id, sltrans_date, formatDate(sltrans_date) AS f_date,
    JOIN bankrec selrec ON ((selrec.bankrec_bankaccnt_id = bankaccnt_id)
                        AND (selrec.bankrec_id=<? value("bankrec_id") ?>))
    LEFT OUTER JOIN bankrecitem ON ((bankrecitem_source='SL')
-
+		 AND (bankrecitem_bankrec_id IN (SELECT bankrec_id FROM bankrec))
                               AND (bankrecitem_source_id=sltrans_id))
    LEFT OUTER JOIN bankrec actrec ON (actrec.bankrec_id = bankrecitem_bankrec_id)
-   LEFT OUTER JOIN checkhead ON ((sltrans_doctype='CK')
+   LEFT OUTER JOIN checkhead ON ((sltrans_source IN ('A/P', 'A/R'))
+                             AND (sltrans_doctype='CK')
                              AND (sltrans_misc_id=checkhead_id))
 <? if exists("showUnreconciled") ?>
  WHERE ((COALESCE(actrec.bankrec_postdate,endoftime()) > COALESCE(selrec.bankrec_postdate,now()))
   AND (NOT COALESCE(checkhead_void, false)))
+  AND sltrans_date <= (SELECT period_end FROM period WHERE period_id = (SELECT getperiodid(selrec.bankrec_enddate)))
+  AND sltrans_id NOT IN (SELECT sltrans_id FROM sltrans WHERE sltrans_rec = true	
+  AND sltrans_id NOT IN (SELECT bankrecitem_source_id FROM bankrecitem)) 
+  AND (NOT COALESCE(checkhead_void, false) 
+   OR getvoidcheckdate(checkhead_number::INTEGER, bankaccnt_id::INTEGER) > 
+        (SELECT period_end FROM period WHERE period_id = (SELECT getperiodid(selrec.bankrec_enddate)) ))
+  AND (bankrecitem_bankrec_id != <? value("bankrec_id") ?> OR bankrecitem_bankrec_id IS NULL)
+
 <? if exists("treeView") ?>
 UNION
 SELECT -1, NULL, NULL, <? value("Checks") ?>, NULL, 1, NULL, NULL, NULL, NULL, NULL, NULL,'curr', 0 

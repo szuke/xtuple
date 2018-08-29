@@ -3,7 +3,7 @@ CREATE OR REPLACE FUNCTION updateStdCost(pItemcostid INTEGER,
                                          pOldcost NUMERIC,
                                          pDocNumber TEXT,
                                          pNotes TEXT) RETURNS BOOLEAN AS $$
--- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
     _itemcostid	INTEGER;
@@ -53,20 +53,22 @@ BEGIN
     UPDATE itemsite SET itemsite_value=(_r.totalQty * stdCost(itemsite_item_id))
     WHERE (itemsite_id=_r.itemsite_id);
 
---  Add an InvHist record for reconciliation purposes (zero qty. movement)
-    INSERT INTO invhist
-    ( invhist_itemsite_id, invhist_transdate, invhist_transtype, invhist_invqty, invhist_invuom,
-      invhist_qoh_before, invhist_qoh_after, invhist_unitcost,
-      invhist_comments, invhist_costmethod, invhist_value_before,
-      invhist_value_after, invhist_series)
-    SELECT _r.itemsite_id, CURRENT_TIMESTAMP, 'SC', 0.0, _r.uom_name,
-           _r.totalQty, _r.totalQty, _r.totalQty * stdCost(_r.itemsite_item_id) - _r.itemsite_value,
-           'Item Standard cost updated', 'S', _r.itemsite_value,
-           _r.totalQty * stdCost(_r.itemsite_item_id), NEXTVAL('itemloc_series_seq')
-    RETURNING invhist_id INTO _invhistId;
+--  Add an InvHist record for reconciliation purposes only if value changes > cost threshold (zero qty. movement)
+    IF (ABS(roundcost(_r.itemsite_value - _r.totalQty * stdCost(_r.itemsite_item_id))) > 0) THEN
+      INSERT INTO invhist
+      ( invhist_itemsite_id, invhist_transdate, invhist_transtype, invhist_invqty, invhist_invuom,
+        invhist_qoh_before, invhist_qoh_after, invhist_unitcost,
+        invhist_comments, invhist_costmethod, invhist_value_before,
+        invhist_value_after, invhist_series)
+      SELECT _r.itemsite_id, CURRENT_TIMESTAMP, 'SC', 0.0, _r.uom_name,
+             _r.totalQty, _r.totalQty, _r.totalQty * stdCost(_r.itemsite_item_id) - _r.itemsite_value,
+             'Item Standard cost updated', 'S', _r.itemsite_value,
+             _r.totalQty * stdCost(_r.itemsite_item_id), NEXTVAL('itemloc_series_seq')
+      RETURNING invhist_id INTO _invhistId;
 
-    IF (fetchMetricBool('EnableAsOfQOH')) THEN
-      PERFORM postIntoInvBalance(_invhistId);
+      IF (fetchMetricBool('EnableAsOfQOH')) THEN
+        PERFORM postIntoInvBalance(_invhistId);
+      END IF;
     END IF;
   END LOOP;
 
@@ -82,7 +84,7 @@ $$ LANGUAGE 'plpgsql';
 
 
 CREATE OR REPLACE FUNCTION updateStdCost(INTEGER, TEXT, BOOLEAN, NUMERIC) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
     pItemid	ALIAS FOR $1;

@@ -1,6 +1,6 @@
 CREATE OR REPLACE FUNCTION postcheck(integer, integer)
   RETURNS integer AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pcheckid		ALIAS FOR $1;
@@ -28,7 +28,7 @@ BEGIN
     _journalNumber := fetchJournalNumber('AP-CK');
   END IF;
 
-  SELECT checkhead.*,
+  SELECT checkhead.*, bankaccnt_prnt_check,
          checkhead_amount / checkhead_curr_rate AS checkhead_amount_base,
          COALESCE(calculateinversetax(checkhead_taxzone_id, checkhead_taxtype_id, 
             checkhead_checkdate, checkhead_curr_id, checkhead_amount),0) as total_tax,
@@ -71,6 +71,10 @@ BEGIN
     END IF;
   ELSE
     RAISE EXCEPTION 'Error Retrieving Check Information [xtuple: postCheck, -11, %]', pcheckid;
+  END IF;
+
+  IF (_p.bankaccnt_prnt_check AND NOT _p.checkhead_printed) THEN
+    RAISE EXCEPTION 'This payment must be printed before posting [xtuple: postCheck, -9, %]', pcheckid;
   END IF;
 
   IF (_p.checkhead_posted) THEN
@@ -152,24 +156,24 @@ BEGIN
   ELSE
     FOR _r IN SELECT checkitem_amount, checkitem_discount,
                      CASE WHEN (checkitem_apopen_id IS NOT NULL AND apopen_doctype='C') THEN
-                            checkitem_amount / apopen_curr_rate * -1.0
-                          WHEN (checkitem_apopen_id IS NOT NULL) THEN
-                            checkitem_amount / apopen_curr_rate
+                            checkitem_amount * -1.0
                           ELSE
-                            currToBase(checkitem_curr_id,
-                                       checkitem_amount,
-                                       COALESCE(checkitem_docdate, _p.checkhead_checkdate)) 
+                            checkitem_amount
+                     END /
+                     CASE WHEN (checkitem_apopen_id IS NOT NULL) THEN
+                            apopen_curr_rate
+                          ELSE
+                            aropen_curr_rate
                      END AS checkitem_amount_base,
-                     currTocurr(checkitem_curr_id, _p.checkhead_curr_id,
-                                CASE WHEN (checkitem_apopen_id IS NOT NULL AND apopen_doctype='C') THEN
-                                          checkitem_amount * -1.0
-                                     ELSE checkitem_amount END,
-                                  _p.checkhead_checkdate) AS amount_check,
+                     CASE WHEN (checkitem_apopen_id IS NOT NULL AND apopen_doctype='C') THEN
+                            checkitem_amount * -1.0
+                          ELSE checkitem_amount
+                      END * checkhead_curr_rate / checkitem_curr_rate AS amount_check,
                      apopen_id, apopen_doctype, apopen_docnumber,
                      aropen_id, aropen_doctype, aropen_docnumber,
-                     checkitem_curr_id, apopen_curr_rate,
-                     COALESCE(checkitem_docdate, _p.checkhead_checkdate) AS docdate
-              FROM (checkitem LEFT OUTER JOIN
+                     checkitem_curr_id, COALESCE(apopen_curr_rate, aropen_curr_rate) AS curr_rate,
+                     checkitem_curr_rate, checkhead_curr_rate
+              FROM (checkitem JOIN checkhead ON checkitem_checkhead_id=checkhead_id LEFT OUTER JOIN
 		    apopen ON (checkitem_apopen_id=apopen_id)) LEFT OUTER JOIN
 		    aropen ON (checkitem_aropen_id=aropen_id)
               WHERE (checkitem_checkhead_id=pcheckid) LOOP
@@ -227,15 +231,8 @@ BEGIN
 
       END IF; -- if check item's aropen_id is not null
 
-      IF (_r.apopen_id IS NOT NULL) THEN
-        SELECT apCurrGain(_r.apopen_id,_r.checkitem_curr_id, _r.checkitem_amount,
-                        _p.checkhead_checkdate)
-              INTO _exchGainTmp;
-      ELSIF (_r.aropen_id IS NOT NULL) THEN
-        SELECT arCurrGain(_r.aropen_id,_r.checkitem_curr_id, _r.checkitem_amount,
-                        _p.checkhead_checkdate)
-              INTO _exchGainTmp;
-      END IF;
+      SELECT currGain(_r.checkitem_amount, _r.curr_rate, _r.checkitem_curr_rate)
+        INTO _exchGainTmp;
 
       IF (_r.apopen_doctype = 'C') THEN
         _exchGainTmp = _exchGainTmp * -1;
@@ -261,9 +258,7 @@ BEGIN
     END LOOP;
 
     IF( (_amount_check - _p.checkhead_amount) <> 0.0 ) THEN 
-      _exchGainTmp := currToBase(_p.checkhead_curr_id,
-                                 _amount_check - _p.checkhead_amount,
-                                 _p.checkhead_checkdate);
+      _exchGainTmp := (_amount_check - _p.checkhead_amount) / _p.checkhead_curr_rate;
       _exchGain := _exchGain + _exchGainTmp;
     END IF;
     --  ensure that the check balances, attribute rounding errors to gain/loss

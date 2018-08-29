@@ -62,7 +62,8 @@ SELECT
   xt.add_column('itemsite', 'itemsite_recvlocation_dist',  'BOOLEAN', 'DEFAULT false NOT NULL', 'public'),
   xt.add_column('itemsite', 'itemsite_issuelocation_dist', 'BOOLEAN', 'DEFAULT false NOT NULL', 'public'),
   xt.add_column('itemsite', 'itemsite_created',      'TIMESTAMP WITH TIME ZONE', NULL, 'public'),
-  xt.add_column('itemsite', 'itemsite_lastupdated',  'TIMESTAMP WITH TIME ZONE', NULL, 'public');
+  xt.add_column('itemsite', 'itemsite_lastupdated',  'TIMESTAMP WITH TIME ZONE', NULL, 'public'),
+  xt.add_column('itemsite', 'itemsite_autoord',          'BOOLEAN', 'NOT NULL DEFAULT TRUE', 'public');
 
 -- incident 23507:change how qoh, qoh available, and qoh netable are determined
 do $$

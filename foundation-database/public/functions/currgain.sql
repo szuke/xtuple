@@ -4,6 +4,9 @@
 -- however, we only care about fluctuations in the base value of a foreign
 -- quantity, so this function expects pValue ($2) in the local currency.
 -- negative values = a loss.
+
+-- All calls to this version need to be removed. We must use currency rates stored on the document
+-- rather than from the curr_rate table.
 CREATE OR REPLACE FUNCTION currGain(INTEGER, NUMERIC, DATE, DATE)
 RETURNS NUMERIC AS $$
 -- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
@@ -19,6 +22,8 @@ DECLARE
   _multiplier	INTEGER	:= 1;
 
 BEGIN
+  RAISE WARNING 'Fetching from the curr_rate table. This call should be updated.';
+
   IF (pEnd = pStart OR pValue = 0) THEN
     RETURN 0;
   END IF;
@@ -41,3 +46,9 @@ BEGIN
   RETURN _gain * _multiplier;
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION currGain(pValue NUMERIC, pStartRate NUMERIC, pEndRate NUMERIC) RETURNS NUMERIC AS $$
+BEGIN
+  RETURN pValue / pStartRate - pValue / pEndRate;
+END
+$$ language plpgsql;

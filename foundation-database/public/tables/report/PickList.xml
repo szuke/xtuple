@@ -3,6 +3,12 @@
  <title>Pick List</title>
  <name>PickList</name>
  <description></description>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
  <size>Letter</size>
  <portrait/>
  <topmargin>50</topmargin>
@@ -34,18 +40,19 @@
        formatQty(womatl_qtyreq) AS qtyreq,
        formatQty(womatl_qtyiss) AS qtyiss,
        formatQty(noNeg(womatl_qtyreq - womatl_qtyiss)) AS qtybalance,
-       itemsite_location,
+       COALESCE(location_formatname, NULLIF(itemsite_location,'')) AS location,
        CASE WHEN (womatl_issuemethod='S') THEN text('Push')
             WHEN (womatl_issuemethod='L') THEN text('Pull')
             WHEN (womatl_issuemethod='M') THEN text('Mixed')
             ELSE text(womatl_issuemethod)
        END AS f_issuemethod
-  FROM womatl, itemsite, item, uom
- WHERE ((item_picklist)
-   AND (womatl_itemsite_id=itemsite_id)
-   AND (itemsite_item_id=item_id)
-   AND (womatl_uom_id=uom_id)
-   AND (womatl_wo_id=&lt;? value("wo_id") ?>) );
+  FROM womatl
+  JOIN itemsite ON womatl_itemsite_id=itemsite_id
+  JOIN item ON itemsite_item_id=item_id
+  JOIN uom ON womatl_uom_id=uom_id
+  LEFT OUTER JOIN location ON itemsite_issuelocation_id=location_id
+  WHERE item_picklist
+    AND womatl_wo_id=&lt;? value("wo_id") ?>;
     </sql>
  </querysource>
  <rpthead>
@@ -703,8 +710,8 @@
    <height>61</height>
    <field>
     <rect>
-     <x>215</x>
-     <y>0</y>
+     <x>205</x>
+     <y>1</y>
      <width>130</width>
      <height>20</height>
     </rect>
@@ -717,7 +724,7 @@
     <vcenter/>
     <data>
      <query>Detail</query>
-     <column>itemsite_location</column>
+     <column>location</column>
     </data>
    </field>
    <field>

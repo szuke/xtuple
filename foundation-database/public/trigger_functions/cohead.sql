@@ -580,7 +580,8 @@ BEGIN
   END IF;
 
   -- update comments on any associated drop ship POs
-  IF (COALESCE(NEW.cohead_shipcomments, TEXT('')) <> COALESCE(OLD.cohead_shipcomments, TEXT(''))) THEN
+  IF (fetchmetricbool('CopySOShippingNotestoPO') 
+      AND COALESCE(NEW.cohead_shipcomments, TEXT('')) <> COALESCE(OLD.cohead_shipcomments, TEXT(''))) THEN
     UPDATE pohead SET pohead_comments=NEW.cohead_shipcomments
     FROM poitem JOIN coitem ON (coitem_cohead_id=NEW.cohead_id AND coitem_order_type='P' AND coitem_order_id=poitem_id)
     WHERE (pohead_id=poitem_pohead_id);

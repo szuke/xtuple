@@ -1,6 +1,6 @@
 CREATE OR REPLACE FUNCTION postvoucher(pVoheadid integer, pPostCosts boolean)
   RETURNS integer AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   RETURN postVoucher(pVoheadid, fetchJournalNumber('AP-VO'), pPostCosts);
@@ -12,7 +12,7 @@ CREATE OR REPLACE FUNCTION postvoucher(
     pjournalnumber integer,
     ppostcosts boolean)
   RETURNS integer AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _sequence INTEGER;
@@ -403,7 +403,11 @@ BEGIN
 			  _fdist.freightdistr_accnt_id,
 			  round(_fdist.freightdistr_amount, 2) * -1,
 			  _glDate, _p.glnotes );
-      END LOOP;  			  
+      END LOOP;
+      -- Cross reference freight dist voucher with original PO Voucher
+      INSERT INTO docass (docass_source_type, docass_source_id, docass_target_type, docass_target_id,
+                          docass_purpose, docass_username)
+      VALUES ('VCH', _d.vodist_freight_vohead_id, 'VCH', pVoheadid, 'A', geteffectivextuser());
     ELSE -- G/L Account
       PERFORM insertIntoGLSeries( _sequence, 'A/P', 'VO', text(_p.vohead_number),
 			  _d.vodist_accnt_id,

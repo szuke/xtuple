@@ -24,7 +24,7 @@ CREATE OR REPLACE RULE "_INSERT" AS
 
   SELECT insertItemCost(getItemId(NEW.item_number),
                         getCostElemId(NEW.costing_element),
-                        getCurrId(NEW.currency),
+                        COALESCE(getCurrId(NEW.currency), basecurrid()),
                         NEW.actual_cost,
                         NEW.post_to_standard);
 
@@ -33,7 +33,7 @@ CREATE OR REPLACE RULE "_UPDATE" AS
 
   SELECT updateItemCost(getItemId(NEW.item_number),
                         getCostElemId(NEW.costing_element),
-                        getCurrId(NEW.currency),
+                        COALESCE(getCurrId(NEW.currency), basecurrid()),
                         NEW.actual_cost,
                         NEW.post_to_standard);
 

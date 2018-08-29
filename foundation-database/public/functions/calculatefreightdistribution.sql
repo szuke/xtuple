@@ -8,7 +8,7 @@ CREATE OR REPLACE FUNCTION calculatefreightdistribution(
     pCurrId integer DEFAULT NULL,
     pDistDate date DEFAULT NULL)
   RETURNS SETOF freightdistr AS $$
--- Copyright (c) 1999-2016 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _total   RECORD;
@@ -96,7 +96,7 @@ BEGIN
         currToBase(_item.vohead_curr_id, _row.freightdistr_amount, _item.vohead_distdate),
         NEXTVAL('itemloc_series_seq')
           FROM itemsite
-          JOIN item ON ittemsite_item_id=item_id
+          JOIN item ON itemsite_item_id=item_id
           JOIN uom ON item_inv_uom_id=uom_id
          WHERE itemsite_id=_item.itemsite_id
         RETURNING invhist_id INTO _invhistId;

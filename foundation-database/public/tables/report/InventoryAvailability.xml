@@ -80,13 +80,14 @@
                qtyOrdered(itemsite_id,   &lt;? value("startDate") ?>, &lt;? value("endDate") ?>) AS ordered,
                qtypr(itemsite_id,   &lt;? value("startDate") ?>, &lt;? value("endDate") ?>) AS requests
              &lt;? endif ?>
-      FROM item, itemsite, whsinfo
+      FROM item, itemsite, site()
            &lt;? if reExists("[vV]end") ?>
              , vendinfo JOIN itemsrc ON (itemsrc_vend_id=vend_id)
            &lt;? endif ?>
       WHERE ( (itemsite_active)
           AND (itemsite_item_id=item_id)
           AND (itemsite_warehous_id=warehous_id)
+          AND itemSiteStockable(itemsite_id)
           &lt;? if exists("warehous_id") ?>
             AND (warehous_id=&lt;? value("warehous_id") ?>)
           &lt;? endif ?>

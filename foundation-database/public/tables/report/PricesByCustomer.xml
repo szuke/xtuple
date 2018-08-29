@@ -3,6 +3,12 @@
  <title>Prices By Customer</title>
  <name>PricesByCustomer</name>
  <description></description>
+ <grid>
+  <snap/>
+  <show/>
+  <x>0.05</x>
+  <y>0.05</y>
+ </grid>
  <size>Letter</size>
  <portrait/>
  <topmargin>50</topmargin>
@@ -47,115 +53,10 @@
 WHERE (cust_id=&lt;? value("cust_id") ?>);
 </sql>
  </querysource>
- <querysource>
+ <querysource loadFromDb="true">
   <name>detail</name>
-  <sql>SELECT itemid, sourcetype, schedulename, type, itemnumber,
-       item_descrip1, item_descrip2,
-       CASE WHEN (qtybreak = -1) THEN 'N/A'
-            ELSE formatQty(qtybreak)
-       END AS f_qtybreak,
-       price, formatPrice(price) AS f_price,
-       &lt;? if exists("showCosts") ?>
-         cost AS cost,
-         formatCost(cost) AS f_cost,
-         CASE WHEN ((price = 0) OR (cost = 0)) THEN 'N/A'
-              ELSE formatScrap((price - cost) / price)
-         END AS f_margin
-       &lt;? else ?>
-         0 AS cost,
-         text('') AS f_cost,
-         text('') AS f_margin
-       &lt;? endif ?>
-FROM (
-  SELECT ipsprice_id AS itemid, 1 AS sourcetype,
-         ipshead_name AS schedulename, 'Customer' AS type,
-         item_number AS itemnumber, item_descrip1, item_descrip2,
-         ipsprice_qtybreak AS qtybreak, ipsprice_price AS price,
-         &lt;? if exists("actualCosts") ?>
-           (actcost(item_id) * iteminvpricerat(item_id))
-         &lt;? else ?>
-           (stdcost(item_id) * iteminvpricerat(item_id))
-         &lt;? endif ?>
-         AS cost
-    FROM ipsass, ipshead, ipsprice, item
-   WHERE ((ipsass_ipshead_id=ipshead_id)
-     AND (ipsprice_ipshead_id=ipshead_id)
-     AND (ipsprice_item_id=item_id)
-     AND (ipsass_cust_id=&lt;? value("cust_id") ?>)
-&lt;? if not exists("showExpired") ?>
-     AND (ipshead_expires > CURRENT_DATE)
-&lt;? endif ?>
-&lt;? if not exists("showFuture") ?>
-     AND (ipshead_effective &lt;= CURRENT_DATE)
-&lt;? endif ?>
-  )
-
-  UNION
-  SELECT ipsprice_id AS itemid, 2 AS sourcetype,
-         ipshead_name AS schedulename, 'Cust. Type' AS type,
-         item_number AS itemnumber, item_descrip1, item_descrip2,
-         ipsprice_qtybreak AS qtybreak, ipsprice_price AS price,
-         &lt;? if exists("actualCosts") ?>
-           (actcost(item_id) * iteminvpricerat(item_id))
-         &lt;? else ?>
-           (stdcost(item_id) * iteminvpricerat(item_id))
-         &lt;? endif ?>
-         AS cost
-    FROM ipsass, ipshead, ipsprice, item, custinfo
-   WHERE ((ipsass_ipshead_id=ipshead_id)
-     AND (ipsprice_ipshead_id=ipshead_id)
-     AND (ipsprice_item_id=item_id)
-     AND (ipsass_custtype_id=cust_custtype_id)
-     AND (cust_id=&lt;? value("cust_id") ?>)
-&lt;? if not exists("showExpired") ?>
-     AND (ipshead_expires > CURRENT_DATE)
-&lt;? endif ?>
-&lt;? if not exists("showFuture") ?>
-     AND (ipshead_effective &lt;= CURRENT_DATE)
-&lt;? endif ?>
-  )
-
-  UNION
-  SELECT ipsprice_id AS itemid, 3 AS sourcetype,
-         ipshead_name AS schedulename, ('Sale' || '-' || sale_name) AS type,
-         item_number AS itemnumber, item_descrip1, item_descrip2,
-         ipsprice_qtybreak AS qtybreak, ipsprice_price AS price,
-         &lt;? if exists("actualCosts") ?>
-           (actcost(item_id) * iteminvpricerat(item_id))
-         &lt;? else ?>
-           (stdcost(item_id) * iteminvpricerat(item_id))
-         &lt;? endif ?>
-         AS cost
-    FROM sale, ipshead, ipsprice, item
-   WHERE ((sale_ipshead_id=ipshead_id)
-     AND (ipsprice_ipshead_id=ipshead_id)
-     AND (ipsprice_item_id=item_id)
-&lt;? if not exists("showExpired") ?>
-     AND (sale_enddate > CURRENT_DATE)
-&lt;? endif ?>
-&lt;? if not exists("showFuture") ?>
-     AND (sale_startdate &lt;= CURRENT_DATE)
-&lt;? endif ?>
-  )
-
-  UNION
-  SELECT item_id AS itemid, 0 AS sourcetype,
-         '' AS schedulename, 'List Price' AS type,
-         item_number AS itemnumber, item_descrip1, item_descrip2,
-         -1 AS qtybreak, (item_listprice - (item_listprice * cust_discntprcnt)) AS price,
-         &lt;? if exists("actualCosts") ?>
-           (actcost(item_id) * iteminvpricerat(item_id))
-         &lt;? else ?>
-           (stdcost(item_id) * iteminvpricerat(item_id))
-         &lt;? endif ?>
-         AS cost
-    FROM item, custinfo
-   WHERE ( (item_sold)
-     AND (item_active)
-     AND (cust_id=&lt;? value("cust_id") ?>)
-     AND (NOT item_exclusive) )
-) AS data
-ORDER BY itemnumber, price;</sql>
+  <mqlgroup>prices</mqlgroup>
+  <mqlname>detail</mqlname>
  </querysource>
  <rpthead>
   <height>236</height>
@@ -507,7 +408,7 @@ ORDER BY itemnumber, price;</sql>
   <field>
    <rect>
     <x>665</x>
-    <y>5</y>
+    <y>4</y>
     <width>80</width>
     <height>15</height>
    </rect>
@@ -526,7 +427,7 @@ ORDER BY itemnumber, price;</sql>
   <label>
    <rect>
     <x>195</x>
-    <y>5</y>
+    <y>4</y>
     <width>100</width>
     <height>15</height>
    </rect>
@@ -542,7 +443,7 @@ ORDER BY itemnumber, price;</sql>
   <label>
    <rect>
     <x>425</x>
-    <y>5</y>
+    <y>4</y>
     <width>80</width>
     <height>15</height>
    </rect>
@@ -565,7 +466,7 @@ ORDER BY itemnumber, price;</sql>
   <label>
    <rect>
     <x>10</x>
-    <y>20</y>
+    <y>19</y>
     <width>155</width>
     <height>15</height>
    </rect>
@@ -581,7 +482,7 @@ ORDER BY itemnumber, price;</sql>
   <label>
    <rect>
     <x>505</x>
-    <y>5</y>
+    <y>4</y>
     <width>80</width>
     <height>15</height>
    </rect>
@@ -597,7 +498,7 @@ ORDER BY itemnumber, price;</sql>
   <field>
    <rect>
     <x>585</x>
-    <y>5</y>
+    <y>4</y>
     <width>80</width>
     <height>15</height>
    </rect>
@@ -616,7 +517,7 @@ ORDER BY itemnumber, price;</sql>
   <label>
    <rect>
     <x>320</x>
-    <y>5</y>
+    <y>4</y>
     <width>100</width>
     <height>15</height>
    </rect>
@@ -632,7 +533,7 @@ ORDER BY itemnumber, price;</sql>
   <label>
    <rect>
     <x>10</x>
-    <y>5</y>
+    <y>4</y>
     <width>100</width>
     <height>15</height>
    </rect>
@@ -725,8 +626,8 @@ ORDER BY itemnumber, price;</sql>
      <height>15</height>
     </rect>
     <font>
-     <face>Arial</face>
-     <size>8</size>
+     <face>Open Sans,Helvetica,Verdana,sans-serif</face>
+     <size>10</size>
      <weight>bold</weight>
     </font>
     <right/>
@@ -735,6 +636,7 @@ ORDER BY itemnumber, price;</sql>
      <query>detail</query>
      <column>f_cost</column>
     </data>
+    <format builtin="true">cost</format>
    </field>
    <field>
     <rect>
@@ -763,16 +665,17 @@ ORDER BY itemnumber, price;</sql>
      <height>15</height>
     </rect>
     <font>
-     <face>Arial</face>
-     <size>8</size>
+     <face>Open Sans,Helvetica,Verdana,sans-serif</face>
+     <size>10</size>
      <weight>bold</weight>
     </font>
     <right/>
     <vcenter/>
     <data>
      <query>detail</query>
-     <column>f_price</column>
+     <column>price</column>
     </data>
+    <format builtin="true">salesprice</format>
    </field>
    <field>
     <rect>
@@ -801,8 +704,8 @@ ORDER BY itemnumber, price;</sql>
      <height>15</height>
     </rect>
     <font>
-     <face>Arial</face>
-     <size>8</size>
+     <face>Open Sans,Helvetica,Verdana,sans-serif</face>
+     <size>10</size>
      <weight>bold</weight>
     </font>
     <right/>
@@ -811,6 +714,7 @@ ORDER BY itemnumber, price;</sql>
      <query>detail</query>
      <column>f_margin</column>
     </data>
+    <format builtin="true">cost</format>
    </field>
    <field>
     <rect>
@@ -838,7 +742,7 @@ ORDER BY itemnumber, price;</sql>
   <field>
    <rect>
     <x>90</x>
-    <y>0</y>
+    <y>1</y>
     <width>100</width>
     <height>15</height>
    </rect>
@@ -873,7 +777,7 @@ ORDER BY itemnumber, price;</sql>
   <label>
    <rect>
     <x>615</x>
-    <y>0</y>
+    <y>1</y>
     <width>85</width>
     <height>15</height>
    </rect>
@@ -889,7 +793,7 @@ ORDER BY itemnumber, price;</sql>
   <field>
    <rect>
     <x>705</x>
-    <y>0</y>
+    <y>1</y>
     <width>40</width>
     <height>15</height>
    </rect>

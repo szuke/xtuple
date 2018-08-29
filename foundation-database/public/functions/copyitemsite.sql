@@ -1,20 +1,10 @@
-CREATE OR REPLACE FUNCTION copyItemSite(pItemsiteid INTEGER,
-                                        pDestWhsid INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
--- See www.xtuple.com/CPAL for the full text of the software license.
-
-BEGIN
-
-  RETURN copyItemSite(pItemsiteid, pDestWhsid, NULL);
-
-END;
-$$ LANGUAGE plpgsql;
-
+DROP FUNCTION IF EXISTS copyItemSite(INTEGER, INTEGER);
+DROP FUNCTION IF EXISTS copyItemSite(INTEGER, INTEGER, INTEGER);
 
 CREATE OR REPLACE FUNCTION copyItemSite(pItemsiteid INTEGER,
                                         pDestWhsid INTEGER,
-                                        pDestItemid INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+                                        pDestItemid INTEGER DEFAULT NULL) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _destwhs  whsinfo%ROWTYPE;
@@ -73,12 +63,15 @@ BEGIN
   _new.itemsite_value                := 0;
   _new.itemsite_datelastcount        := NULL;
   _new.itemsite_datelastused         := NULL;
-  _new.itemsite_location_id          := -1;
-  _new.itemsite_recvlocation_id      := -1;
-  _new.itemsite_issuelocation_id     := -1;
-  _new.itemsite_location_dist        := FALSE;
-  _new.itemsite_recvlocation_dist    := FALSE;
-  _new.itemsite_issuelocation_dist   := FALSE;
+  IF (_new.itemsite_item_id = pdestitemid) THEN
+  -- Only clear location control when copying Itemsites (do not clear when copying Items)
+    _new.itemsite_location_id          := -1;
+    _new.itemsite_recvlocation_id      := -1;
+    _new.itemsite_issuelocation_id     := -1;
+    _new.itemsite_location_dist        := FALSE;
+    _new.itemsite_recvlocation_dist    := FALSE;
+    _new.itemsite_issuelocation_dist   := FALSE;
+  END IF;
 
   IF (_destwhs.warehous_transit) THEN
     _new.itemsite_reorderlevel         := 0;
