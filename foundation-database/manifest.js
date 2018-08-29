@@ -1256,6 +1256,7 @@
     "public/views/cust.sql",
     "public/views/docinfo.sql",
     "public/views/document_import.sql",
+    "public/views/files.sql",
     "public/views/flaccnt.sql",
     "public/views/invoiceitem.sql",
     "public/views/ipsprice.sql",

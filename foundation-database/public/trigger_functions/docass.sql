@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION _docassTrigger () RETURNS TRIGGER AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   IF (NEW.docass_source_type = 'INCDT') THEN
@@ -16,12 +16,18 @@ CREATE TRIGGER docassTrigger AFTER INSERT OR UPDATE ON docass FOR EACH ROW EXECU
 
 CREATE OR REPLACE FUNCTION _docassbeforetrigger()
   RETURNS trigger AS $$
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
 
   NEW.docass_username := geteffectivextuser();
   NEW.docass_created  := (SELECT CURRENT_TIMESTAMP);
+
+  IF (NEW.docass_target_type = 'XFILE') THEN
+    IF (SELECT count(*) > 0 FROM urlinfo WHERE url_id=NEW.docass_target_id) THEN
+      NEW.docass_target_type = 'URL';
+    END IF;
+  END IF; 
 
   RETURN NEW;
 END;

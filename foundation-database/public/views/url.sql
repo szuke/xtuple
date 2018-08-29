@@ -25,7 +25,7 @@ select
   null as url_stream,
   null as url_mime_type
 from urlinfo
-  join docass on ( docass_target_id = url_id ) and ( docass_target_type = 'URL' )
+  join docass on ( docass_target_id = url_id ) and ( docass_target_type IN ('URL', 'XFILE') )
 where checkfileprivs(url_id);
 
 grant all on url to xtrole;
