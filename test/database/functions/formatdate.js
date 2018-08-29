@@ -1,6 +1,5 @@
-var _      = require("underscore"),
-    assert = require("chai").assert,
-    dblib  = require("../dblib");
+var assert = require("chai").assert;
+var dblib  = require("../dblib");
 
 (function () {
   "use strict";
@@ -16,7 +15,9 @@ var _      = require("underscore"),
       datasource.query(sql, adminCred, function (err, res) {
         assert.isNull(err);
         assert.equal(res.rowCount, 1);
-        assert.closeTo(new Date(res.rows[0].result), new Date(), 1000 * 60 * 60 * 24);
+        assert.closeTo((new Date(res.rows[0].result)).valueOf(),
+                       (new Date()).valueOf(),
+                       1000 * 60 * 60 * 24);
         done();
       });
     });
@@ -26,7 +27,9 @@ var _      = require("underscore"),
       datasource.query(sql, adminCred, function (err, res) {
         assert.isNull(err);
         assert.equal(res.rowCount, 1);
-        assert.closeTo(new Date(res.rows[0].result), new Date(), 1000 * 60 * 60 * 24);
+        assert.closeTo((new Date(res.rows[0].result)).valueOf(),
+                       (new Date()).valueOf(),
+                       1000 * 60 * 60 * 24);
         done();
       });
     });
@@ -61,8 +64,6 @@ var _      = require("underscore"),
       });
     });
 
-
   });
 
 })();
-

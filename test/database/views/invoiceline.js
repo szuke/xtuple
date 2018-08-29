@@ -11,18 +11,9 @@ var _ = require("underscore"),
       config = require(path.join(__dirname, "../../../node-datasource/config.js")),
       creds = _.extend({}, config.databaseServer, {database: loginData.org}),
       inv;
-     
-
-    //creating invoice number for remainder of tests
-    it("something",function(){
-      var query = "select fetchInvcNumber() as r;";
-        datasource.query(query, creds, function(err,res){
-          inv = res.rows[0].r;
-        });
-    });
 
     function invoiceline(obj) {
-        
+
       return "ROW('" + obj.invoice_number        + "',"
                      + (obj.line_number           ?       obj.line_number           + ","  : "1,")
                      + (obj.item_number           ? "'" + obj.item_number           + "'," : "NULL,")
@@ -45,6 +36,15 @@ var _ = require("underscore"),
                      ;
     }
 
+    //creating invoice number for remainder of tests
+    it("cam fetch next Invoice number", function(done){
+      var query = "select fetchInvcNumber() as r;";
+        datasource.query(query, creds, function(err,res){
+          inv = res.rows[0].r;
+          done();
+        });
+    });
+
     it("should reject empty input on insert", function (done) {
       var sql = "select insertInvoiceLineItem() as result;";
       datasource.query(sql, creds, function (err, res) {
@@ -63,7 +63,7 @@ var _ = require("underscore"),
         done();
       });
     });
-    
+
     it("should allow creating a new invoice", function (done) {
       var invoice  = "ROW('"+inv+"', NULL, NULL, NULL, NULL,"
                +      "NULL, NULL, 0,"
@@ -76,14 +76,14 @@ var _ = require("underscore"),
                +      "0, NULL, 0, 'USD' , 0, 'invoice notes')",
           sql  = "select insertInvoice(%) as result;".replace(/%/g, invoice)
                  ;
-      
+
       datasource.query(sql, creds, function (err, res) {
         assert.isNull(err);
         assert.isTrue(res.rows[0].result);
         done();
       });
     });
- 
+
      it("should accept insert for existing invoice", function (done) {
       var line = invoiceline({invoice_number: inv,
                                  line_number: 1,
@@ -99,7 +99,7 @@ var _ = require("underscore"),
       });
     });
 
-  
+
     it("should reject update of non-existent invoice", function (done) {
       var line = invoiceline({invoice_number: 'non-existent'}),
           sql  = "select updateInvoiceLineItem(%, %) as result;".replace(/%/g, line)
@@ -120,7 +120,7 @@ var _ = require("underscore"),
           sql  = "select updateInvoiceLineItem(%, %) as result;".replace(/%/g, line)
         ;
       datasource.query(sql, creds, function (err, res) {
-         console.error(err); 
+         console.error(err);
         assert.isNotNull(err);
         assert.match(err, /xtuple:.*-1[^0-9]|not found/i);
         done();
@@ -141,8 +141,8 @@ var _ = require("underscore"),
         assert.isTrue(res.rows[0].result);
         done();
       });
-    }); 
- 
+    });
+
     after(function (done) {
       var sql = "delete from api.invoice where invoice_number = '" + inv + "';";
       datasource.query(sql, creds, done);
