@@ -36,7 +36,7 @@ BEGIN
                 THEN 'URL'
                 ELSE 'FILE'
            END                    AS doc_target_type,
-           url_id                 AS doc_target_id,
+           url_file_id            AS doc_target_id,
            url_source             AS doc_source_type,
            url_source_id          AS doc_source_id,
            url_title              AS doc_name,

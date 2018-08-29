@@ -15,8 +15,8 @@ SELECT docass_id AS id, file_id AS altid, 1 AS lvl, 'FILE' as doctype, file_titl
            ,charass_alias<? literal("char_id_date_list") ?>.charass_value::date AS char<? literal("char_id_date_list") ?>
        <? endforeach ?>
        , 0 AS xtindentrole
-       , hasPrivOnObject('view', docass_source_type, docass_source_id) AS canview
-       , hasPrivOnObject('edit', docass_source_type, docass_source_id) AS canedit
+       , hasPrivOnObject('view', docass_target_type, docass_target_id) AS canview
+       , hasPrivOnObject('edit', docass_target_type, docass_target_id) AS canedit
 FROM "file"
 JOIN (select DISTINCT ON (docass_target_type, docass_target_id) *
         FROM docass 
@@ -66,7 +66,7 @@ JOIN (select DISTINCT ON (docass_target_type, docass_target_id) *
      LEFT OUTER JOIN char char_alias<? literal("char_id_date_list") ?> 
                   ON (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=char_alias<? literal("char_id_date_list") ?>.char_id)
    <? endforeach ?>
-WHERE checkfileprivs(file_id)
+WHERE CASE WHEN fetchmetricbool('UnprivilegedViewDocInList') THEN TRUE ELSE checkfileprivs(file_id) END
 <? literal("charClause") ?>
 UNION
 -- URL links (includes non-imported File links)  
@@ -82,10 +82,10 @@ SELECT docass_id AS id, url_id AS altid, 1 AS lvl, 'URL' as doctype, url_title A
            ,charass_alias<? literal("char_id_date_list") ?>.charass_value::date AS char<? literal("char_id_date_list") ?>
        <? endforeach ?>
        , 0 AS xtindentrole
-       , hasPrivOnObject('view', docass_source_type, docass_source_id) AS canview
-       , hasPrivOnObject('edit', docass_source_type, docass_source_id) AS canedit
+       , hasPrivOnObject('view', docass_target_type, docass_target_id) AS canview
+       , hasPrivOnObject('edit', docass_target_type, docass_target_id) AS canedit
 FROM urlinfo
-JOIN (select DISTINCT ON (docass_target_type, docass_target_id) *
+JOIN (SELECT DISTINCT ON (docass_target_type, docass_target_id) *
         FROM docass 
        WHERE docass_target_type SIMILAR TO '(XFILE|URL)'
        <? if exists("importDateStart") ?>
@@ -133,7 +133,7 @@ JOIN (select DISTINCT ON (docass_target_type, docass_target_id) *
      LEFT OUTER JOIN char char_alias<? literal("char_id_date_list") ?> 
                   ON (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=char_alias<? literal("char_id_date_list") ?>.char_id)
    <? endforeach ?>
-WHERE checkfileprivs(url_id)
+WHERE CASE WHEN fetchmetricbool('UnprivilegedViewDocInList') THEN TRUE ELSE checkfileprivs(url_id) END
 <? literal("charClause") ?>
 UNION
 -- Document assignments
@@ -177,7 +177,7 @@ FROM docass
                   ON (charass_alias<? literal("char_id_date_list") ?>.charass_char_id=char_alias<? literal("char_id_date_list") ?>.char_id)
    <? endforeach ?>
 WHERE docass_target_type SIMILAR TO '(%FILE|URL)'
-  AND checkfileprivs(docass_target_id)
+  AND CASE WHEN fetchmetricbool('UnprivilegedViewDocInList') THEN TRUE ELSE checkfileprivs(docass_target_id) END
 <? if exists("importDateStart") ?>
   AND docass_created >= <? value("importDateStart") ?>
 <? endif ?>

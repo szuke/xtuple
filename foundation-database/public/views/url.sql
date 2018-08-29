@@ -1,34 +1,36 @@
 DROP VIEW IF EXISTS public.url CASCADE;
 
-create or replace view url as 
+create or replace view public.url as 
 
 select
   docass_id as url_id,
   docass_source_id as url_source_id,
   docass_source_type as url_source,
   docass_notes AS url_notes,
+  file_id as url_file_id,
   file_title as url_title,
   file_descrip as url_url,
   file_stream as url_stream,
   file_mime_type as url_mime_type
 from file
   join docass on ( docass_target_id = file_id ) and ( docass_target_type IN ('FILE', 'XFILE') )
-where checkfileprivs(file_id)
+where case when fetchmetricbool('UnprivilegedViewDocInList') then true else checkfileprivs(file_id) end
 union all
 select 
   docass_id as url_id,
   docass_source_id as url_source_id,
   docass_source_type as url_source,
   docass_notes AS url_notes,
+  url_id as url_file_id,
   url_title,
   url_url,
   null as url_stream,
   null as url_mime_type
 from urlinfo
   join docass on ( docass_target_id = url_id ) and ( docass_target_type IN ('URL', 'XFILE') )
-where checkfileprivs(url_id);
+where case when fetchmetricbool('UnprivilegedViewDocInList') then true else checkfileprivs(url_id) end;
 
-grant all on url to xtrole;
+grant all on public.url to xtrole;
 
 -- insert rules
 
