@@ -1,6 +1,6 @@
 select xt.install_js('XT','Schema','xtuple', $$
 
-(function () {
+(function XT_Schema () {
 
   /**
    * @class
@@ -34,7 +34,8 @@ select xt.install_js('XT','Schema','xtuple', $$
         funcSql,
         res,
         funcRes,
-        ret = {};
+        ret = {},
+        params = [];
 
     /* Get the schema and table from the ORM table property. */
     schemaTable = ormSchemaTable.split(".");
@@ -97,19 +98,22 @@ select xt.install_js('XT','Schema','xtuple', $$
             'and table_name = $2 ' +
             'and column_name in (';
 
+    params.push(schema);
+    params.push(table);
+
     /* Build column_name in (...) string. */
     for (var i = 0; i < ormColumns.length; i++) {
+      params.push(ormColumns[i]);
       if (i === 0) {
-        colNames = colNames + "'" + ormColumns[i] + "'";
+        colNames = colNames + "$" + params.length;
       } else {
-        colNames = colNames + ", '" + ormColumns[i] + "'";
+        colNames = colNames + ", $" + params.length;
       }
     }
 
-    /* TODO - $3 in sql doesn't work for column_name in (...). */
     sql = sql + colNames + ")";
 
-    res = plv8.execute(sql, [schema, table]);
+    res = plv8.execute(sql, params);
 
     if (!res.length) {
       return false;
