@@ -8,19 +8,18 @@
     "url": "https://github.com/xtuple/xtuple.git"
   },
   "dependencies": {
-    "async": "0.2.x",
+    "async": "^2.6.0",
     "backbone": "0.9.10",
     "backbone-relational": "0.8.0",
-    "bcrypt": "^0.8.0",
-    "colors": "0.6.x",
-    "commander": "1.2.x",
+    "bcrypt": "^1.0.3",
+    "colors": "^1.2.1",
+    "commander": "^2.15.1",
     "connect-ensure-login": "0.1.x",
-    "ejs": "0.8.x",
+    "ejs": "^2.5.8",
     "express": "3.1.x",
     "json-patch": "git://github.com/xtuple/JSON-Patch.git",
     "less": "1.5.0",
-    "moment": "2.4.x",
-    "node-forge": "0.6.x",
+    "node-forge": "^0.7.5",
     "nodemailer": "0.3.x",
     "oauth2orize": "0.1.x",
     "oauth2orize-jwt-bearer": "0.1.x",
@@ -32,23 +31,23 @@
     "passport-oauth2-jwt-bearer": "0.1.x",
     "paynode": "0.3.6",
     "pegjs": "0.8.x",
-    "pg": "0.14.x",
-    "request": "2.14.x",
-    "rimraf": "2.2.x",
+    "pg": "^4.5.7",
+    "request": "^2.85.0",
+    "rimraf": "^2.6.2",
     "rjson": "~0.2.4",
-    "socket.io": "0.9.x",
-    "underscore": "1.6.x",
+    "socket.io": "^2.1.0",
+    "underscore": "^1.8.3",
     "xtuple-linguist": "0.1.x"
   },
   "devDependencies": {
-    "chai": "1.5.x",
-    "mocha": "1.9.x",
+    "chai": "^4.1.0",
+    "csslint": "~0.10.0",
     "jshint": "2.8.x",
-    "nodemon": "~1.0.15",
-    "csslint": "~0.10.0"
+    "mocha": "^5.0.0",
+    "nodemon": "~1.0.15"
   },
   "engines": {
-    "node": "0.10.32"
+    "node": "0.8.x"
   },
   "main": "node-datasource/main.js",
   "scripts": {

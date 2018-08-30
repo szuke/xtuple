@@ -8,7 +8,38 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
   "use strict";
 
   require('../../xt/');
-  require('../../xt/database/database');
+
+  var pg = require("pg");
+
+  /*
+   * Updated versions of `node-postgres` no longer automatically parses `bigint`
+   * and `numeric` datatypes in JavaScript. This is because JavaScript's
+   * `Number` class cannot accurately represent very large numbers. We add back
+   * in the parsing so these values come back from queries as numbers and not
+   * strings like the old versions did automatically.
+   *
+   * @see
+   * https://github.com/brianc/node-postgres/issues/339
+   * https://github.com/brianc/node-postgres/pull/353#issuecomment-19117695
+   * https://github.com/brianc/node-pg-types#use
+   *
+   * TODO: Proper large number support in JavaScript requires adding a library
+   * to our stack and using it everywhere. The `decimal.js` library is an option
+   * used by `Math.js`. There may soon be support in native JavaScript that can
+   * help:
+   * @see
+   * https://v8project.blogspot.com/2018/05/bigint.html
+   *
+   * @see
+   * https://github.com/MikeMcl/decimal.js
+   * https://github.com/josdejong/mathjs
+   */
+  pg.types.setTypeParser(20, function(val) {
+    return parseInt(val); // The `int8` type.
+  });
+  pg.types.setTypeParser(1700, function (value) {
+    return parseFloat(value); // The `numeric` type.
+  });
 
   var RJSON = require("rjson"),
     path = require('path'),
@@ -55,32 +86,7 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
       init: function () {
         var that = this;
 
-        X.pg.defaults.poolSize = this.poolSize;
-
-        if (X.options && X.options.datasource && X.options.datasource.pgWorker) {
-          // Single worker version.
-          this.worker = require('child_process').fork(
-            path.join(__dirname, '../workers/pg_worker.js')
-          );
-
-          this.worker.on('message', function (m) {
-            var callback = that.callbacks[m.id];
-            delete that.callbacks[m.id];
-
-            if (!m.err) {
-              callback(m.err, m.result);
-            }
-          });
-
-          this.worker.on('exit', function (code, signal) {
-            var pid = that.worker.pid,
-                exitCode = that.worker.exitCode,
-                signalCode = that.worker.signalCode;
-
-            X.err('pgWorker ' + pid + ' died (exitCode: ' + exitCode +
-              ' signalCode: ' + signalCode + '). Cannot run any more queries.');
-          });
-        }
+        pg.defaults.poolSize = this.poolSize;
       },
 
       /**
@@ -122,7 +128,7 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
             X.capture(query);
             X.debug(query);
           }
-          X.pg.connect(this.creds, _.bind(this.connected, this, query, options, callback));
+          pg.connect(this.creds, _.bind(this.connected, this, query, options, callback));
         }
       },
 
@@ -136,7 +142,6 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
       * instead of starting node with the debugger running: "sudo node --debug-brk main.js".
       */
       connected: function (query, options, callback, err, client, done) {
-        // WARNING!!! If you make any changes here, please update pg_worker.js as well.
         if (err) {
           X.exception.handle(X.warning("Failed to connect to database: " +
             "{host}:{port}/{database} => %@".f(options, err.message)));
@@ -274,9 +279,9 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
             // Now that the client has been destroyed, for the pool to function
             // correctly, we need to add one back to take its place.
             // @see: https://github.com/brianc/node-postgres/issues/1460
-            X.pg.pools.all[JSON.stringify(that.creds)].acquire(function (newErr, newClient) {
+            pg.pools.all[JSON.stringify(that.creds)].acquire(function (newErr, newClient) {
               // But we don't actually need it, so release it back to the pool.
-              X.pg.pools.all[JSON.stringify(that.creds)].release(newClient);
+              pg.pools.all[JSON.stringify(that.creds)].release(newClient);
 
               // Once the client has been added to the pool, call the callback.
               callback(err, result);
@@ -402,7 +407,7 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
     };
     _.each(databases, function (database) {
       var creds = DataSource.getAdminCredentials(database);
-      X.pg.connect(creds, function (err, client, done) {
+      pg.connect(creds, function (err, client, done) {
         if (err) {
           return console.error('error fetching client from pool', err);
         }
@@ -420,7 +425,7 @@ Backbone:true, _:true, X:true, __dirname:true, exports:true, module: true */
     });
   };
 
-  XT.dataSource = X.Database.create(DataSource);
+  XT.dataSource = DataSource;
 
   module.exports = {
     api: DataSource,

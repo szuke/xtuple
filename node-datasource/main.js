@@ -516,20 +516,6 @@ redirectServer.get(/.*/, routes.redirect); // RegEx for "everything"
 redirectServer.listen(X.options.datasource.redirectPort, X.options.datasource.bindAddress);
 
 /**
- * Start the express server. This is the NEW way.
- */
-// TODO - Active browser sessions can make calls to this server when it hasn't fully started.
-// That can cause it to crash at startup.
-// Need a way to get everything loaded BEFORE we start listening.  Might just move this to the end...
-io = socketio.listen(server.listen(X.options.datasource.port, X.options.datasource.bindAddress));
-
-X.log("Server listening at: ", X.options.datasource.bindAddress);
-X.log("node-datasource started on port: ", X.options.datasource.port);
-X.log("redirectServer started on port: ", X.options.datasource.redirectPort);
-X.log("Databases accessible from this server: \n", JSON.stringify(X.options.datasource.databases, null, 2));
-
-
-/**
  * Destroy a single session.
  * @param {Object} val - Session object.
  * @param {String} key - Session id.
@@ -564,33 +550,6 @@ destroySession = function (key, val) {
   });
 };
 
-// TODO - Use NODE_ENV flag to switch between development and production.
-// See "Understanding the configure method" at:
-// https://github.com/LearnBoost/Socket.IO/wiki/Configuring-Socket.IO
-io.configure(function () {
-  "use strict";
-
-  io.set('log', false);
-  // TODO - We need to implement a store for this if we run multiple processes:
-  // https://github.com/LearnBoost/socket.io/tree/0.9/lib/stores
-  //http://stackoverflow.com/questions/9267292/examples-in-using-redisstore-in-socket-io/9275798#9275798
-  //io.set('store', someNewStore);                // Use our someNewStore.
-  io.set('browser client minification', true);  // Send minified file to the client.
-  io.set('browser client etag', true);          // Apply etag caching logic based on version number
-  // TODO - grubmle - See prototype stomp above:
-  // https://github.com/LearnBoost/socket.io/issues/932
-  // https://github.com/LearnBoost/socket.io/issues/984
-  io.set('browser client gzip', true);          // gzip the file.
-  //io.set('log level', 1);                       // Reduce logging.
-  io.set('transports', [                        // Enable all transports.
-      'websocket',
-      'htmlfile',
-      'xhr-polling',
-      'jsonp-polling'
-    ]
-  );
-});
-
 /**
  * Setup socket.io routes and handlers.
  *
@@ -599,9 +558,15 @@ io.configure(function () {
  * http://stackoverflow.com/questions/13095418/how-to-use-passport-with-express-and-socket-io
  * https://github.com/jfromaniello/passport.socketio
  */
-io.of('/clientsock').authorization(function (handshakeData, callback) {
+io = socketio(server, {
+  serveClient: true,
+  transports: ['polling', 'websocket']
+});
+
+io.of('/clientsock').use(function(socket, callback) {
   "use strict";
 
+  var handshakeData = socket.request;
   var key;
 
   if (handshakeData.headers.cookie) {
@@ -661,7 +626,7 @@ io.of('/clientsock').authorization(function (handshakeData, callback) {
   "use strict";
 
   var ensureLoggedIn = function (callback, payload) {
-        socket.handshake.sessionStore.get(socket.handshake.sessionID, function (err, session) {
+        socket.request.sessionStore.get(socket.request.sessionID, function (err, session) {
           var expires,
               current;
 
@@ -672,21 +637,21 @@ io.of('/clientsock').authorization(function (handshakeData, callback) {
               !session.passport.user.username ||
               !session.cookie || !session.cookie.expires) {
 
-            return destroySession(socket.handshake.sessionID, session);
+            return destroySession(socket.request.sessionID, session);
           }
 
           // Make sure the sesion hasn't expired yet.
           expires = new Date(session.cookie.expires);
           current = new Date();
           if (expires <= current) {
-            return destroySession(socket.handshake.sessionID, session);
+            return destroySession(socket.request.sessionID, session);
           } else {
             // User is still valid
 
             // Update session expiration timeout, unless this is an automated call of
             // some sort (e.g. lock refresh)
             if (!payload || !payload.automatedRefresh) {
-              socket.handshake.session.touch().save();
+              socket.request.session.touch().save();
             }
 
             // Move along.
@@ -697,8 +662,8 @@ io.of('/clientsock').authorization(function (handshakeData, callback) {
 
   // Save socket.id to the session store so we can disconnect that socket server side
   // when a session is timed out. That should notify the client imediately they have timed out.
-  socket.handshake.session.socket = {id: socket.id};
-  socket.handshake.session.save();
+  socket.request.session.socket = {id: socket.id};
+  socket.request.session.save();
 
   // To run this from the client:
   // ???
@@ -768,3 +733,9 @@ setInterval(function () {
     //X.debug("session cleanup called at: ", new Date());
     sessionStore.expireSessions(destroySession);
   }, 60000);
+
+server.listen(X.options.datasource.port, X.options.datasource.bindAddress);
+X.log("Server listening at: ", X.options.datasource.bindAddress);
+X.log("node-datasource started on port: ", X.options.datasource.port);
+X.log("redirectServer started on port: ", X.options.datasource.redirectPort);
+X.log("Databases accessible from this server: \n", JSON.stringify(X.options.datasource.databases, null, 2));

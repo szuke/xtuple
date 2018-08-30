@@ -1,4 +1,5 @@
 var _       = require('underscore'),
+    async = require('async'),
     assert  = require('chai').assert;
 
 (function () {
@@ -27,29 +28,49 @@ var _       = require('underscore'),
       var deleteEmailAddrfunction = function () {
         dblib.deleteUser(emailAddr.toLowerCase(), deleteAccountsfunction);
       };
+      var deleteAccountInfo = function (sql, cred, next) {
+        datasource.query(sql, cred, function (err, res) {
+          assert.isNull(err);
+          assert.isNotNull(res);
+
+          next();
+        });
+      };
+
       var deleteAccountsfunction = function () {
         var accounts = [
           'TESTY',
           emailAddr.toUpperCase(),
           emailUser.toUpperCase()
         ];
-        accounts.forEach(function (acct, index) {
-            var deleteSql = [
-              "delete from vendinfo where vend_number    = $1;",
-              "delete from custinfo where cust_number    = $1;",
-              "delete from crmacct  where crmacct_number = $1;"
-            ];
-            deleteSql.forEach(function (sql, deleteIndex) {
-              var cred = _.extend({}, adminCred, { parameters: [ acct ] });
-              datasource.query(sql, cred, function (err, res) {
-                assert.isNull(err);
-                assert.isNotNull(res);
+        var series = [];
 
-                if (index === accounts.length - 1 && deleteIndex === deleteSql.length - 1) {
-                  done();
-                }
-              });
-            });
+        accounts.forEach(function (acct) {
+          series.push(function (next) {
+            deleteAccountInfo(
+              "delete from vendinfo where vend_number = $1;",
+              _.extend({}, adminCred, { parameters: [ acct ] }),
+              next
+            );
+          });
+          series.push(function (next) {
+            deleteAccountInfo(
+              "delete from custinfo where cust_number = $1;",
+              _.extend({}, adminCred, { parameters: [ acct ] }),
+              next
+            );
+          });
+          series.push(function (next) {
+            deleteAccountInfo(
+              "delete from crmacct  where crmacct_number = $1;",
+              _.extend({}, adminCred, { parameters: [ acct ] }),
+              next
+            );
+          });
+        });
+
+        async.series(series, function (err) {
+          done(err);
         });
       };
 
