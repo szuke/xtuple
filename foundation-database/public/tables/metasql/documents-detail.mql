@@ -15,8 +15,9 @@ SELECT docass_id AS id, file_id AS altid, 1 AS lvl, 'FILE' as doctype, file_titl
            ,charass_alias<? literal("char_id_date_list") ?>.charass_value::date AS char<? literal("char_id_date_list") ?>
        <? endforeach ?>
        , 0 AS xtindentrole
-       , hasPrivOnObject('view', docass_target_type, docass_target_id) AS canview
-       , hasPrivOnObject('edit', docass_target_type, docass_target_id) AS canedit
+       , false AS canview
+       , false AS canedit
+       , hasPrivOnObject('edit', docass_target_type, docass_target_id) AS fileedit
 FROM "file"
 JOIN (select DISTINCT ON (docass_target_type, docass_target_id) *
         FROM docass 
@@ -82,8 +83,9 @@ SELECT docass_id AS id, url_id AS altid, 1 AS lvl, 'URL' as doctype, url_title A
            ,charass_alias<? literal("char_id_date_list") ?>.charass_value::date AS char<? literal("char_id_date_list") ?>
        <? endforeach ?>
        , 0 AS xtindentrole
-       , hasPrivOnObject('view', docass_target_type, docass_target_id) AS canview
-       , hasPrivOnObject('edit', docass_target_type, docass_target_id) AS canedit
+       , false AS canview
+       , false AS canedit
+       , hasPrivOnObject('edit', docass_target_type, docass_target_id) AS fileedit
 FROM urlinfo
 JOIN (SELECT DISTINCT ON (docass_target_type, docass_target_id) *
         FROM docass 
@@ -151,6 +153,7 @@ SELECT docass_id, docass_target_id, 2 AS lvl, REPLACE(docass_target_type, 'X', '
        , 1 AS xtindentrole
        , hasPrivOnObject('view', docass_source_type, docass_source_id) AS canview
        , hasPrivOnObject('edit', docass_source_type, docass_source_id) AS canedit
+       , hasPrivOnObject('edit', docass_target_type, docass_target_id) AS fileedit
 FROM docass
 <? foreach("char_id_text_list") ?>
      LEFT OUTER JOIN charass charass_alias<? literal("char_id_text_list") ?> 
