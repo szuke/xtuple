@@ -8,11 +8,15 @@ SELECT DISTINCT ON ( cust_number )
   cust_id, cust_custtype_id, 
   cust_active, cust_number, cust_name,
   custtype_code,
+  formatBoolYN(cust_active) as f_active,
+  formatAddr(bill_addr.addr_id) AS f_bill_addr,
+  formatAddr(corr_addr.addr_id) AS f_corr_addr,
   CASE cust_creditstatus WHEN 'W' THEN <? value('creditwarn')?>
 			WHEN 'H' THEN <? value('credithold')?>
 			WHEN 'G' THEN ''  -- Good Status
 			ELSE cust_creditstatus
 			END as holdtype,
+  bill_cntct.cntct_name AS bill_cntct_name,
   bill_cntct.cntct_first_name AS bill_first_name,
   bill_cntct.cntct_last_name AS bill_last_name,
   bill_cntct.cntct_title AS bill_title,
@@ -26,6 +30,7 @@ SELECT DISTINCT ON ( cust_number )
   bill_addr.addr_state AS bill_state,
   bill_addr.addr_postalcode AS bill_postalcode,
   bill_addr.addr_country AS bill_country,
+  corr_cntct.cntct_name AS corr_cntct_name,
   corr_cntct.cntct_first_name AS corr_first_name,
   corr_cntct.cntct_last_name AS corr_last_name,
   corr_cntct.cntct_phone AS corr_phone,
