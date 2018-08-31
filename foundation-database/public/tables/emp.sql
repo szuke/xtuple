@@ -41,8 +41,6 @@ SELECT
                     'FOREIGN KEY (emp_cntct_id) REFERENCES cntct(cntct_id)', 'public'),
   xt.add_constraint('emp', 'emp_emp_dept_id_fkey',
                     'FOREIGN KEY (emp_dept_id) REFERENCES dept(dept_id)', 'public'),
-  xt.add_constraint('emp', 'emp_emp_image_id_fkey',
-                    'FOREIGN KEY (emp_image_id) REFERENCES image(image_id)', 'public'),
   xt.add_constraint('emp', 'emp_emp_mgr_emp_id_fkey',
                     'FOREIGN KEY (emp_mgr_emp_id) REFERENCES emp(emp_id)', 'public'),
   xt.add_constraint('emp', 'emp_emp_shift_id_fkey',
@@ -51,6 +49,8 @@ SELECT
                     'FOREIGN KEY (emp_wage_curr_id) REFERENCES curr_symbol(curr_id)', 'public'),
   xt.add_constraint('emp', 'emp_emp_warehous_id_fkey',
                     'FOREIGN KEY (emp_warehous_id) REFERENCES whsinfo(warehous_id)', 'public');
+
+ALTER TABLE public.emp DROP CONSTRAINT IF EXISTS emp_emp_image_id_fkey;
 
 ALTER TABLE public.emp ENABLE TRIGGER ALL;
 
