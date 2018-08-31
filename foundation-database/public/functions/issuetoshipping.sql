@@ -274,12 +274,12 @@ BEGIN
       END IF;
 
       INSERT INTO shiphead
-      ( shiphead_id, shiphead_number, shiphead_order_id, shiphead_order_type,
+      ( shiphead_number, shiphead_order_id, shiphead_order_type,
 	shiphead_shipped,
 	shiphead_sfstatus, shiphead_shipvia, shiphead_shipchrg_id,
 	shiphead_freight, shiphead_freight_curr_id,
 	shiphead_shipdate, shiphead_notes, shiphead_shipform_id )
-      SELECT _shipheadid, _shipnumber, tohead_id, pordertype,
+      SELECT _shipnumber, tohead_id, pordertype,
 	     FALSE,
 	     'N', tohead_shipvia, tohead_shipchrg_id,
 	     tohead_freight + SUM(toitem_freight), tohead_freight_curr_id,
@@ -306,6 +306,15 @@ BEGIN
            ELSE _invhistid
       END
     );
+
+    UPDATE pack
+    SET pack_shiphead_id = _shipheadid,
+        pack_printed = FALSE
+    FROM toitem
+    WHERE ((pack_head_id=toitem_tohead_id)
+      AND  (pack_shiphead_id IS NULL)
+      AND  (pack_head_type='TO')
+      AND  (toitem_id=pitemid));
 
   ELSE
     RETURN -11;

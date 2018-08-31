@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION addToPackingListBatch(INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pSoheadid	ALIAS FOR $1;
@@ -22,7 +22,7 @@ $$ LANGUAGE 'plpgsql';
 
 
 CREATE OR REPLACE FUNCTION addToPackingListBatch(INTEGER, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 BEGIN
   RETURN addToPackingListBatch('SO', $1, $2);
@@ -31,7 +31,7 @@ $$ LANGUAGE 'plpgsql';
 
 
 CREATE OR REPLACE FUNCTION addToPackingListBatch(TEXT, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pheadtype	ALIAS FOR $1;
@@ -55,7 +55,7 @@ $$ LANGUAGE 'plpgsql';
 
 
 CREATE OR REPLACE FUNCTION addToPackingListBatch(INTEGER, TEXT, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pwarehousid	ALIAS FOR $1;
@@ -77,7 +77,7 @@ $$ LANGUAGE 'plpgsql';
 
 
 CREATE OR REPLACE FUNCTION addToPackingListBatch(TEXT, INTEGER, INTEGER) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pheadtype	ALIAS FOR $1;
@@ -89,7 +89,7 @@ BEGIN
   SELECT pack_id INTO _check
   FROM pack
   WHERE ((pack_head_id=pheadid)
-    AND  ((pack_shiphead_id=pshipheadid) OR 
+    AND  ((pack_shiphead_id=pshipheadid) OR
 	  (pshipheadid IS NULL AND pack_shiphead_id IS NULL))
     AND  (pack_head_type=pheadtype)
 	);
@@ -103,7 +103,7 @@ BEGIN
     IF ( (pheadtype = 'SO') AND (fetchMetricBool('FirmSalesOrderPackingList')) ) THEN
       UPDATE coitem SET coitem_firm=TRUE
       WHERE (coitem_cohead_id=pheadid);
-    END IF; 
+    END IF;
   END IF;
 
   RETURN pheadid;
