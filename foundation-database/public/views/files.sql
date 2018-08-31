@@ -11,7 +11,7 @@ CREATE OR REPLACE VIEW public.files AS
    WHERE checkfileprivs(file_id)
 UNION ALL
  SELECT url_id,
-    'LINK',
+    'URL',
     urlinfo.url_title,
     urlinfo.url_url,
     NULL::bytea AS url_stream,
