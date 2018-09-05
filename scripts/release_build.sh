@@ -152,10 +152,15 @@ while [[ $1 =~ ^- ]] ; do
         DEBUG=true
         ;;
     --*=*)
-        REPO=$(expr   "$1" : "--\(.*\)=.*")
-        RAWTAG=$(expr "$1" : ".*=\(.*\)")
-        setConfig $REPO tag   $RAWTAG
-        setConfig $REPO build true
+        [[ "$1" =~ --(.*)=(.*) ]]
+        REPO="${BASH_REMATCH[1]}"
+        RAWTAG="${BASH_REMATCH[2]}"
+        if [ "$RAWTAG" = NO ] ; then
+          setConfig $REPO build false
+        else
+          setConfig $REPO tag   $RAWTAG
+          setConfig $REPO build true
+        fi
         ;;
     *)  echo "$PROG: unrecognized option $1"
         usage
@@ -204,7 +209,9 @@ echo "BUILDING RELEASE ${MAJ}.${MIN}.${PAT}"
 CNT=0
 while [ $CNT -lt ${#CONFIG[*]} ] ; do
   MODULE=$(echo ${CONFIG[$CNT]} | awk '{ print $1 }')
-  gitco $MODULE || $DEBUG
+  if $($(getConfig $MODULE build)) ; then
+    gitco $MODULE || $DEBUG
+  fi
   CNT=$(($CNT + 1))
 done
 
