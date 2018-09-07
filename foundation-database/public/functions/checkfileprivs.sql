@@ -1,4 +1,4 @@
-DROP FUNCTION IF EXISTS checkfileprivs(INTEGER, TEXT);
+DROP FUNCTION IF EXISTS checkfileprivs(INTEGER, TEXT) CASCADE;
 
 CREATE OR REPLACE FUNCTION checkfileprivs(pFileid INTEGER, 
                            pUsername TEXT DEFAULT getEffectiveXtUser()) 
