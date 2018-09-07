@@ -19,3 +19,4 @@ UNION ALL
    FROM urlinfo
    WHERE url_url LIKE 'file%'
      AND checkfileprivs(url_id)
+;
