@@ -12,5 +12,6 @@ CREATE TYPE _docinfo AS (
   source_id     integer,
   name          text,
   description   text,
-  purpose       text
+  purpose       text,
+  notes         text
 );

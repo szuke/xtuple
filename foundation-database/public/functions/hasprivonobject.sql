@@ -2,7 +2,7 @@ CREATE OR REPLACE FUNCTION hasPrivOnObject(pPrivType   TEXT,
                                            pObjectType TEXT,
                                            pObjectId   INTEGER = NULL,
                                            pUser       TEXT    = NULL) RETURNS BOOLEAN AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _haspriv   BOOLEAN := FALSE;
@@ -17,10 +17,12 @@ BEGIN
                      pPrivType, pObjectType, pPrivType, pObjectType;
   END IF;
 
-  /* TODO: create privdesc table? can't do it yet because this is a fix for a minor release
+ /*
+     TODO: create privdesc table? cant do it yet because this is a fix for a minor release
      NOTE: only include tables that have a single integer column as pkey
      NOTE: some of these are part of proprietary extensions. how do we make them part of the extension?
-  */
+ */
+
   FOR _privdesc IN
   WITH privdesc AS (
     SELECT 'ADDR' AS otype,    'public' AS masterschema,
@@ -108,10 +110,16 @@ BEGIN
     EXIT WHEN _haspriv;
   END LOOP;
 
+-- Handle separate case for File Permissions (more granular)
+  IF (pObjectType SIMILAR TO '(%FILE|URL)') THEN
+    _privfound := TRUE;
+    _haspriv := checkfileprivs(pObjectId, COALESCE(pUser, geteffectivextuser()));
+  END IF;
+
   RETURN _haspriv OR NOT _privfound;
 
 END;
-$$ LANGUAGE 'plpgsql' STABLE;
+$$ LANGUAGE 'plpgsql';
 
 COMMENT ON FUNCTION hasPrivOnObject(pPrivType TEXT, pObjectType TEXT, pObjectId INTEGER, pUser TEXT) IS
 'Return if a user has permission to view or edit a specific database object.

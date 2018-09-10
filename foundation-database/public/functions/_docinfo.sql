@@ -22,7 +22,8 @@ BEGIN
            imageass_source_id     AS doc_source_id,
            image_name             AS doc_name,
            image_descrip          AS doc_descrip,
-           imageass_purpose::text AS doc_purpose
+           imageass_purpose::text AS doc_purpose,
+           NULL::TEXT             AS doc_notes
       FROM imageass
       JOIN image ON image_id = imageass_image_id
      WHERE imageass_source_id = pRefId
@@ -35,12 +36,13 @@ BEGIN
                 THEN 'URL'
                 ELSE 'FILE'
            END                    AS doc_target_type,
-           url_id                 AS doc_target_id,
+           url_file_id            AS doc_target_id,
            url_source             AS doc_source_type,
            url_source_id          AS doc_source_id,
            url_title              AS doc_name,
            url_url                AS doc_descrip,
-           'S'::text              AS doc_purpose
+           'S'::text              AS doc_purpose,
+           url_notes              AS doc_notes  
       FROM url
      WHERE url_source_id = pRefId
        AND url_source = pRefType
@@ -51,7 +53,7 @@ BEGIN
 
   FOR _target IN SELECT docass_id,        docass_purpose,
                         docass_target_id, docass_target_type,
-                        source_id
+                        source_id, docass_notes
                    FROM docass
                    JOIN source         ON docass_target_type = source_docass
                    JOIN pg_class c     ON source_table = relname
@@ -63,7 +65,7 @@ BEGIN
 
            UNION SELECT docass_id,        docass_purpose,
                         docass_source_id, docass_source_type,
-                        source_id
+                        source_id, docass_notes
                    FROM docass
                    JOIN source         ON docass_source_type = source_docass
                    JOIN pg_class c     ON source_table = relname
@@ -83,7 +85,8 @@ BEGIN
                        pRefId,
                        target_doc_name,
                        target_doc_descrip,
-                       _target.docass_purpose
+                       _target.docass_purpose,
+                       _target.docass_notes
                   FROM _getTargetDocument(_target.docass_id, _target.source_id, pRefId)
      LOOP
        RETURN NEXT _row;

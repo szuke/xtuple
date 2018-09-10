@@ -1,13 +1,13 @@
 -- Group: documents
 -- Name: list
 -- Notes: used by documents tab
---        Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+--        Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 --        See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT
   id, target_number, target_type,
   target_id AS target_number_xtidrole, source_type, source_id, purpose,
-  name, description,
+  name, description, notes,
   hasPrivOnObject('view', target_type, target_id) AS canview,
   hasPrivOnObject('edit', target_type, target_id) AS canedit,
   CASE
@@ -36,6 +36,8 @@ SELECT
     WHEN (target_type='CMI') THEN <? value("creditmemoitem") ?>
     WHEN (target_type='C') THEN <? value("cust") ?>
     WHEN (target_type='EMP') THEN <? value("emp") ?>
+    WHEN (target_type='FADOC') THEN <? value("asset") ?>
+    WHEN (target_type='FAMAINT') THEN <? value("maintorder") ?>
     WHEN (target_type='INCDT') THEN <? value("incident") ?>
     WHEN (target_type='INV') THEN <? value("invoice") ?>
     WHEN (target_type='INVI') THEN <? value("invoiceitem") ?>
@@ -65,7 +67,7 @@ SELECT
     WHEN (target_type='W') THEN <? value("wo") ?>
     WHEN (target_type='TASK') THEN <? value("projecttask") ?>
     WHEN (target_type='URL') THEN <? value("url") ?>
-    WHEN (target_type='FILE') THEN <? value("file") ?>
+    WHEN (target_type='FILE' OR target_type='XFILE') THEN <? value("file") ?>
     WHEN (target_type='IMG') THEN <? value("image") ?>
     ELSE NULL
   END AS target_type_qtdisplayrole

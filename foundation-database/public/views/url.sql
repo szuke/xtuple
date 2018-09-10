@@ -1,28 +1,36 @@
-create or replace view url as 
+DROP VIEW IF EXISTS public.url CASCADE;
+
+create or replace view public.url as 
 
 select
   docass_id as url_id,
   docass_source_id as url_source_id,
   docass_source_type as url_source,
+  docass_notes AS url_notes,
+  file_id as url_file_id,
   file_title as url_title,
   file_descrip as url_url,
   file_stream as url_stream,
   file_mime_type as url_mime_type
 from file
-  join docass on ( docass_target_id = file_id ) and ( docass_target_type = 'FILE' )
+  join docass on ( docass_target_id = file_id ) and ( docass_target_type IN ('FILE', 'XFILE') )
+where case when fetchmetricbool('UnprivilegedViewDocInList') then true else checkfileprivs(file_id) end
 union all
 select 
   docass_id as url_id,
   docass_source_id as url_source_id,
   docass_source_type as url_source,
+  docass_notes AS url_notes,
+  url_id as url_file_id,
   url_title,
   url_url,
   null as url_stream,
   null as url_mime_type
 from urlinfo
-  join docass on ( docass_target_id = url_id ) and ( docass_target_type = 'URL' );
+  join docass on ( docass_target_id = url_id ) and ( docass_target_type IN ('URL', 'XFILE') )
+where case when fetchmetricbool('UnprivilegedViewDocInList') then true else checkfileprivs(url_id) end;
 
-grant all on url to xtrole;
+grant all on public.url to xtrole;
 
 -- insert rules
 
@@ -38,14 +46,16 @@ create or replace rule "_INSERT_URL" as on insert to url
     docass_source_type,
     docass_target_id,
     docass_target_type,
-    docass_purpose )
+    docass_purpose,
+    docass_notes )
   values (
     coalesce(new.url_id,nextval('docass_docass_id_seq')),
     new.url_source_id,
     new.url_source,
     createUrl(new.url_title, new.url_url),
     'URL',
-    'S' );
+    'S',
+    new.url_notes );
 
 create or replace rule "_INSERT_FILE" as on insert to url 
   where new.url_stream is not null do instead
@@ -56,19 +66,24 @@ create or replace rule "_INSERT_FILE" as on insert to url
     docass_source_type,
     docass_target_id,
     docass_target_type,
-    docass_purpose )
+    docass_purpose,
+    docass_notes )
   values (
     coalesce(new.url_id,nextval('docass_docass_id_seq')),
     new.url_source_id,
     new.url_source,
     createFile(new.url_title, new.url_url, new.url_stream, new.url_mime_type),
     'FILE',
-    'S' );
+    'S',
+    new.url_notes );
 
 -- update rules
 
 create or replace rule "_UPDATE" as on update to url
-  do instead nothing;
+  do instead 
+
+  update docass set docass_notes = new.url_notes
+  where docass_id = new.url_id;
   
 create or replace rule "_UPDATE_URL" as on update to url 
   where new.url_stream is null do instead
