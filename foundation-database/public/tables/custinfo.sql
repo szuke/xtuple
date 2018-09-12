@@ -66,7 +66,6 @@ SELECT
                     $$CHECK (cust_creditstatus IN ('G', 'W', 'H'))$$, 'public'),
   xt.add_constraint('custinfo', 'custinfo_cust_number_check',
                     $$CHECK (cust_number <> ''::text)$$, 'public'),
-  xt.add_constraint('custinfo', 'custinfo_cust_number_key', 'UNIQUE (cust_number)', 'public'),
   xt.add_constraint('custinfo', 'custinfo_cust_terms_fkey',
                     'FOREIGN KEY (cust_terms_id) REFERENCES terms(terms_id)
                      ON UPDATE RESTRICT ON DELETE RESTRICT', 'public'),
@@ -89,6 +88,11 @@ SELECT
   xt.add_constraint('custinfo', 'custinfo_cust_salesrep_fkey',
                     'FOREIGN KEY (cust_salesrep_id) REFERENCES salesrep(salesrep_id)
                      ON UPDATE RESTRICT ON DELETE RESTRICT', 'public');
+
+-- replace the old constraining index with one better suited to the custcluster completer
+-- but xt.add_index() can't handle UNIQUE yet
+ALTER TABLE public.custinfo drop constraint IF EXISTS custinfo_cust_number_key;
+CREATE UNIQUE INDEX IF NOT EXISTS custinfo_cust_number_key ON public.custinfo (cust_number text_pattern_ops);
 
 ALTER TABLE public.custinfo ENABLE TRIGGER ALL;
 
