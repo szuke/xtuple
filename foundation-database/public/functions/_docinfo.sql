@@ -7,29 +7,26 @@ DECLARE
   _crmacct      RECORD;
   _id           INTEGER;
   _column       TEXT;
-  _row          _docinfo%ROWTYPE;
   _target       RECORD;
 BEGIN
 
-  -- Unify images, urls, and documents into one "view" for the given reference item
-  FOR _row IN
-
+  RETURN QUERY
     SELECT imageass_id            AS doc_id,
            image_id::text         AS doc_target_number,
-           'IMG'                  AS doc_target_type,
+           'IMG'::text            AS doc_target_type,
            imageass_image_id      AS doc_target_id,
-           imageass_source        AS doc_source_type,
+           imageass_source::text  AS doc_source_type,
            imageass_source_id     AS doc_source_id,
-           image_name             AS doc_name,
-           image_descrip          AS doc_descrip,
+           image_name::text       AS doc_name,
+           image_descrip::text    AS doc_descrip,
            imageass_purpose::text AS doc_purpose,
            NULL::TEXT             AS doc_notes
       FROM imageass
       JOIN image ON image_id = imageass_image_id
      WHERE imageass_source_id = pRefId
-       AND imageass_source = pRefType
+       AND imageass_source = pRefType;
 
-    UNION
+  RETURN QUERY
     SELECT url_id                 AS doc_id,
            url_id::text           AS doc_target_number,
            CASE WHEN url_stream IS NULL
@@ -45,11 +42,7 @@ BEGIN
            url_notes              AS doc_notes  
       FROM url
      WHERE url_source_id = pRefId
-       AND url_source = pRefType
-
-  LOOP
-    RETURN NEXT _row;
-  END LOOP;
+       AND url_source = pRefType;
 
   FOR _target IN SELECT docass_id,        docass_purpose,
                         docass_target_id, docass_target_type,
@@ -76,22 +69,17 @@ BEGIN
                     AND docass_target_type = pRefType
 
   LOOP
-
-    FOR _row IN SELECT _target.docass_id,
-                       target_doc_number,
-                       _target.docass_target_type,
-                       _target.docass_target_id,
-                       pRefType,
-                       pRefId,
-                       target_doc_name,
-                       target_doc_descrip,
-                       _target.docass_purpose,
-                       _target.docass_notes
-                  FROM _getTargetDocument(_target.docass_id, _target.source_id, pRefId)
-     LOOP
-       RETURN NEXT _row;
-    END LOOP;
-
+    RETURN QUERY SELECT _target.docass_id,
+                         target_doc_number,
+                         _target.docass_target_type,
+                         _target.docass_target_id,
+                         pRefType,
+                         pRefId,
+                         target_doc_name,
+                         target_doc_descrip,
+                         _target.docass_purpose,
+                         _target.docass_notes
+                    FROM _getTargetDocument(_target.docass_id, _target.source_id, pRefId);
   END LOOP;
 
   IF NOT pRecursive THEN
@@ -99,34 +87,22 @@ BEGIN
     IF pRefType = 'CRMA' THEN
       SELECT * INTO _crmacct FROM crmacct WHERE crmacct_id = pRefId;
       IF _crmacct.crmacct_cust_id IS NOT NULL THEN
-        FOR _row IN SELECT * FROM _docinfo(_crmacct.crmacct_cust_id, 'C', TRUE) LOOP
-          RETURN NEXT _row;
-        END LOOP;
+        RETURN QUERY SELECT * FROM _docinfo(_crmacct.crmacct_cust_id, 'C', TRUE);
       END IF;
       IF _crmacct.crmacct_prospect_id IS NOT NULL THEN
-        FOR _row IN SELECT * FROM _docinfo(_crmacct.crmacct_prospect_id, 'PSPCT', TRUE) LOOP
-          RETURN NEXT _row;
-        END LOOP;
+        RETURN QUERY SELECT * FROM _docinfo(_crmacct.crmacct_prospect_id, 'PSPCT', TRUE);
       END IF;
       IF _crmacct.crmacct_vend_id IS NOT NULL THEN
-        FOR _row IN SELECT * FROM _docinfo(_crmacct.crmacct_vend_id, 'V', TRUE) LOOP
-          RETURN NEXT _row;
-        END LOOP;
+        RETURN QUERY SELECT * FROM _docinfo(_crmacct.crmacct_vend_id, 'V', TRUE);
       END IF;
       IF _crmacct.crmacct_taxauth_id IS NOT NULL THEN
-        FOR _row IN SELECT * FROM _docinfo(_crmacct.crmacct_taxauth_id, 'TAXAUTH', TRUE) LOOP
-          RETURN NEXT _row;
-        END LOOP;
+        RETURN QUERY SELECT * FROM _docinfo(_crmacct.crmacct_taxauth_id, 'TAXAUTH', TRUE);
       END IF;
       IF _crmacct.crmacct_emp_id IS NOT NULL THEN
-        FOR _row IN SELECT * FROM _docinfo(_crmacct.crmacct_emp_id, 'EMP', TRUE) LOOP
-          RETURN NEXT _row;
-        END LOOP;
+        RETURN QUERY SELECT * FROM _docinfo(_crmacct.crmacct_emp_id, 'EMP', TRUE);
       END IF;
       IF _crmacct.crmacct_salesrep_id IS NOT NULL THEN
-        FOR _row IN SELECT * FROM _docinfo(_crmacct.crmacct_salesrep_id, 'SR', TRUE) LOOP
-          RETURN NEXT _row;
-        END LOOP;
+        RETURN QUERY SELECT * FROM _docinfo(_crmacct.crmacct_salesrep_id, 'SR', TRUE);
       END IF;
     END IF;
 
@@ -140,12 +116,10 @@ BEGIN
                END;
     IF _column IS NOT NULL THEN
       EXECUTE format('SELECT crmacct_id FROM crmacct WHERE %I = %L;', _column, pRefId) INTO _id;
-      FOR _row IN SELECT * FROM _docinfo(_id, 'CRMA', TRUE) LOOP
-        RETURN NEXT _row;
-      END LOOP;
+      RETURN QUERY SELECT * FROM _docinfo(_id, 'CRMA', TRUE);
     END IF;
   END IF;
 
-  END;
+END;
 $$ LANGUAGE plpgsql;
 
