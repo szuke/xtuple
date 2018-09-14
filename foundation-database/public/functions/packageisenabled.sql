@@ -1,13 +1,5 @@
-CREATE OR REPLACE FUNCTION packageIsEnabled(pId INTEGER) RETURNS BOOLEAN AS $$
--- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
--- See www.xtuple.com/CPAL for the full text of the software license.
-  SELECT packageIsEnabled(pkghead_name)
-    FROM pkghead
-   WHERE pkghead_id = pId;
-$$ LANGUAGE sql STABLE;
-
 CREATE OR REPLACE FUNCTION packageIsEnabled(pName TEXT) RETURNS BOOLEAN AS $$
--- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
   SELECT EXISTS(SELECT 1
                  FROM pg_inherits
@@ -18,4 +10,12 @@ CREATE OR REPLACE FUNCTION packageIsEnabled(pName TEXT) RETURNS BOOLEAN AS $$
                   AND relname IN ('pkgcmd',  'pkgcmdarg', 'pkgimage',  'pkgmetasql',
                                   'pkgpriv', 'pkgreport', 'pkgscript', 'pkguiform',
                                   'pkgdict'));
+$$ LANGUAGE sql STABLE;
+
+CREATE OR REPLACE FUNCTION packageIsEnabled(pId INTEGER) RETURNS BOOLEAN AS $$
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
+-- See www.xtuple.com/CPAL for the full text of the software license.
+  SELECT packageIsEnabled(pkghead_name)
+    FROM pkghead
+   WHERE pkghead_id = pId;
 $$ LANGUAGE sql STABLE;
