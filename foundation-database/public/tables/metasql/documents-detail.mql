@@ -32,7 +32,8 @@ JOIN (SELECT DISTINCT ON (docass_target_type, docass_target_id) *
          )
        <? endif ?>
        <? if exists("search_pattern") ?>
-         AND formatdocumenttarget(docass_source_type, docass_source_id) ~* <? value("search_pattern") ?>
+         AND (formatdocumenttarget(docass_source_type, docass_source_id) ~* <? value("search_pattern") ?>
+          OR  docass_notes ~* <? value("search_pattern") ?>)
        <? endif ?>
        ORDER BY docass_target_type, docass_target_id, docass_created) filemin
 ON file.file_id=filemin.docass_target_id
@@ -64,7 +65,8 @@ JOIN (SELECT DISTINCT ON (docass_target_type, docass_target_id) *
          )
        <? endif ?>
        <? if exists("search_pattern") ?>
-         AND formatdocumenttarget(docass_source_type, docass_source_id) ~* <? value("search_pattern") ?>
+         AND (formatdocumenttarget(docass_source_type, docass_source_id) ~* <? value("search_pattern") ?>
+          OR  docass_notes ~* <? value("search_pattern") ?>)
        <? endif ?>
        ORDER BY docass_target_type, docass_target_id, docass_created) urlmin
 ON urlinfo.url_id=urlmin.docass_target_id
@@ -94,7 +96,8 @@ WHERE docass_target_type SIMILAR TO '(%FILE|URL)'
          )
        <? endif ?>
        <? if exists("search_pattern") ?>
-         AND formatdocumenttarget(docass_source_type, docass_source_id) ~* <? value("search_pattern") ?>
+         AND (formatdocumenttarget(docass_source_type, docass_source_id) ~* <? value("search_pattern") ?>
+          OR  docass_notes ~* <? value("search_pattern") ?>)
        <? endif ?>
 )
 SELECT documents.*
