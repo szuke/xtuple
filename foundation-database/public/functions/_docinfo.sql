@@ -69,16 +69,16 @@ BEGIN
                     AND docass_target_type = pRefType
 
   LOOP
-    RETURN QUERY SELECT _target.docass_id,
-                         target_doc_number,
-                         _target.docass_target_type,
-                         _target.docass_target_id,
-                         pRefType,
-                         pRefId,
-                         target_doc_name,
-                         target_doc_descrip,
-                         _target.docass_purpose,
-                         _target.docass_notes
+    RETURN QUERY SELECT _target.docass_id::INTEGER,
+                         target_doc_number::TEXT,
+                         _target.docass_target_type::TEXT,
+                         _target.docass_target_id::INTEGER,
+                         pRefType::TEXT,
+                         pRefId::INTEGER,
+                         target_doc_name::TEXT,
+                         target_doc_descrip::TEXT,
+                         _target.docass_purpose::TEXT,
+                         _target.docass_notes::TEXT
                     FROM _getTargetDocument(_target.docass_id, _target.source_id, pRefId);
   END LOOP;
 
