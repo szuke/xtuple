@@ -35,6 +35,9 @@ BEGIN
 
     ALTER TABLE urlinfo ALTER COLUMN url_id SET DEFAULT NEXTVAL('file_file_id_seq');
 
+    -- Defer foreign key checks till this function is committed
+    SET CONSTRAINTS ALL DEFERRED;
+
     -- Migrate the URL table to use the new FILE sequence including related tables
     FOR _row IN
       SELECT url_id FROM urlinfo
