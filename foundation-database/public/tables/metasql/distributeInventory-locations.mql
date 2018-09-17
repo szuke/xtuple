@@ -1,7 +1,7 @@
 -- Group: distributeInventory
 -- Name: locations
 -- Notes: 
--- Copyright (c) 1999-2015 by OpenMFG LLC, d/b/a xTuple.
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 
 SELECT id, type, locationname, defaultlocation,
@@ -40,7 +40,7 @@ FROM (
       AND (validLocation(location_id, itemsite_id))
       AND (itemlocdist_id=<? value("itemlocdist_id") ?>) ) 
   <? elseif exists("cIncludeLotSerial") ?>
-    SELECT itemloc_id AS id, <? value("itemlocType") ?> AS type,
+    SELECT DISTINCT ON (itemloc_location_id, itemloc_ls_id) itemloc_id AS id, <? value("itemlocType") ?> AS type,
            COALESCE(formatLocationName(location_id), 
            <? value("undefined") ?>) AS locationname, location_whsezone_id,
            (location_id IS NOT NULL AND
