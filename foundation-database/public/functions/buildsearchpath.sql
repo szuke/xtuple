@@ -40,7 +40,7 @@ BEGIN
   RETURN _path;
 END;
 $$
-LANGUAGE 'plpgsql';
+LANGUAGE plpgsql STABLE;
 
 COMMENT ON FUNCTION buildSearchPath() IS
 'buildSearchPath() examines the schemaord and pkghead tables to build a search
