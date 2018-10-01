@@ -108,6 +108,11 @@ BEGIN
     DELETE FROM aropenalloc WHERE (aropenalloc_aropen_id=NEW.aropen_id);
   END IF;
 
+  -- Check that 'paid' is a proper value
+  IF (NEW.aropen_paid < 0 OR NEW.aropen_paid>NEW.aropen_amount) THEN
+    RAISE EXCEPTION 'Invalid amount for paid column';
+  END IF;
+
   IF (TG_OP = 'INSERT') THEN
     IF (NEW.aropen_open=FALSE)
     AND (NEW.aropen_closedate IS NULL) THEN

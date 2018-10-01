@@ -1,4 +1,4 @@
-SELECT dropifexists( 'FUNCTION', 'createarcreditmemo(integer, integer, text, text, date, numeric, text, integer, integer, integer, date, integer, integer, numeric, integer, integer, integer, integer)');
+SELECT dropifexists( 'FUNCTION', 'createarcreditmemo(integer, integer, text, text, date, numeric, numeric, text, integer, integer, integer, date, integer, integer, numeric, integer, integer, integer, integer)');
 
 CREATE OR REPLACE FUNCTION createARCreditMemo(pId            INTEGER,
                                               pCustid        INTEGER,
@@ -6,6 +6,7 @@ CREATE OR REPLACE FUNCTION createARCreditMemo(pId            INTEGER,
                                               pOrderNumber   TEXT,
                                               pDocDate       DATE,
                                               pAmount        NUMERIC,
+                                              pPaid          NUMERIC,
                                               pNotes         TEXT,
                                               pRsncodeid     INTEGER,
                                               pSalescatid    INTEGER,
@@ -82,7 +83,7 @@ BEGIN
       aropen_cust_id=pCustid, aropen_docnumber=pDocNumber, aropen_doctype='C',
       aropen_ordernumber=pOrderNumber,aropen_docdate=pDocDate, aropen_duedate=_duedate,
       aropen_distdate=pDocDate, aropen_terms_id=pTermsid,
-      aropen_salesrep_id=pSalesrepid, aropen_amount=round(pAmount, 2), aropen_paid=0,
+      aropen_salesrep_id=pSalesrepid, aropen_amount=round(pAmount, 2), aropen_paid=pPaid,
       aropen_commission_due=pCommissiondue, aropen_commission_paid=FALSE,
       aropen_applyto='', aropen_ponumber='', aropen_cobmisc_id=-1,
       aropen_open=TRUE, aropen_notes=pNotes, aropen_rsncode_id=pRsncodeid,
@@ -104,7 +105,7 @@ BEGIN
     ( _aropenid, getEffectiveXtUser(), _journalNumber,
       pCustid, pDocNumber, 'C', pOrderNumber,
       pDocDate, _duedate, pDocDate, pTermsid, pSalesrepid,
-      round(pAmount, 2), 0, pCommissiondue, FALSE,
+      round(pAmount, 2), pPaid, pCommissiondue, FALSE,
       '', '', -1,
       TRUE, pNotes, pRsncodeid,
       _salescatid, _accntid, pCurrId, currrate(pCurrId, pDocDate), pTaxZoneid );
