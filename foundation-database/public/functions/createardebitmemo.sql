@@ -1,6 +1,6 @@
 SELECT dropifexists('FUNCTION', 'createardebitmemo(integer, integer, integer, text, text, date, numeric, text, integer, integer, integer, date, integer, integer, numeric, integer)');
 
-CREATE OR REPLACE FUNCTION createARDebitMemo(INTEGER, INTEGER, INTEGER, TEXT, TEXT, DATE, NUMERIC, NUMERIC, TEXT, INTEGER, INTEGER, INTEGER, DATE, INTEGER, INTEGER, NUMERIC, INTEGER, INTEGER DEFAULT NULL) 
+CREATE OR REPLACE FUNCTION createARDebitMemo(INTEGER, INTEGER, INTEGER, TEXT, TEXT, DATE, NUMERIC, TEXT, INTEGER, INTEGER, INTEGER, DATE, INTEGER, INTEGER, NUMERIC, INTEGER, INTEGER DEFAULT NULL, NUMERIC DEFAULT 0) 
 RETURNS INTEGER AS $$
 -- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
@@ -12,17 +12,17 @@ DECLARE
   pOrderNumber		ALIAS FOR $5;
   pDocDate		ALIAS FOR $6;
   pAmount		ALIAS FOR $7;
-  pPaid   ALIAS FOR $8;
-  pNotes		ALIAS FOR $9;
-  pRsncodeid		ALIAS FOR $10;
-  pSalescatid		ALIAS FOR $11;
-  pAccntid		ALIAS FOR $12;
-  pDueDate		ALIAS FOR $13;
-  pTermsid		ALIAS FOR $14;
-  pSalesrepid		ALIAS FOR $15;
-  pCommissiondue	ALIAS FOR $16;
-  pCurrId		ALIAS FOR $17;
-  pTaxZoneid		ALIAS FOR $18;
+  pNotes		ALIAS FOR $8;
+  pRsncodeid		ALIAS FOR $9;
+  pSalescatid		ALIAS FOR $10;
+  pAccntid		ALIAS FOR $11;
+  pDueDate		ALIAS FOR $12;
+  pTermsid		ALIAS FOR $13;
+  pSalesrepid		ALIAS FOR $14;
+  pCommissiondue	ALIAS FOR $15;
+  pCurrId		ALIAS FOR $16;
+  pTaxZoneid		ALIAS FOR $17;
+  pPaid ALIAS FOR $18;
   _custName TEXT;
   _journalNumber INTEGER;
   _arAccntid INTEGER;
