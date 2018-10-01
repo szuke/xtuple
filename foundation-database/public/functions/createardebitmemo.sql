@@ -88,7 +88,7 @@ BEGIN
       aropen_cust_id=pCustid, aropen_docnumber=pDocNumber, aropen_doctype='D', 
       aropen_ordernumber=pOrderNumber,aropen_docdate=pDocDate, aropen_duedate=pDueDate, 
       aropen_distdate=pDocDate, aropen_terms_id=pTermsid, 
-      aropen_salesrep_id=pSalesrepid, aropen_amount=round(pAmount, 2), aropen_paid=0, 
+      aropen_salesrep_id=pSalesrepid, aropen_amount=round(pAmount, 2), aropen_paid=pPaid, 
       aropen_commission_due=pCommissiondue, aropen_commission_paid=FALSE,
       aropen_applyto='', aropen_ponumber='', aropen_cobmisc_id=-1,
       aropen_open=TRUE, aropen_notes=pNotes, aropen_rsncode_id=pRsncodeid,
@@ -110,7 +110,7 @@ BEGIN
     ( _aropenid, getEffectiveXtUser(), _journalNumber,
       pCustid, pDocNumber, 'D', pOrderNumber,
       pDocDate, pDueDate, pDocDate, pTermsid, pSalesrepid,
-      round(pAmount, 2), 0, pCommissiondue, FALSE,
+      round(pAmount, 2), pPaid, pCommissiondue, FALSE,
       '', '', -1,
       TRUE, pNotes, pRsncodeid,
       _salescatid, _accntid, pCurrId, currrate(pCurrId, pDocDate), pTaxZoneid );
