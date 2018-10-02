@@ -65,6 +65,7 @@
 &lt;? endif ?>
 &lt;? if exists("onlyShowDiffCosts") ?>
    AND (scost != acost)
+   AND (ABS(scost - acost) > 10 ^ (-1 * &lt;? value("costscale") ?>))
 &lt;? endif ?>
  )
 ORDER BY item_number</sql>
