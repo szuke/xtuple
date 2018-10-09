@@ -1,4 +1,4 @@
-SELECT dropifexists( 'FUNCTION', 'createarcreditmemo(integer, integer, text, text, date, numeric, numeric, text, integer, integer, integer, date, integer, integer, numeric, integer, integer, integer, integer)');
+SELECT DROP FUNCTION IF EXISTS createarcreditmemo(integer, integer, text, text, date, numeric, text, integer, integer, integer, date, integer, integer, numeric, integer, integer, integer, integer, numeric);
 
 CREATE OR REPLACE FUNCTION createARCreditMemo(pId            INTEGER,
                                               pCustid        INTEGER,
@@ -6,7 +6,6 @@ CREATE OR REPLACE FUNCTION createARCreditMemo(pId            INTEGER,
                                               pOrderNumber   TEXT,
                                               pDocDate       DATE,
                                               pAmount        NUMERIC,
-                                              pPaid          NUMERIC,
                                               pNotes         TEXT,
                                               pRsncodeid     INTEGER,
                                               pSalescatid    INTEGER,
@@ -19,8 +18,9 @@ CREATE OR REPLACE FUNCTION createARCreditMemo(pId            INTEGER,
                                               pCurrId        INTEGER = baseCurrId(),
                                               pArAccntid     INTEGER = NULL,
                                               pCoCcpayId     INTEGER = NULL,
-                                              pTaxZoneid     INTEGER = NULL) RETURNS INTEGER AS $$
--- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+                                              pTaxZoneid     INTEGER = NULL,
+                                              pPaid          NUMERIC = NULL) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   _accntid        INTEGER;

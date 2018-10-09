@@ -1,28 +1,29 @@
-SELECT dropifexists('FUNCTION', 'createardebitmemo(integer, integer, integer, text, text, date, numeric, text, integer, integer, integer, date, integer, integer, numeric, integer)');
+SELECT DROP FUNCTION IF EXISTS createardebitmemo(integer, integer, integer, text, text, date, numeric, text, integer, integer, integer, date, integer, integer, numeric, integer, numeric);
 
-CREATE OR REPLACE FUNCTION createARDebitMemo(INTEGER, INTEGER, INTEGER, TEXT, TEXT, DATE, NUMERIC, TEXT, INTEGER, INTEGER, INTEGER, DATE, INTEGER, INTEGER, NUMERIC, INTEGER, INTEGER DEFAULT NULL, NUMERIC DEFAULT 0) 
+CREATE OR REPLACE FUNCTION createARDebitMemo(INTEGER, INTEGER, INTEGER, TEXT, TEXT, DATE, NUMERIC, TEXT, INTEGER, INTEGER, INTEGER, DATE, INTEGER, INTEGER, NUMERIC, INTEGER, INTEGER DEFAULT NULL, NUMERIC DEFAULT NULL) 
 RETURNS INTEGER AS $$
--- Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+
+CREATE OR REPLACE FUNCTION createARDebitMemo( pId            INTEGER,
+                                              pCustid        INTEGER,
+                                              pJournalNumber INTEGER,
+                                              pDocNumber     TEXT
+                                              pOrderNumber   TEXT,
+                                              pDocDate       DATE,
+                                              pAmount        NUMERIC,
+                                              pNotes         TEXT,
+                                              pRsncodeid     INTEGER,
+                                              pSalescatid    INTEGER,
+                                              pAccntid       INTEGER,
+                                              pDueDate       DATE,
+                                              pTermsid       INTEGER,
+                                              pSalesrepid    INTEGER,
+                                              pCommissiondue NUMERIC = 0,
+                                              pCurrId        INTEGER = baseCurrId(),
+                                              pTaxZoneid     INTEGER = NULL,
+                                              pPaid          NUMERIC = NULL) RETURNS INTEGER AS $$
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
-  pId			ALIAS FOR $1;
-  pCustid		ALIAS FOR $2;
-  pJournalNumber	ALIAS FOR $3;
-  pDocNumber		ALIAS FOR $4;
-  pOrderNumber		ALIAS FOR $5;
-  pDocDate		ALIAS FOR $6;
-  pAmount		ALIAS FOR $7;
-  pNotes		ALIAS FOR $8;
-  pRsncodeid		ALIAS FOR $9;
-  pSalescatid		ALIAS FOR $10;
-  pAccntid		ALIAS FOR $11;
-  pDueDate		ALIAS FOR $12;
-  pTermsid		ALIAS FOR $13;
-  pSalesrepid		ALIAS FOR $14;
-  pCommissiondue	ALIAS FOR $15;
-  pCurrId		ALIAS FOR $16;
-  pTaxZoneid		ALIAS FOR $17;
-  pPaid ALIAS FOR $18;
   _custName TEXT;
   _journalNumber INTEGER;
   _arAccntid INTEGER;
