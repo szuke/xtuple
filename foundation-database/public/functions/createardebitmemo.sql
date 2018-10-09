@@ -1,8 +1,5 @@
 SELECT DROP FUNCTION IF EXISTS createardebitmemo(integer, integer, integer, text, text, date, numeric, text, integer, integer, integer, date, integer, integer, numeric, integer, numeric);
 
-CREATE OR REPLACE FUNCTION createARDebitMemo(INTEGER, INTEGER, INTEGER, TEXT, TEXT, DATE, NUMERIC, TEXT, INTEGER, INTEGER, INTEGER, DATE, INTEGER, INTEGER, NUMERIC, INTEGER, INTEGER DEFAULT NULL, NUMERIC DEFAULT NULL) 
-RETURNS INTEGER AS $$
-
 CREATE OR REPLACE FUNCTION createARDebitMemo( pId            INTEGER,
                                               pCustid        INTEGER,
                                               pJournalNumber INTEGER,
