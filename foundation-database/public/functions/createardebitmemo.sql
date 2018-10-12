@@ -1,4 +1,4 @@
-DROP FUNCTION createardebitmemo(integer, integer, integer, text, text, date, numeric, text, integer, integer, integer, date, integer, integer, numeric, integer);
+DROP FUNCTION IF EXISTS createardebitmemo(integer, integer, integer, text, text, date, numeric, text, integer, integer, integer, date, integer, integer, numeric, integer);
 
 CREATE OR REPLACE FUNCTION createARDebitMemo( pId            INTEGER,
                                               pCustid        INTEGER,
