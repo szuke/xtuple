@@ -1,4 +1,4 @@
-SELECT DROP FUNCTION createarcreditmemo(integer, integer, text, text, date, numeric, text, integer, integer, integer, date, integer, integer, numeric, integer, integer, integer, integer, integer);
+DROP FUNCTION createarcreditmemo(integer, integer, text, text, date, numeric, text, integer, integer, integer, date, integer, integer, numeric, integer, integer, integer, integer, integer);
 
 CREATE OR REPLACE FUNCTION createARCreditMemo(pId            INTEGER,
                                               pCustid        INTEGER,
