@@ -59,7 +59,7 @@ BEGIN
                                getSalesrepId(pNew.sales_rep),
                                pNew.commission_due,
                                pNew.journal_number,
-                               COALESCE(getCurrId(pNew.currency), baseCurrId())
+                               COALESCE(getCurrId(pNew.currency), baseCurrId()),
                                pNew.paid ) INTO _result;
     IF (_result <= 0) THEN
       RAISE EXCEPTION 'Function createARCreditMemo failed with result = %', _result;
