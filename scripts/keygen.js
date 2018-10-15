@@ -52,10 +52,7 @@
       for (let parameter in parameters) {
         if (parameters.hasOwnProperty(parameter)) {
           query = query.replace(
-            new RegExp(
-              '{{ parameter }}'.replace('parameter', parameter),
-              'g'
-            ),
+            new RegExp(`{{ ${parameter} }}`, 'g'),
             parameters[parameter]
           );
         }
@@ -65,7 +62,6 @@
   }
 
   let erp = new DataSource();
-
   Promise.resolve()
     .then(() => {
       return new Promise((resolve, reject) => {
