@@ -5,7 +5,7 @@ DROP FUNCTION IF EXISTS createARDebitmemo(integer, integer, integer, text, text,
 CREATE OR REPLACE FUNCTION createARDebitMemo( pId            INTEGER,
                                               pCustid        INTEGER,
                                               pJournalNumber INTEGER,
-                                              pDocNumber     TEXT
+                                              pDocNumber     TEXT,
                                               pOrderNumber   TEXT,
                                               pDocDate       DATE,
                                               pAmount        NUMERIC,
