@@ -116,14 +116,9 @@
           });
         })
         .catch((error) => {
-          console.log(error);
+          throw error;
         });
     })
-    .catch((error) => {
-      console.log(error);
-    });
-
-  Promise.resolve()
     .then(() => {
       return erp.execute(new Query([
         "INSERT INTO xdruple.xd_site (xd_site_name, xd_site_url)",
