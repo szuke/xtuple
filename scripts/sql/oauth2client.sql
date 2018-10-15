@@ -27,4 +27,8 @@ VALUES (
   null,
   true,
   '{{ key }}'
-);
+)
+ON CONFLICT (oa2client_client_id) DO UPDATE
+SET oa2client_issued = now(),
+    oa2client_client_name = '{{ client }}',
+    oa2client_client_x509_pub_cert = '{{ key }}'

@@ -80,14 +80,6 @@
     .then((keypair) => {
       Promise.resolve()
         .then(() => {
-          return erp.execute(new Query(
-            "DELETE FROM xt.oa2client WHERE oa2client_client_id = '{{ id }}'",
-            {
-              id: script.database
-            }
-          ));
-        })
-        .then(() => {
           return new Promise((resolve, reject) => {
             fs.readFile(
               '{directory}/sql/oauth2client.sql'.replace('{directory}', __dirname),
@@ -133,17 +125,11 @@
 
   Promise.resolve()
     .then(() => {
-      return erp.execute(new Query(
-        "DELETE FROM xdruple.xd_site WHERE xd_site_name = '{{ name }}'",
-        {
-          name: script.application
-        }
-      ));
-    })
-    .then(() => {
       return erp.execute(new Query([
         "INSERT INTO xdruple.xd_site (xd_site_name, xd_site_url)",
-        "VALUES ('{{ name }}', '{{ url }}');"
+        "VALUES ('{{ name }}', '{{ url }}')",
+        "ON CONFLICT (xd_site_name) DO UPDATE",
+        "SET xd_site_name = '{{ name }}', xd_site_url='{{ url }}'"
       ], {
         name: script.application,
         url: script.application
