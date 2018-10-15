@@ -12,8 +12,22 @@
     .option('-p, --path </path/to/p12/output>', 'Path to p12 file output')
     .option('-a, --application <name>', 'Application (xDruple site name)')
     .parse(process.argv);
-  var credentials = require(script.config).databaseServer;
-  credentials.database = script.database;
+
+  /**
+   * @constructor
+   */
+  function DataSource() {
+    this.dataSource = require('../node-datasource/lib/ext/datasource').dataSource;
+    this.credentials = require(script.config).databaseServer;
+    this.credentials.database = script.database;
+    /**
+     * @param {Query} query
+     * @param {Function} callback
+     */
+    this.execute = function (query, callback) {
+      this.dataSource.query(query.sql(), this.credentials, callback);
+    };
+  }
 
   /**
    * @constructor
@@ -24,7 +38,7 @@
     /**
      * @returns {string}
      */
-    this.query = function () {
+    this.sql = function () {
       if (Array.isArray(query)) {
         query = query.join(' ');
       }
@@ -44,7 +58,7 @@
     if (error) {
       throw error;
     }
-    var dataSource = require('../node-datasource/lib/ext/datasource').dataSource;
+    var erp = new DataSource();
     fs.readFile(
       '{directory}/sql/oauth2client.sql'.replace('{directory}', __dirname),
       'utf8',
@@ -53,73 +67,59 @@
         if (error) {
           throw error;
         }
-        dataSource.query(
-          new Query(
-            "DELETE FROM xt.oa2client WHERE oa2client_client_id = '{{ id }}'",
-            {
-              id: script.database
-            }
-          ).query(),
-          credentials,
-          function (error) {
-            if (error) {
-              throw error;
-            }
-            dataSource.query(new Query(content, {
-                id: script.iss,
-                client: script.iss,
-                key: forge.pki.publicKeyToPem(keypair.publicKey),
-                organization: script.database
-              }).query(),
-              credentials,
-              function (error) {
+        erp.execute(new Query(
+          "DELETE FROM xt.oa2client WHERE oa2client_client_id = '{{ id }}'",
+          {
+            id: script.database
+          }
+        ), function (error) {
+          if (error) {
+            throw error;
+          }
+          erp.execute(new Query(content, {
+              id: script.iss,
+              client: script.iss,
+              key: forge.pki.publicKeyToPem(keypair.publicKey),
+              organization: script.database
+            }), function (error) {
+              if (error) {
+                throw error;
+              }
+              fs.writeFile(script.path, new Buffer(new Buffer(
+                forge.asn1.toDer(
+                  forge.pkcs12.toPkcs12Asn1(keypair.privateKey, null, 'notasecret')
+                ).getBytes(),
+                'binary'
+              ), 'base64'), function (error) {
                 if (error) {
                   throw error;
                 }
-                fs.writeFile(script.path, new Buffer(new Buffer(
-                  forge.asn1.toDer(
-                    forge.pkcs12.toPkcs12Asn1(keypair.privateKey, null, 'notasecret')
-                  ).getBytes(),
-                  'binary'
-                ), 'base64'), function (error) {
-                  if (error) {
-                    throw error;
-                  }
-                });
-              }
-            );
-          }
-        );
+              });
+            }
+          );
+        });
       }
     );
-    dataSource.query(
-      new Query(
-        "DELETE FROM xdruple.xd_site WHERE xd_site_name = '{{ name }}'",
-        {
-          name: script.application
-        }
-      ).query(),
-      credentials,
-      function (error) {
+    erp.execute(new Query(
+      "DELETE FROM xdruple.xd_site WHERE xd_site_name = '{{ name }}'",
+      {
+        name: script.application
+      }
+    ), function (error) {
+      if (error) {
+        throw error;
+      }
+      erp.execute(new Query([
+        "INSERT INTO xdruple.xd_site (xd_site_name, xd_site_url)",
+        "VALUES ('{{ name }}', '{{ url }}');"
+      ], {
+        name: script.application,
+        url: script.application
+      }), function (error) {
         if (error) {
           throw error;
         }
-        dataSource.query(
-          new Query([
-            "INSERT INTO xdruple.xd_site (xd_site_name, xd_site_url)",
-            "VALUES ('{{ name }}', '{{ url }}');"
-          ], {
-            name: script.application,
-            url: script.application
-          }).query(),
-          credentials,
-          function (error) {
-            if (error) {
-              throw error;
-            }
-          }
-        );
-      }
-    );
+      });
+    });
   });
 }());
