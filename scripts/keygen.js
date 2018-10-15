@@ -2,9 +2,6 @@
 /* jshint node:true, esversion:6 */
 (function () {
   'use strict';
-  let forge = require('node-forge');
-  let fs = require('fs');
-
   let script = require('commander')
     .option('-c, --config </path/to/file>', 'Location of the config file.')
     .option('-d, --database <name>', 'Database name')
@@ -16,7 +13,7 @@
   /**
    * @constructor
    */
-  function DataSource() {
+  let DataSource = function () {
     this.dataSource = require('../node-datasource/lib/ext/datasource').dataSource;
     this.credentials = require(script.config).databaseServer;
     this.credentials.database = script.database;
@@ -34,14 +31,14 @@
         });
       });
     };
-  }
+  };
 
   /**
    * @constructor
    * @param {(string|string[])}      query
    * @param {Object.<string,string>} parameters
    */
-  function Query(query, parameters) {
+  let Query = function (query, parameters) {
     /**
      * @returns {string}
      */
@@ -59,57 +56,68 @@
       }
       return query;
     };
-  }
+  };
+
+  /** @type {{psi: Object, asn1: Object, pkcs12: Object}} */
+  let forge = require('node-forge');
+  let filesystem = require('fs');
+  let Promises = {
+    createKeypair: function (resolve, reject) {
+      forge.pki.rsa.generateKeyPair(2048, 65537, null, (error, keypair) => {
+        if (error) {
+          reject(error);
+        }
+        resolve(keypair);
+      });
+    },
+    readOAuth2ClientSQLFile: function (resolve, reject) {
+      filesystem.readFile(
+        '{directory}/sql/oauth2client.sql'.replace('{directory}', __dirname),
+        'utf8',
+        (error, content) => {
+          if (error) {
+            reject(error);
+          }
+          resolve(content);
+        }
+      );
+    },
+    saveP12File: function (privateKey) {
+      return (resolve, reject) => {
+        filesystem.writeFile(script.path, new Buffer(new Buffer(
+          forge.asn1.toDer(
+            forge.pkcs12.toPkcs12Asn1(privateKey, null, 'notasecret')
+          ).getBytes(),
+          'binary'
+        ), 'base64'), (error, result) => {
+          if (error) {
+            reject(error);
+          }
+          resolve(result);
+        });
+      };
+    }
+  };
 
   let erp = new DataSource();
   Promise.resolve()
     .then(() => {
-      return new Promise((resolve, reject) => {
-        forge.pki.rsa.generateKeyPair(2048, 65537, null, (error, keypair) => {
-          if (error) {
-            reject(error);
-          }
-          resolve(keypair);
-        });
-      });
+      return new Promise(Promises.createKeypair);
     })
     .then((keypair) => {
       Promise.resolve()
         .then(() => {
-          return new Promise((resolve, reject) => {
-            fs.readFile(
-              '{directory}/sql/oauth2client.sql'.replace('{directory}', __dirname),
-              'utf8',
-              (error, content) => {
-                if (error) {
-                  reject(error);
-                }
-                resolve(content);
-              }
-            );
-          });
+          return new Promise(Promises.readOAuth2ClientSQLFile);
         })
-        .then((content) => {
-          return erp.execute(new Query(content, {
+        .then((sql) => {
+          return erp.execute(new Query(sql, {
             id: script.iss,
             client: script.iss,
             key: forge.pki.publicKeyToPem(keypair.publicKey)
           }));
         })
         .then(() => {
-          return new Promise((resolve, reject) => {
-            fs.writeFile(script.path, new Buffer(new Buffer(
-              forge.asn1.toDer(
-                forge.pkcs12.toPkcs12Asn1(keypair.privateKey, null, 'notasecret')
-              ).getBytes(),
-              'binary'
-            ), 'base64'), (error, result) => {
-              if (error) {
-                reject(error);
-              }
-              resolve(result);
-            });
-          });
+          return new Promise(Promises.saveP12File(keypair.privateKey));
         })
         .catch((error) => {
           throw error;
