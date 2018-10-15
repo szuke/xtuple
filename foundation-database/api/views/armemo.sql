@@ -60,7 +60,7 @@ BEGIN
                                pNew.commission_due,
                                pNew.journal_number,
                                COALESCE(getCurrId(pNew.currency), baseCurrId())
-                               pNew.paid, ) INTO _result;
+                               pNew.paid ) INTO _result;
     IF (_result <= 0) THEN
       RAISE EXCEPTION 'Function createARCreditMemo failed with result = %', _result;
     END IF;
