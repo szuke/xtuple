@@ -22,16 +22,16 @@
     this.credentials.database = script.database;
     /**
      * @param {Query} query
-     * @param {?Function} [success=null]
+     * @return {Promise}
      */
-    this.execute = function (query, success) {
-      this.dataSource.query(query.sql(), this.credentials, (error) => {
-        if (error) {
-          throw error;
-        }
-        if (success) {
-          success();
-        }
+    this.execute = function (query) {
+      return new Promise((resolve, reject) => {
+        this.dataSource.query(query.sql(), this.credentials, function (error, result) {
+          if (error) {
+            reject(error);
+          }
+          resolve(result);
+        });
       });
     };
   }
@@ -61,58 +61,92 @@
     };
   }
 
-  forge.pki.rsa.generateKeyPair(2048, 65537, null, (error, keypair) => {
-    if (error) {
-      throw error;
-    }
-    let erp = new DataSource();
-    fs.readFile(
-      '{directory}/sql/oauth2client.sql'.replace('{directory}', __dirname),
-      'utf8',
-      (error, content) => {
-        /** @var string content */
-        if (error) {
-          throw error;
-        }
-        erp.execute(new Query(
-          "DELETE FROM xt.oa2client WHERE oa2client_client_id = '{{ id }}'",
-          {
-            id: script.database
+  let erp = new DataSource();
+
+  Promise.resolve()
+    .then(() => {
+      return new Promise((resolve, reject) => {
+        forge.pki.rsa.generateKeyPair(2048, 65537, null, (error, keypair) => {
+          if (error) {
+            reject(error);
           }
-        ), () => {
-          erp.execute(new Query(content, {
-              id: script.iss,
-              client: script.iss,
-              key: forge.pki.publicKeyToPem(keypair.publicKey)
-            }), () => {
-              fs.writeFile(script.path, new Buffer(new Buffer(
-                forge.asn1.toDer(
-                  forge.pkcs12.toPkcs12Asn1(keypair.privateKey, null, 'notasecret')
-                ).getBytes(),
-                'binary'
-              ), 'base64'), (error) => {
-                if (error) {
-                  throw error;
-                }
-              });
-            }
-          );
+          resolve(keypair);
         });
-      }
-    );
-    erp.execute(new Query(
-      "DELETE FROM xdruple.xd_site WHERE xd_site_name = '{{ name }}'",
-      {
-        name: script.application
-      }
-    ), () => {
-      erp.execute(new Query([
+      });
+    })
+    .then((keypair) => {
+      Promise.resolve()
+        .then(() => {
+          return erp.execute(new Query(
+            "DELETE FROM xt.oa2client WHERE oa2client_client_id = '{{ id }}'",
+            {
+              id: script.database
+            }
+          ));
+        })
+        .then(() => {
+          return new Promise((resolve, reject) => {
+            fs.readFile(
+              '{directory}/sql/oauth2client.sql'.replace('{directory}', __dirname),
+              'utf8',
+              (error, content) => {
+                if (error) {
+                  reject(error);
+                }
+                resolve(content);
+              }
+            );
+          });
+        })
+        .then((content) => {
+          return erp.execute(new Query(content, {
+            id: script.iss,
+            client: script.iss,
+            key: forge.pki.publicKeyToPem(keypair.publicKey)
+          }));
+        })
+        .then(() => {
+          return new Promise((resolve, reject) => {
+            fs.writeFile(script.path, new Buffer(new Buffer(
+              forge.asn1.toDer(
+                forge.pkcs12.toPkcs12Asn1(keypair.privateKey, null, 'notasecret')
+              ).getBytes(),
+              'binary'
+            ), 'base64'), (error, result) => {
+              if (error) {
+                reject(error);
+              }
+              resolve(result);
+            });
+          });
+        })
+        .catch((error) => {
+          console.log(error);
+        });
+    })
+    .catch((error) => {
+      console.log(error);
+    });
+
+  Promise.resolve()
+    .then(() => {
+      return erp.execute(new Query(
+        "DELETE FROM xdruple.xd_site WHERE xd_site_name = '{{ name }}'",
+        {
+          name: script.application
+        }
+      ));
+    })
+    .then(() => {
+      return erp.execute(new Query([
         "INSERT INTO xdruple.xd_site (xd_site_name, xd_site_url)",
         "VALUES ('{{ name }}', '{{ url }}');"
       ], {
         name: script.application,
         url: script.application
       }));
+    })
+    .catch((error) => {
+      console.log(error);
     });
-  });
 }());
