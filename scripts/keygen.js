@@ -63,33 +63,26 @@
         );
       }
     );
-    fs.readFile(
-      '{directory}/sql/application.sql'.replace('{directory}', __dirname),
-      'utf8',
-      function (error, content) {
-        /** @var string content */
+    dataSource.query(
+      "DELETE FROM xdruple.xd_site WHERE xd_site_name = '{name}'"
+        .replace('{name}', script.application),
+      credentials,
+      function (error) {
         if (error) {
           throw error;
         }
         dataSource.query(
-          "DELETE FROM xdruple.xd_site WHERE xd_site_name = '{name}'"
-            .replace('{name}', script.application),
+          [
+            "INSERT INTO xdruple.xd_site (xd_site_name, xd_site_url)",
+            "VALUES ('{name}', '{url}');"
+          ].join(' ')
+           .replace('{name}', script.application)
+           .replace('{url}', script.application),
           credentials,
           function (error) {
             if (error) {
               throw error;
             }
-            dataSource.query(
-              content
-                .replace('{name}', script.application)
-                .replace('{url}', script.application),
-              credentials,
-              function (error) {
-                if (error) {
-                  throw error;
-                }
-              }
-            );
           }
         );
       }
