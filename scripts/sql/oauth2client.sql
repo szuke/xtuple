@@ -15,9 +15,9 @@ INSERT INTO xt.oa2client (
   oa2client_org
 )
 VALUES (
-  '{id}',
+  '{{ id }}',
   xt.uuid_generate_v4(),
-  '{client}',
+  '{{ client }}',
   '',
   '',
   null,
@@ -27,6 +27,6 @@ VALUES (
   null,
   null,
   true,
-  '{public_key}',
-  '{organization}'
+  '{{ key }}',
+  '{{ organization }}'
 );

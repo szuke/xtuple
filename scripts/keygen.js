@@ -15,6 +15,31 @@
   var credentials = require(script.config).databaseServer;
   credentials.database = script.database;
 
+  /**
+   * @constructor
+   * @param {(string|string[])}      query
+   * @param {Object.<string,string>} parameters
+   */
+  function Query(query, parameters) {
+    /**
+     * @returns {string}
+     */
+    this.query = function () {
+      if (Array.isArray(query)) {
+        query = query.join(' ');
+      }
+      for (var parameter in parameters) {
+        if (parameters.hasOwnProperty(parameter)) {
+          query = query.replace(
+            '{{ parameter }}'.replace('parameter', parameter),
+            parameters[parameter]
+          );
+        }
+      }
+      return query;
+    };
+  }
+
   forge.pki.rsa.generateKeyPair(2048, 65537, null, function (error, keypair) {
     if (error) {
       throw error;
@@ -29,19 +54,23 @@
           throw error;
         }
         dataSource.query(
-          "DELETE FROM xt.oa2client WHERE oa2client_client_id = '{id}'"
-            .replace('{id}', script.database),
+          new Query(
+            "DELETE FROM xt.oa2client WHERE oa2client_client_id = '{{ id }}'",
+            {
+              id: script.database
+            }
+          ).query(),
           credentials,
           function (error) {
             if (error) {
               throw error;
             }
-            dataSource.query(
-              content
-                .replace('{id}', script.iss)
-                .replace('{client}', script.iss)
-                .replace('{public_key}', forge.pki.publicKeyToPem(keypair.publicKey))
-                .replace('{organization}', script.database),
+            dataSource.query(new Query(content, {
+                id: script.iss,
+                client: script.iss,
+                key: forge.pki.publicKeyToPem(keypair.publicKey),
+                organization: script.database
+              }).query(),
               credentials,
               function (error) {
                 if (error) {
@@ -64,20 +93,25 @@
       }
     );
     dataSource.query(
-      "DELETE FROM xdruple.xd_site WHERE xd_site_name = '{name}'"
-        .replace('{name}', script.application),
+      new Query(
+        "DELETE FROM xdruple.xd_site WHERE xd_site_name = '{{ name }}'",
+        {
+          name: script.application
+        }
+      ).query(),
       credentials,
       function (error) {
         if (error) {
           throw error;
         }
         dataSource.query(
-          [
+          new Query([
             "INSERT INTO xdruple.xd_site (xd_site_name, xd_site_url)",
-            "VALUES ('{name}', '{url}');"
-          ].join(' ')
-           .replace('{name}', script.application)
-           .replace('{url}', script.application),
+            "VALUES ('{{ name }}', '{{ url }}');"
+          ], {
+            name: script.application,
+            url: script.application
+          }).query(),
           credentials,
           function (error) {
             if (error) {
