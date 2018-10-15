@@ -27,7 +27,7 @@ declare -a CONFIG=(\
   "qt-client          skip    skip     skip  not-needed"                                  \
   "updater            default skip     skip  not-needed"                                  \
   "xtdesktop          skip    [demp]   skip  resources"                                   \
-  "xtte               skip    [demp]   true  extensions/time_expense/foundation-database" \
+  "xtte               2_4_x   [demp]   true  extensions/time_expense/foundation-database" \
   "nodejsshim         skip    [dem]    true  foundation-database"                         \
   "xtdash             skip    [dem]    true  foundation-database"                         \
 )
