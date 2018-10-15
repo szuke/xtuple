@@ -52,7 +52,10 @@
       for (let parameter in parameters) {
         if (parameters.hasOwnProperty(parameter)) {
           query = query.replace(
-            '{{ parameter }}'.replace('parameter', parameter),
+            new RegExp(
+              '{{ parameter }}'.replace('parameter', parameter),
+              'g'
+            ),
             parameters[parameter]
           );
         }
