@@ -22,10 +22,17 @@
     this.credentials.database = script.database;
     /**
      * @param {Query} query
-     * @param {Function} callback
+     * @param {?Function} [success=null]
      */
-    this.execute = function (query, callback) {
-      this.dataSource.query(query.sql(), this.credentials, callback);
+    this.execute = function (query, success) {
+      this.dataSource.query(query.sql(), this.credentials, function (error) {
+        if (error) {
+          throw error;
+        }
+        if (success) {
+          success();
+        }
+      });
     };
   }
 
@@ -72,19 +79,12 @@
           {
             id: script.database
           }
-        ), function (error) {
-          if (error) {
-            throw error;
-          }
+        ), function () {
           erp.execute(new Query(content, {
               id: script.iss,
               client: script.iss,
-              key: forge.pki.publicKeyToPem(keypair.publicKey),
-              organization: script.database
-            }), function (error) {
-              if (error) {
-                throw error;
-              }
+              key: forge.pki.publicKeyToPem(keypair.publicKey)
+            }), function () {
               fs.writeFile(script.path, new Buffer(new Buffer(
                 forge.asn1.toDer(
                   forge.pkcs12.toPkcs12Asn1(keypair.privateKey, null, 'notasecret')
@@ -105,21 +105,14 @@
       {
         name: script.application
       }
-    ), function (error) {
-      if (error) {
-        throw error;
-      }
+    ), function () {
       erp.execute(new Query([
         "INSERT INTO xdruple.xd_site (xd_site_name, xd_site_url)",
         "VALUES ('{{ name }}', '{{ url }}');"
       ], {
         name: script.application,
         url: script.application
-      }), function (error) {
-        if (error) {
-          throw error;
-        }
-      });
+      }));
     });
   });
 }());

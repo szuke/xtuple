@@ -11,8 +11,7 @@ INSERT INTO xt.oa2client (
   oa2client_auth_uri,
   oa2client_token_uri,
   oa2client_delegated_access,
-  oa2client_client_x509_pub_cert,
-  oa2client_org
+  oa2client_client_x509_pub_cert
 )
 VALUES (
   '{{ id }}',
@@ -27,6 +26,5 @@ VALUES (
   null,
   null,
   true,
-  '{{ key }}',
-  '{{ organization }}'
+  '{{ key }}'
 );
