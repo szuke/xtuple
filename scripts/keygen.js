@@ -15,7 +15,7 @@
    * @param {Function} reject
    * @returns {Function}
    */
-  let resolver = function (resolve, reject) {
+  let decide = function (resolve, reject) {
     return (error, result) => {
       if (error) {
         reject(error);
@@ -42,7 +42,7 @@
           Object.assign(this.credentials, {
             parameters: query.parameters()
           }),
-          resolver(resolve, reject)
+          decide(resolve, reject)
         );
       });
     };
@@ -80,7 +80,7 @@
      */
     generateRSAKeyPair: function (bits, exponent) {
       return new Promise((resolve, reject) => {
-        forge.pki.rsa.generateKeyPair(bits, exponent, null, resolver(resolve, reject));
+        forge.pki.rsa.generateKeyPair(bits, exponent, null, decide(resolve, reject));
       });
     },
     /**
@@ -89,7 +89,7 @@
      */
     readFile: function (path) {
       return new Promise((resolve, reject) => {
-        filesystem.readFile(path, 'utf8', resolver(resolve, reject));
+        filesystem.readFile(path, 'utf8', decide(resolve, reject));
       });
     },
     /**
@@ -99,7 +99,7 @@
      */
     writeFile: function (path, data) {
       return new Promise((resolve, reject) => {
-        filesystem.writeFile(path, data, resolver(resolve, reject));
+        filesystem.writeFile(path, data, decide(resolve, reject));
       });
     }
   };
