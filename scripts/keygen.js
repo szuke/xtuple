@@ -27,7 +27,7 @@
   /**
    * @constructor
    */
-  let DataSource = function () {
+  function DataSource() {
     this.dataSource = require('../node-datasource/lib/ext/datasource').dataSource;
     this.credentials = require(script.config).databaseServer;
     this.credentials.database = script.database;
@@ -46,14 +46,14 @@
         );
       });
     };
-  };
+  }
 
   /**
    * @constructor
    * @param {(string|string[])} query
    * @param {Array.<string>}    parameters
    */
-  let Query = function (query, parameters) {
+  function Query(query, parameters) {
     /**
      * @returns {string}
      */
@@ -69,7 +69,7 @@
     this.parameters = function () {
       return parameters;
     };
-  };
+  }
 
   /** @type {{psi: Object, asn1: Object, pkcs12: Object}} */
   let forge = require('node-forge');
