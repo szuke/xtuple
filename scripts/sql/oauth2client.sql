@@ -14,9 +14,9 @@ INSERT INTO xt.oa2client (
   oa2client_client_x509_pub_cert
 )
 VALUES (
-  '{{ id }}',
+  $1,
   xt.uuid_generate_v4(),
-  '{{ client }}',
+  $2,
   '',
   '',
   null,
@@ -26,9 +26,9 @@ VALUES (
   null,
   null,
   true,
-  '{{ key }}'
+  $3
 )
 ON CONFLICT (oa2client_client_id) DO UPDATE
 SET oa2client_issued = now(),
-    oa2client_client_name = '{{ client }}',
-    oa2client_client_x509_pub_cert = '{{ key }}'
+    oa2client_client_name = $2,
+    oa2client_client_x509_pub_cert = $3

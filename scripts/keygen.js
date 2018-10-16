@@ -23,20 +23,26 @@
      */
     this.execute = function (query) {
       return new Promise((resolve, reject) => {
-        this.dataSource.query(query.sql(), this.credentials, function (error, result) {
-          if (error) {
-            reject(error);
+        this.dataSource.query(
+          query.sql(),
+          Object.assign(this.credentials, {
+            parameters: query.parameters()
+          }),
+          function (error, result) {
+            if (error) {
+              reject(error);
+            }
+            resolve(result);
           }
-          resolve(result);
-        });
+        );
       });
     };
   };
 
   /**
    * @constructor
-   * @param {(string|string[])}      query
-   * @param {Object.<string,string>} parameters
+   * @param {(string|string[])} query
+   * @param {Array.<string>}    parameters
    */
   let Query = function (query, parameters) {
     /**
@@ -46,15 +52,13 @@
       if (Array.isArray(query)) {
         query = query.join(' ');
       }
-      for (let parameter in parameters) {
-        if (parameters.hasOwnProperty(parameter)) {
-          query = query.replace(
-            new RegExp(`{{ ${parameter} }}`, 'g'),
-            parameters[parameter]
-          );
-        }
-      }
       return query;
+    };
+    /**
+     * @returns {Array.<string>}
+     */
+    this.parameters = function () {
+      return parameters;
     };
   };
 
@@ -110,11 +114,11 @@
           return new Promise(Promises.readOAuth2ClientSQLFile);
         })
         .then((sql) => {
-          return erp.execute(new Query(sql, {
-            id: script.iss,
-            client: script.iss,
-            key: forge.pki.publicKeyToPem(keypair.publicKey)
-          }));
+          return erp.execute(new Query(sql, [
+            script.iss,
+            script.iss,
+            forge.pki.publicKeyToPem(keypair.publicKey)
+          ]));
         })
         .then(() => {
           return new Promise(Promises.saveP12File(keypair.privateKey));
@@ -126,13 +130,13 @@
     .then(() => {
       return erp.execute(new Query([
         "INSERT INTO xdruple.xd_site (xd_site_name, xd_site_url)",
-        "VALUES ('{{ name }}', '{{ url }}')",
+        "VALUES ($1, $2)",
         "ON CONFLICT (xd_site_name) DO UPDATE",
-        "SET xd_site_name = '{{ name }}', xd_site_url='{{ url }}'"
-      ], {
-        name: script.application,
-        url: script.application
-      }));
+        "SET xd_site_name = $1, xd_site_url = $2"
+      ], [
+        script.application,
+        script.application
+      ]));
     })
     .catch((error) => {
       console.log(error);
