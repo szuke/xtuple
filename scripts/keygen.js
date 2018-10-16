@@ -104,28 +104,22 @@
   };
 
   let erp = new DataSource();
-  Promise.resolve()
-    .then(() => {
-      return new Promise(Promises.createKeypair);
-    })
-    .then((keypair) => {
-      Promise.resolve()
-        .then(() => {
-          return new Promise(Promises.readOAuth2ClientSQLFile);
-        })
-        .then((sql) => {
-          return erp.execute(new Query(sql, [
-            script.iss,
-            script.iss,
-            forge.pki.publicKeyToPem(keypair.publicKey)
-          ]));
-        })
-        .then(() => {
-          return new Promise(Promises.saveP12File(keypair.privateKey));
-        })
-        .catch((error) => {
-          throw error;
-        });
+  Promise
+    .all([
+      new Promise(Promises.createKeypair),
+      new Promise(Promises.readOAuth2ClientSQLFile)
+    ])
+    .then((results) => {
+      let keypair = results[0];
+      let sql = results[1];
+      return Promise.all([
+        erp.execute(new Query(sql, [
+          script.iss,
+          script.iss,
+          forge.pki.publicKeyToPem(keypair.publicKey)
+        ])),
+        new Promise(Promises.saveP12File(keypair.privateKey))
+      ]);
     })
     .then(() => {
       return erp.execute(new Query([
