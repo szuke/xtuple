@@ -36,7 +36,7 @@ COMMENT ON VIEW api.armemo IS 'A/R Credit and Debit Memo';
 
 
 CREATE OR REPLACE FUNCTION insertARMemo(api.armemo) RETURNS boolean AS $$
--- Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple. 
+-- Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple. 
 -- See www.xtuple.com/CPAL for the full text of the software license.
 DECLARE
   pNew ALIAS FOR $1;
@@ -59,13 +59,15 @@ BEGIN
                                getSalesrepId(pNew.sales_rep),
                                pNew.commission_due,
                                pNew.journal_number,
-                               COALESCE(getCurrId(pNew.currency), baseCurrId()) ) INTO _result;
+                               COALESCE(getCurrId(pNew.currency), baseCurrId()),
+                               pNew.paid ) INTO _result;
     IF (_result <= 0) THEN
       RAISE EXCEPTION 'Function createARCreditMemo failed with result = %', _result;
     END IF;
   ELSE
     IF (pNew.document_type = 'Debit Memo') THEN
-      SELECT createARDebitMemo( null, getCustId(pNew.customer_number),
+      SELECT createARDebitMemo( null, 
+                                getCustId(pNew.customer_number),
                                 pNew.journal_number,
                                 pNew.document_number,
                                 pNew.order_number,
@@ -79,7 +81,8 @@ BEGIN
                                 getTermsId(pNew.terms),
                                 getSalesrepId(pNew.sales_rep),
                                 pNew.commission_due,
-                                COALESCE(getCurrId(pNew.currency), baseCurrId()) ) INTO _result;
+                                COALESCE(getCurrId(pNew.currency), baseCurrId()),
+                                pNew.paid ) INTO _result;
       IF (_result <= 0) THEN
         RAISE EXCEPTION 'Function createARDebitMemo failed with result = %', _result;
       END IF;
