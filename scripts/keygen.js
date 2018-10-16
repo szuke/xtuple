@@ -11,6 +11,20 @@
     .parse(process.argv);
 
   /**
+   * @param {Function} resolve
+   * @param {Function} reject
+   * @returns {Function}
+   */
+  let resolver = function (resolve, reject) {
+    return (error, result) => {
+      if (error) {
+        reject(error);
+      }
+      resolve(result);
+    };
+  };
+
+  /**
    * @constructor
    */
   let DataSource = function () {
@@ -28,12 +42,7 @@
           Object.assign(this.credentials, {
             parameters: query.parameters()
           }),
-          function (error, result) {
-            if (error) {
-              reject(error);
-            }
-            resolve(result);
-          }
+          resolver(resolve, reject)
         );
       });
     };
@@ -71,12 +80,7 @@
      */
     generateRSAKeyPair: function (bits, exponent) {
       return new Promise((resolve, reject) => {
-        forge.pki.rsa.generateKeyPair(bits, exponent, null, (error, keypair) => {
-          if (error) {
-            reject(error);
-          }
-          resolve(keypair);
-        });
+        forge.pki.rsa.generateKeyPair(bits, exponent, null, resolver(resolve, reject));
       });
     },
     /**
@@ -85,13 +89,7 @@
      */
     readFile: function (path) {
       return new Promise((resolve, reject) => {
-        filesystem.readFile(path, 'utf8', (error, content) => {
-            if (error) {
-              reject(error);
-            }
-            resolve(content);
-          }
-        );
+        filesystem.readFile(path, 'utf8', resolver(resolve, reject));
       });
     },
     /**
@@ -101,12 +99,7 @@
      */
     writeFile: function (path, data) {
       return new Promise((resolve, reject) => {
-        filesystem.writeFile(path, data, (error, result) => {
-          if (error) {
-            reject(error);
-          }
-          resolve(result);
-        });
+        filesystem.writeFile(path, data, resolver(resolve, reject));
       });
     }
   };
