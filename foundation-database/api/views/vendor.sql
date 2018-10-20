@@ -1,4 +1,3 @@
-
 SELECT dropIfExists('VIEW', 'vendor', 'api');
 CREATE OR REPLACE VIEW api.vendor AS
  
@@ -211,9 +210,9 @@ VALUES (
   getTaxZoneId(NEW.default_tax_zone),
             '',
             '',
-  COALESCE(getGLAccntId(NEW.default_dist_gl_account), -1),
-  COALESCE(getExpCatId(NEW.default_dist_expense_category), -1),
-  COALESCE(getTaxId(NEW.default_dist_tax_code), -1)
+  getGLAccntId(NEW.default_dist_gl_account),
+  getExpCatId(NEW.default_dist_expense_category),
+  getTaxId(NEW.default_dist_tax_code)
 );
 
 CREATE OR REPLACE RULE "_UPDATE" AS
@@ -300,12 +299,11 @@ UPDATE vendinfo SET
             NEW.address_change ),
   vend_match=NEW.matching_vo_po_amounts,
   vend_taxzone_id=getTaxZoneId(NEW.default_tax_zone),
-  vend_accnt_id=COALESCE(getGLAccntId(NULLIF(NEW.default_dist_gl_account, 'N/A')), -1),
-  vend_expcat_id=COALESCE(getExpCatId(NULLIF(NEW.default_dist_expense_category, 'N/A')), -1),
-  vend_tax_id=COALESCE(getTaxId(NULLIF(NEW.default_dist_tax_code, 'N/A')), -1)
+  vend_accnt_id=getGLAccntId(NULLIF(NEW.default_dist_gl_account, 'N/A')),
+  vend_expcat_id=getExpCatId(NULLIF(NEW.default_dist_expense_category, 'N/A')),
+  vend_tax_id=getTaxId(NULLIF(NEW.default_dist_tax_code, 'N/A'))
 WHERE vend_id=getVendId(OLD.vendor_number);
 
 CREATE OR REPLACE RULE "_DELETE" AS
     ON DELETE TO api.vendor DO INSTEAD
     DELETE FROM public.vendinfo WHERE (vend_number=OLD.vendor_number);
-
